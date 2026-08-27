@@ -16,7 +16,6 @@ b{color:var(--fg);font-weight:650}
 #hero{
   position:relative;min-height:88svh;display:flex;align-items:center;justify-content:center;
   overflow:hidden;border-bottom:1px solid var(--line);
-  transition:min-height .5s ease;
 }
 #hero-bg{position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated}
 .hero-vignette{
@@ -38,14 +37,6 @@ b{color:var(--fg);font-weight:650}
 #hero-addr:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 0 24px rgba(20,241,149,.25)}
 #hero-run{padding:16px 26px;font-size:14px;white-space:nowrap;box-shadow:0 0 22px rgba(20,241,149,.35)}
 .hero-note{margin:16px 0 0;font:12px var(--mono);letter-spacing:.14em;color:var(--dim)}
-/* 查詢開始後 hero 收斂成頁首 */
-#hero.compact{min-height:0}
-#hero.compact .hero-inner{padding:26px 20px}
-#hero.compact .hero-ask,#hero.compact .hero-note{display:none}
-#hero.compact .hero-title{font-size:clamp(30px,6vw,44px);text-shadow:0 0 16px rgba(20,241,149,.3)}
-#hero.compact .hero-tag{letter-spacing:.22em;font-size:10px}
-#hero.compact #hero-form{max-width:560px}
-#hero.compact #hero-addr,#hero.compact #hero-run{padding:11px 16px}
 @media (max-width:560px){
   #hero{min-height:78svh}
   #hero-form{flex-direction:column}
@@ -202,7 +193,11 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .verdict p:not(.big){margin:12px 0 0;color:var(--muted);font-size:14px}
 
 /* ---------- 狗房 ---------- */
-#dog-room{display:block;width:100%;image-rendering:pixelated;background:#101318;border:1px solid var(--line);cursor:pointer}
+#dog-room{display:block;width:100%;image-rendering:pixelated;background:#0e1116;border:1px solid var(--line);touch-action:none;user-select:none}
+/* 查詢開始的過場：房間從下方滑入 */
+#dog-room-panel.reveal{animation:room-in .55s cubic-bezier(.2,.7,.2,1)}
+@keyframes room-in{from{opacity:0;transform:translateY(36px)}to{opacity:1;transform:translateY(0)}}
+@media (prefers-reduced-motion:reduce){#dog-room-panel.reveal{animation:none}}
 
 /* ---------- 數據卡 ---------- */
 .stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);margin-bottom:16px}

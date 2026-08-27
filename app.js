@@ -1318,7 +1318,6 @@ function render(d) {
       tier: isBigDog(r) ? 'big' : isSmallDog(r) ? 'gold' : 'norm' })), d.rows.length);
   }
   drawCard(d);
-  $('#results').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 // ---------- 9. 分享圖 ----------
@@ -1618,10 +1617,6 @@ function initFromUrl() {
 }
 
 // ---------- 全屏 hero ----------
-function heroCompact() {
-  const h = $('#hero');
-  if (h && h.classList) h.classList.add('compact');
-}
 (function wireHero() {
   const form = $('#hero-form');
   if (!form || !form.addEventListener) return;
@@ -1680,8 +1675,17 @@ $('#run').addEventListener('click', async () => {
   $('#error').hidden = true;
   $('#results').hidden = true;
   $('#progress').hidden = false;
-  heroCompact();                       // 全屏 hero 收斂成頁首
-  if (dogRoom()) dogRoom().reset();   // 狗房清場，等狗跑進來
+  if (dogRoom()) dogRoom().reset();   // 狗房清場，等狗從螢幕噴出來
+  // 過場：房間滑入 + 平滑捲動下去（hero 保持原樣，不壓縮）
+  const roomPanel = $('#dog-room-panel');
+  if (roomPanel && roomPanel.classList) {
+    roomPanel.classList.remove('reveal');
+    void (roomPanel.offsetWidth || 0);           // 重觸發動畫
+    roomPanel.classList.add('reveal');
+  }
+  if (roomPanel && roomPanel.scrollIntoView) {
+    setTimeout(() => roomPanel.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+  }
   $('#run').disabled = true;
   $('#cancel').hidden = false;
   try {

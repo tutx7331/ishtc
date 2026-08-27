@@ -87,7 +87,7 @@
 
   // ---------- 房間 ----------
   const cv = typeof document !== 'undefined' && document.getElementById('dog-room');
-  if (!cv) { if (typeof window !== 'undefined') window.DogRoom = { stamp: stamp, reset: noop, addDog: noop, setAll: noop }; return; }
+  if (!cv) { if (typeof window !== 'undefined') window.DogRoom = { stamp: stamp, reset: noop, addDog: noop, setAll: noop, renderNow: noop }; return; }
   function noop() {}
 
   const panel = document.getElementById('dog-room-panel');
@@ -95,203 +95,309 @@
   const ctx = cv.getContext('2d');
   const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+  // 物理常數
+  const G = 980;            // 重力 px/s²
+  const WALL_R = 0.72;      // 撞牆反彈保留的速度
+  const FLOOR_R = 0.48;     // 落地反彈
+  const THUMP = 330;        // 落地速度超過這個值會跌倒
+  const LAUNCH_GAP = 0.14;  // 兩隻狗噴出的間隔秒數
+
   let W = 0, H = 0, dpr = 1, floorTop = 0;
-  let dogs = [];           // 場上的狗
-  let total = 0;           // 全部幣數（可能超過上限）
-  let ticker = [];         // 跑馬燈內容
-  let tickerX = 0;
-  let monitors = [];       // 每個螢幕的行情序列
-  let raf = 0, last = 0, monLast = 0;
+  let dogs = [];            // 場上的狗
+  let pending = [];         // 排隊等著從螢幕噴出來的
+  let total = 0;
+  let ticker = [], tickerX = 0;
+  let monitors = [];        // {x,y,w,h,data[],bias,flash}
+  let raf = 0, last = 0, monLast = 0, launchT = 0;
   let inView = true;
+  let held = null;          // 被抓著的狗
+  let trail = [];           // 指標軌跡，用來算丟出去的速度
+  let downAt = null;        // 判斷點擊 vs 拖曳
 
   const maxDogs = () => (W < 520 ? 70 : 120);
+  const bandTop = () => floorTop + 16;
+  const bandBot = () => H - 14;
 
   function resize() {
     const w = cv.clientWidth || (cv.parentElement ? cv.parentElement.clientWidth - 44 : 600);
     if (!w) return;
     dpr = Math.min(2, (window.devicePixelRatio || 1));
     W = w;
-    H = Math.round(Math.max(240, Math.min(400, w * 0.42)));
+    H = Math.round(Math.max(340, Math.min(560, w * 0.5)));
     cv.width = Math.round(W * dpr);
     cv.height = Math.round(H * dpr);
     cv.style.height = H + 'px';
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.imageSmoothingEnabled = false;
-    floorTop = Math.round(H * 0.52);
+    floorTop = Math.round(H * 0.46);
+    layoutMonitors();
   }
 
-  function mkMonitors() {
-    monitors = [];
-    for (let i = 0; i < 6; i++) {
-      const arr = [];
-      let v = 0.5;
-      for (let j = 0; j < 22; j++) { v = Math.min(0.95, Math.max(0.05, v + (Math.random() - 0.48) * 0.18)); arr.push(v); }
-      monitors.push(arr);
+  // ---- 行情牆（房間的視覺主角，也是狗的出生點）----
+  function layoutMonitors() {
+    const n = Math.max(3, Math.min(7, Math.round(W / 210)));
+    const span = W * 0.92, left = W * 0.04, gap = 14;
+    const mw = (span - gap * (n - 1)) / n;
+    const mid = (n - 1) / 2;
+    const next = [];
+    for (let i = 0; i < n; i++) {
+      const big = Math.abs(i - mid) < 0.6;         // 中央那台大一點
+      const mh = big ? 52 : 40;
+      next.push({
+        x: left + i * (mw + gap), w: mw, h: mh,
+        y: floorTop - 14 - mh,
+        data: (monitors[i] && monitors[i].data) || mkSeries(),
+        bias: (monitors[i] && monitors[i].bias) != null ? monitors[i].bias : (Math.random() - 0.5) * 0.05,
+        flash: 0,
+      });
     }
+    monitors = next;
   }
-
+  function mkSeries() {
+    const arr = []; let v = 0.5;
+    for (let j = 0; j < 26; j++) { v = clamp01(v + (Math.random() - 0.5) * 0.16); arr.push(v); }
+    return arr;
+  }
+  function clamp01(v) { return Math.min(0.92, Math.max(0.08, v)); }
   function tickMonitors() {
     for (const m of monitors) {
-      const v = Math.min(0.95, Math.max(0.05, m[m.length - 1] + (Math.random() - 0.48) * 0.18));
-      m.push(v); m.shift();
+      m.data.push(clamp01(m.data[m.data.length - 1] + (Math.random() - 0.5) * 0.16 + m.bias));
+      m.data.shift();
     }
   }
 
+  // ---- 狗 ----
   function mkDog(info) {
-    const depth = 0.15 + Math.random() * 0.85;
     return {
       sym: info.sym || '?', mfeX: info.mfeX, tier: info.tier || 'norm',
-      x: Math.random() < 0.5 ? -20 : W + 20,   // 從左右門口跑進來
-      tx: 30 + Math.random() * (W - 60),
-      depth: depth, tdepth: depth,
+      x: W / 2, groundY: bandTop() + Math.random() * (bandBot() - bandTop()),
+      h: 0, vx: 0, vh: 0, rot: 0, vrot: 0,
       dir: 1, phase: Math.random() * 10,
+      state: 'run', tx: 0, idleT: 0, sayT: 0, tumbleT: 0,
       speed: 26 + Math.random() * 30,
-      idleT: 0, sayT: 0,
     };
   }
 
+  /** 從隨機一台螢幕把狗噴出來 */
+  function launch(info) {
+    const d = mkDog(info);
+    const m = monitors[Math.floor(Math.random() * monitors.length)] || { x: W / 2, y: floorTop - 60, w: 40, h: 40 };
+    m.flash = 0.3;
+    const sx = m.x + m.w / 2, sy = m.y + m.h * 0.5;
+    d.x = sx;
+    d.groundY = bandTop() + Math.random() * (bandBot() - bandTop());
+    d.h = Math.max(20, d.groundY - sy);
+    d.vx = (Math.random() < 0.5 ? -1 : 1) * (90 + Math.random() * 190);
+    d.vh = 90 + Math.random() * 180;
+    d.vrot = (Math.random() - 0.5) * 9;
+    d.dir = d.vx >= 0 ? 1 : -1;
+    d.state = 'air';
+    dogs.push(d);
+  }
+
+  function pickWanderTarget(d) {
+    d.tx = 24 + Math.random() * (W - 48);
+    d.tGround = bandTop() + Math.random() * (bandBot() - bandTop());
+  }
+
   function updateDog(d, dt) {
-    d.phase += dt * (d.idleT > 0 ? 0.35 : 1.1);
+    d.phase += dt * (d.state === 'run' ? 1.1 : 0.35);
     if (d.sayT > 0) d.sayT -= dt;
-    if (d.idleT > 0) {                                     // 發呆中
-      d.idleT -= dt;
-      if (d.idleT <= 0) {
-        d.tx = 24 + Math.random() * (W - 48);
-        d.tdepth = 0.12 + Math.random() * 0.88;
+
+    if (d.state === 'held') return;              // 位置由指標決定
+
+    if (d.state === 'air') {
+      d.x += d.vx * dt;
+      d.h += d.vh * dt;
+      d.vh -= G * dt;
+      d.rot += d.vrot * dt;
+      // 牆壁反彈
+      if (d.x < 16) { d.x = 16; d.vx = Math.abs(d.vx) * WALL_R; d.vrot = -d.vrot; }
+      if (d.x > W - 16) { d.x = W - 16; d.vx = -Math.abs(d.vx) * WALL_R; d.vrot = -d.vrot; }
+      // 天花板（跑馬燈下緣）
+      const maxH = d.groundY - 34;
+      if (d.h > maxH) { d.h = maxH; d.vh = -Math.abs(d.vh) * 0.5; }
+      d.dir = d.vx >= 0 ? 1 : -1;
+      // 落地
+      if (d.h <= 0) {
+        d.h = 0;
+        if (Math.abs(d.vh) > THUMP) {            // 摔太重 → 跌倒
+          d.state = 'tumble';
+          d.tumbleT = 0.5 + Math.random() * 0.3;
+          d.rot = d.dir > 0 ? Math.PI / 2 : -Math.PI / 2;
+          d.vx = 0; d.vh = 0; d.vrot = 0;
+        } else if (Math.abs(d.vh) > 90) {        // 還有力 → 再彈一下
+          d.vh = -d.vh * FLOOR_R;
+          d.vx *= 0.85;
+        } else {                                  // 站穩 → 開始跑
+          d.vh = 0; d.vx = 0; d.rot = 0; d.vrot = 0;
+          d.state = 'run';
+          pickWanderTarget(d);
+        }
       }
       return;
     }
-    const dx = d.tx - d.x, dd = d.tdepth - d.depth;
-    const dist = Math.abs(dx);
-    if (dist < 4 && Math.abs(dd) < 0.03) {                 // 到目的地 → 發呆一下
+
+    if (d.state === 'tumble') {                  // 躺著 → 彈回站姿
+      d.tumbleT -= dt;
+      if (d.tumbleT <= 0) {
+        d.rot *= 0.7;
+        if (Math.abs(d.rot) < 0.06) { d.rot = 0; d.state = 'run'; pickWanderTarget(d); }
+      }
+      return;
+    }
+
+    if (d.state === 'idle') {
+      d.idleT -= dt;
+      if (d.idleT <= 0) { d.state = 'run'; pickWanderTarget(d); }
+      return;
+    }
+
+    // run：地板上遊走
+    const dx = d.tx - d.x, dg = (d.tGround || d.groundY) - d.groundY;
+    if (Math.abs(dx) < 4 && Math.abs(dg) < 3) {
+      d.state = 'idle';
       d.idleT = 0.8 + Math.random() * 2.6;
       return;
     }
-    const v = d.speed * (0.6 + d.depth * 0.5) * dt;
+    const depth = (d.groundY - bandTop()) / Math.max(1, bandBot() - bandTop());
+    const v = d.speed * (0.6 + depth * 0.5) * dt;
     d.x += Math.sign(dx) * Math.min(Math.abs(dx), v);
-    d.depth += Math.sign(dd) * Math.min(Math.abs(dd), dt * 0.12);
+    d.groundY += Math.sign(dg) * Math.min(Math.abs(dg), dt * 22);
     if (Math.abs(dx) > 2) d.dir = Math.sign(dx);
   }
 
-  function dogScreen(d) {
-    const s = (W < 520 ? 1.6 : 2) * (0.62 + d.depth * 0.55) * (d.tier === 'big' ? 1.3 : 1);
-    const y = floorTop + 12 + d.depth * (H - floorTop - 26);
-    return { s: s, y: y };
+  function dogScale(d) {
+    const depth = (d.groundY - bandTop()) / Math.max(1, bandBot() - bandTop());
+    return (W < 520 ? 1.6 : 2) * (0.66 + depth * 0.5) * (d.tier === 'big' ? 1.3 : 1);
   }
 
   // ---------- 繪製 ----------
-  function drawRoom(t) {
-    // 牆與地板
-    ctx.fillStyle = '#101318';
+  function drawRoom() {
+    // 牆
+    ctx.fillStyle = '#0e1116';
     ctx.fillRect(0, 0, W, floorTop);
-    ctx.fillStyle = '#161b24';
+    // 地板：往下漸暗
+    const fg = ctx.createLinearGradient(0, floorTop, 0, H);
+    fg.addColorStop(0, '#171c26');
+    fg.addColorStop(1, '#10141b');
+    ctx.fillStyle = fg;
     ctx.fillRect(0, floorTop, W, H - floorTop);
-    // 地板透視線（2.5D 感）
-    ctx.strokeStyle = 'rgba(232,236,244,.05)';
+    ctx.strokeStyle = 'rgba(232,236,244,.045)';
     ctx.lineWidth = 1;
     for (let i = 1; i <= 4; i++) {
-      const y = floorTop + (H - floorTop) * (i / 4.6);
+      const y = floorTop + (H - floorTop) * (i / 4.8);
       ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
     }
-    ctx.beginPath(); ctx.moveTo(W * 0.18, H); ctx.lineTo(W * 0.30, floorTop); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(W * 0.82, H); ctx.lineTo(W * 0.70, floorTop); ctx.stroke();
-    // 踢腳線
-    ctx.fillStyle = '#0b0d12';
+    ctx.beginPath(); ctx.moveTo(W * 0.16, H); ctx.lineTo(W * 0.28, floorTop); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(W * 0.84, H); ctx.lineTo(W * 0.72, floorTop); ctx.stroke();
+    ctx.fillStyle = '#0a0c10';
     ctx.fillRect(0, floorTop - 3, W, 3);
 
-    // ---- 行情牆：桌 + 6 螢幕 ----
-    const deskX = Math.round(W * 0.06), deskW = Math.round(W * 0.46);
-    const deskY = floorTop - 8, deskH = 34;
-    // 螢幕 2 排 x 3
-    const mw = Math.floor(deskW / 3) - 8, mh = 26;
-    for (let i = 0; i < 6; i++) {
-      const col = i % 3, row = Math.floor(i / 3);
-      const mx = deskX + col * (mw + 10), my = deskY - 34 - row * (mh + 8);
+    // ---- 行情牆 ----
+    // 長桌
+    const deskL = W * 0.04 - 8, deskW2 = W * 0.92 + 16;
+    ctx.fillStyle = '#20252f';
+    ctx.fillRect(deskL, floorTop - 14, deskW2, 7);
+    ctx.fillStyle = '#151920';
+    ctx.fillRect(deskL + 10, floorTop - 7, 6, 7);
+    ctx.fillRect(deskL + deskW2 - 16, floorTop - 7, 6, 7);
+    for (const m of monitors) {
+      if (m.flash > 0) m.flash -= 0.016;
+      const up = m.data[m.data.length - 1] >= m.data[0];
+      const col = up ? '20,241,149' : '255,77,109';
+      // 螢幕外框與面板
       ctx.fillStyle = '#05070b';
-      ctx.fillRect(mx - 2, my - 2, mw + 4, mh + 4);
-      ctx.fillStyle = '#0a0f16';
-      ctx.fillRect(mx, my, mw, mh);
-      const m = monitors[i] || [];
-      const up = m.length > 1 && m[m.length - 1] >= m[0];
-      ctx.strokeStyle = up ? 'rgba(20,241,149,.85)' : 'rgba(255,77,109,.85)';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      for (let j = 0; j < m.length; j++) {
-        const px2 = mx + 2 + (j / (m.length - 1)) * (mw - 4);
-        const py = my + mh - 3 - m[j] * (mh - 6);
-        j ? ctx.lineTo(px2, py) : ctx.moveTo(px2, py);
+      ctx.fillRect(m.x - 3, m.y - 3, m.w + 6, m.h + 6);
+      ctx.fillStyle = m.flash > 0 ? 'rgba(232,236,244,.9)' : '#0b0f16';
+      ctx.fillRect(m.x, m.y, m.w, m.h);
+      if (m.flash <= 0) {
+        // 走勢線
+        ctx.strokeStyle = 'rgba(' + col + ',.9)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (let j = 0; j < m.data.length; j++) {
+          const px2 = m.x + 3 + (j / (m.data.length - 1)) * (m.w - 6);
+          const py = m.y + m.h - 4 - m.data[j] * (m.h - 8);
+          j ? ctx.lineTo(px2, py) : ctx.moveTo(px2, py);
+        }
+        ctx.stroke();
+        // 面板泛光
+        ctx.fillStyle = 'rgba(' + col + ',.06)';
+        ctx.fillRect(m.x, m.y, m.w, m.h);
       }
-      ctx.stroke();
-      // 螢幕微光
-      ctx.fillStyle = up ? 'rgba(20,241,149,.05)' : 'rgba(255,77,109,.05)';
-      ctx.fillRect(mx, my, mw, mh);
+      // 螢幕腳架
+      ctx.fillStyle = '#1b2029';
+      ctx.fillRect(m.x + m.w / 2 - 3, m.y + m.h + 3, 6, 6);
+      // 光暈映在牆上與地板倒影
+      const glow = ctx.createLinearGradient(0, floorTop, 0, floorTop + 46);
+      glow.addColorStop(0, 'rgba(' + col + ',.10)');
+      glow.addColorStop(1, 'rgba(' + col + ',0)');
+      ctx.fillStyle = glow;
+      ctx.fillRect(m.x, floorTop, m.w, 46);
     }
-    // 桌面與桌腳
-    ctx.fillStyle = '#232833';
-    ctx.fillRect(deskX - 6, deskY, deskW + 12, 6);
-    ctx.fillStyle = '#171b22';
-    ctx.fillRect(deskX, deskY + 6, 5, deskH - 6);
-    ctx.fillRect(deskX + deskW - 5, deskY + 6, 5, deskH - 6);
-    // 咖啡杯
-    ctx.fillStyle = '#e8ecf4';
-    ctx.fillRect(deskX + deskW - 26, deskY - 6, 7, 6);
-    // 椅子（剪影）
-    ctx.fillStyle = '#0d1016';
-    ctx.fillRect(deskX + deskW * 0.42, deskY + 10, 26, 5);
-    ctx.fillRect(deskX + deskW * 0.42 + 10, deskY + 15, 5, 14);
-    ctx.fillRect(deskX + deskW * 0.42 + 2, deskY - 16, 5, 27);
 
-    // ---- 右側：層架 + 植物 + 霓虹 ----
-    const shX = Math.round(W * 0.84);
-    ctx.fillStyle = '#232833';
-    ctx.fillRect(shX, floorTop - 66, Math.round(W * 0.1), 4);
-    ctx.fillRect(shX, floorTop - 40, Math.round(W * 0.1), 4);
-    // 植物
-    ctx.fillStyle = '#7d5a2e';
-    ctx.fillRect(shX + 8, floorTop - 78, 8, 12);
+    // 左角：盆栽
+    const px0 = W * 0.035, py0 = floorTop + 26;
+    ctx.fillStyle = '#3a2c1a';
+    ctx.fillRect(px0, py0 - 12, 16, 12);
+    ctx.fillStyle = '#2b2013';
+    ctx.fillRect(px0, py0 - 3, 16, 3);
+    ctx.fillStyle = '#0f9d6a';
+    ctx.fillRect(px0 + 2, py0 - 30, 4, 18);
+    ctx.fillRect(px0 + 10, py0 - 34, 4, 22);
     ctx.fillStyle = '#14f195';
-    ctx.fillRect(shX + 6, floorTop - 88, 4, 10);
-    ctx.fillRect(shX + 12, floorTop - 90, 4, 12);
-    ctx.fillRect(shX + 9, floorTop - 94, 3, 8);
-    // 霓虹字
+    ctx.fillRect(px0 + 6, py0 - 38, 4, 26);
+
+    // 右上：霓虹
     ctx.font = '700 13px ui-monospace,Menlo,Consolas,monospace';
     ctx.textAlign = 'right';
     ctx.fillStyle = 'rgba(153,69,255,.9)';
     ctx.shadowColor = 'rgba(153,69,255,.8)'; ctx.shadowBlur = 8;
-    ctx.fillText('ISHTC', W - 14, 40);
+    ctx.fillText('ISHTC', W - 14, 44);
     ctx.shadowBlur = 0;
 
-    // ---- 跑馬燈 ----
+    // 跑馬燈
     ctx.fillStyle = '#05070b';
     ctx.fillRect(0, 6, W, 16);
     if (ticker.length) {
       ctx.font = '700 10px ui-monospace,Menlo,Consolas,monospace';
       ctx.textAlign = 'left';
-      const text = ticker.join('   ');
-      const tw = ctx.measureText(text).width + 60;
+      const sp = ctx.measureText('   ').width;
+      let tw = 60;
+      for (const seg of ticker) tw += ctx.measureText(seg).width + sp;
       tickerX = (tickerX + (reduced ? 0 : 0.6)) % tw;
       for (let off = -tw; off < W + tw; off += tw) {
         let x = 8 - tickerX + off;
         for (const seg of ticker) {
           ctx.fillStyle = /x$/.test(seg) ? '#14f195' : '#7d8697';
           ctx.fillText(seg, x, 17);
-          x += ctx.measureText(seg).width + ctx.measureText('   ').width;
+          x += ctx.measureText(seg).width + sp;
         }
       }
     }
   }
 
   function drawDogs() {
-    const sorted = dogs.slice().sort((a, b) => a.depth - b.depth);
+    const sorted = dogs.slice().sort((a, b) => a.groundY - b.groundY);
     for (const d of sorted) {
-      const { s, y } = dogScreen(d);
-      // 影子
-      ctx.fillStyle = 'rgba(0,0,0,.35)';
+      const s = dogScale(d);
+      const y = d.groundY - d.h;
+      // 影子（跳起來時縮小變淡）
+      const air = Math.min(1, d.h / 120);
+      ctx.fillStyle = 'rgba(0,0,0,' + (0.35 - air * 0.22) + ')';
       ctx.beginPath();
-      ctx.ellipse(d.x, y + 1, 8 * s, 2 * s, 0, 0, Math.PI * 2);
+      ctx.ellipse(d.x, d.groundY + 1, (8 - air * 3) * s, 2 * s, 0, 0, Math.PI * 2);
       ctx.fill();
-      stamp(ctx, d.x, y, s, d.tier, d.dir, d.phase, d.idleT <= 0);
-      // 對話泡泡
+      if (d.rot) {
+        ctx.save();
+        ctx.translate(d.x, y - 5 * s);
+        ctx.rotate(d.rot);
+        stamp(ctx, 0, 5 * s, s, d.tier, d.dir, d.phase, false);
+        ctx.restore();
+      } else {
+        stamp(ctx, d.x, y, s, d.tier, d.dir, d.phase, d.state === 'run');
+      }
       if (d.sayT > 0) {
         const label = d.sym + (isFinite(d.mfeX) ? '  ' + (d.mfeX >= 100 ? Math.round(d.mfeX) : d.mfeX.toFixed(1)) + 'x' : '');
         ctx.font = '700 11px ui-monospace,Menlo,Consolas,monospace';
@@ -307,35 +413,93 @@
     }
   }
 
+  function step(dt, t) {
+    if (t - monLast > 700) { tickMonitors(); monLast = t; }
+    launchT -= dt;
+    if (pending.length && launchT <= 0) { launch(pending.shift()); launchT = LAUNCH_GAP; }
+    for (const d of dogs) updateDog(d, dt);
+  }
+
   function frame(t) {
     raf = 0;
     const dt = Math.min(0.05, (t - last) / 1000 || 0.016);
     last = t;
-    if (t - monLast > 700) { tickMonitors(); monLast = t; }
-    for (const d of dogs) updateDog(d, dt);
-    drawRoom(t);
+    step(dt, t);
+    drawRoom();
     drawDogs();
     if (!reduced && inView && !document.hidden && !panel.hidden) raf = requestAnimationFrame(frame);
   }
+  function kick() { if (!raf && !reduced) { last = performance.now(); raf = requestAnimationFrame(frame); } }
+  function drawOnce() { drawRoom(); drawDogs(); }
 
-  function kick() { if (!raf) { last = performance.now(); raf = requestAnimationFrame(frame); } }
-
-  // 靜態模式（prefers-reduced-motion）：只畫一次
-  function drawOnce() { drawRoom(performance.now()); drawDogs(); }
-
-  // ---------- 事件 ----------
-  cv.addEventListener('click', function (ev) {
+  // ---------- 抓狗 / 丟狗 / 點狗 ----------
+  function canvasPos(ev) {
     const r = cv.getBoundingClientRect();
-    const mx = (ev.clientX - r.left), my = (ev.clientY - r.top);
+    return { x: ev.clientX - r.left, y: ev.clientY - r.top };
+  }
+  function hitDog(p) {
     let best = null, bd = 1e9;
     for (const d of dogs) {
-      const p = dogScreen(d);
-      const dx = mx - d.x, dy = my - (p.y - 6 * p.s);
+      const s = dogScale(d);
+      const dx = p.x - d.x, dy = p.y - (d.groundY - d.h - 6 * s);
       const dist = dx * dx + dy * dy;
       if (dist < bd) { bd = dist; best = d; }
     }
-    if (best && bd < 40 * 40) { best.sayT = 2.6; if (reduced) drawOnce(); }
+    return (best && bd < (34 * 34)) ? best : null;
+  }
+  cv.addEventListener('pointerdown', function (ev) {
+    const p = canvasPos(ev);
+    const d = hitDog(p);
+    downAt = { x: p.x, y: p.y, dog: d, moved: false };
+    if (d) {
+      held = d;
+      d.state = 'held';
+      d.rot = 0; d.vrot = 0; d.sayT = 0;
+      trail = [{ x: p.x, y: p.y, t: performance.now() }];
+      try { cv.setPointerCapture(ev.pointerId); } catch (e) {}
+      cv.style.cursor = 'grabbing';
+      kick();
+    }
   });
+  cv.addEventListener('pointermove', function (ev) {
+    const p = canvasPos(ev);
+    if (downAt && (Math.abs(p.x - downAt.x) > 7 || Math.abs(p.y - downAt.y) > 7)) downAt.moved = true;
+    if (!held) {
+      cv.style.cursor = hitDog(p) ? 'grab' : 'default';
+      return;
+    }
+    // 抓著走：x 直接跟、深度夾在地板帶內、高度 = 地面 − 指標
+    held.x = Math.max(16, Math.min(W - 16, p.x));
+    held.groundY = Math.max(bandTop(), Math.min(bandBot(), Math.max(p.y, bandTop())));
+    held.h = Math.max(0, held.groundY - p.y);
+    trail.push({ x: p.x, y: p.y, t: performance.now() });
+    if (trail.length > 6) trail.shift();
+    if (reduced) drawOnce();
+  });
+  function release(ev) {
+    if (held) {
+      // 用最近 ~90ms 的軌跡算丟出去的速度
+      const now = performance.now();
+      const old = trail.find((q) => now - q.t < 110) || trail[0];
+      const dt = Math.max(0.024, (now - old.t) / 1000);
+      const p = ev ? canvasPos(ev) : trail[trail.length - 1];
+      held.vx = (p.x - old.x) / dt * 0.9;
+      held.vh = -((p.y - old.y) / dt) * 0.9;
+      held.vrot = held.vx / 60;
+      held.state = 'air';
+      if (Math.abs(held.vx) < 40 && Math.abs(held.vh) < 40) held.vh = 20;   // 輕放也小跳一下
+      held = null;
+      cv.style.cursor = 'default';
+      kick();
+    } else if (downAt && !downAt.moved && downAt.dog) {
+      downAt.dog.sayT = 2.6;                     // 純點擊 → 顯示幣名
+      if (reduced) drawOnce();
+    }
+    downAt = null;
+  }
+  cv.addEventListener('pointerup', release);
+  cv.addEventListener('pointercancel', function () { release(null); });
+
   window.addEventListener('resize', function () { resize(); if (reduced) drawOnce(); });
   document.addEventListener('visibilitychange', function () { if (!document.hidden) kick(); });
   if (typeof IntersectionObserver === 'function') {
@@ -347,58 +511,63 @@
 
   function updateHint() {
     if (!hintEl) return;
-    const golds = dogs.filter((d) => d.tier !== 'norm').length;
-    let t = '每一隻幣是一條狗 —— 亮金戴皇冠的是大金狗、金色是小金狗。點狗可以看是哪一隻幣。';
-    if (total > dogs.length) t += '　房間塞不下，只顯示 ' + dogs.length + ' / ' + total + ' 隻（金狗優先）。';
-    else if (dogs.length) t += '　共 ' + dogs.length + ' 隻' + (golds ? '，其中 ' + golds + ' 隻金狗' : '') + '。';
+    const shown = dogs.length + pending.length;
+    const golds = dogs.filter((d) => d.tier !== 'norm').length
+      + pending.filter((d) => d.tier && d.tier !== 'norm').length;
+    let t = '金色是金狗，戴皇冠的是大金狗。點狗看幣名，抓起來丟也可以。';
+    if (total > shown) t += '　房間塞不下，只顯示 ' + shown + ' / ' + total + ' 隻（金狗優先）。';
+    else if (shown) t += '　共 ' + shown + ' 隻' + (golds ? '，其中 ' + golds + ' 隻金狗' : '') + '。';
     hintEl.textContent = t;
   }
 
   // ---------- API ----------
   window.DogRoom = {
     stamp: stamp,
-    /** 同步畫一幀（截圖與測試用）。steps 可先推進幾步物理讓姿勢自然 */
+    /** 同步畫一幀（截圖與測試用）。steps 推進物理讓姿勢自然 */
     renderNow: function (steps) {
-      resize(); if (!monitors.length) mkMonitors();
-      for (let i = 0; i < (steps || 0); i++) for (const d of dogs) updateDog(d, 0.033);
-      drawRoom(performance.now());
+      resize();
+      while (pending.length && dogs.length < maxDogs()) launch(pending.shift());
+      for (let i = 0; i < (steps || 0); i++) step(0.033, performance.now() + i * 33);
+      drawRoom();
       drawDogs();
     },
     reset: function () {
-      resize(); mkMonitors();
-      dogs = []; total = 0; ticker = []; tickerX = 0;
+      resize();
+      dogs = []; pending = []; total = 0; ticker = []; tickerX = 0; held = null;
       if (panel) panel.hidden = false;
       updateHint();
       reduced ? drawOnce() : kick();
     },
     addDog: function (info) {
       total++;
-      if (dogs.length >= maxDogs()) { updateHint(); return; }
-      dogs.push(mkDog(info));
+      if (dogs.length + pending.length >= maxDogs()) { updateHint(); return; }
+      pending.push(info);
       updateHint();
-      reduced ? drawOnce() : kick();
+      reduced ? this.renderNow(1) : kick();
     },
     setAll: function (list, totalCount) {
-      resize(); if (!monitors.length) mkMonitors();
+      resize();
       total = (totalCount != null ? totalCount : list.length);
-      // 金狗優先，再依 MFE 高低
       const rank = { big: 0, gold: 1, norm: 2 };
       const pick = list.slice().sort(function (a, b) {
         return (rank[a.tier] - rank[b.tier]) || ((b.mfeX || 0) - (a.mfeX || 0));
       }).slice(0, maxDogs());
-      dogs = pick.map(mkDog);
-      // 已經在場的直接落地，不用全部從門口跑進來
-      for (const d of dogs) { d.x = 24 + Math.random() * (W - 48); }
+      // 已經在場上的留著繼續玩，缺的排隊噴出來
+      const have = new Set(dogs.map((d) => d.sym).concat(pending.map((p) => p.sym)));
+      const want = new Set(pick.map((p) => p.sym));
+      dogs = dogs.filter((d) => want.has(d.sym));
+      pending = pending.filter((p) => want.has(p.sym));
+      for (const p of pick) if (!have.has(p.sym)) pending.push(p);
       ticker = list.slice().sort(function (a, b) { return (b.mfeX || 0) - (a.mfeX || 0); })
         .slice(0, 8).map(function (r) { return r.sym + ' +' + Math.round(r.mfeX || 0) + 'x'; });
       if (panel) panel.hidden = false;
       updateHint();
-      reduced ? drawOnce() : kick();
+      reduced ? this.renderNow(4) : kick();
     },
   };
 
   resize();
-  mkMonitors();
+
 })();
 
 /* ---------- FOMO Hero 背景 ----------
@@ -443,8 +612,10 @@
     const jackpot = Math.random() < 0.12;
     const v = jackpot ? Math.round(100 + Math.random() * 9900)
       : Math.round(2 + Math.random() * 48);
+    // 避開中央標題區，只在左右兩側出現
+    const side = Math.random() < 0.5;
     floats.push({
-      x: 30 + Math.random() * (W - 90),
+      x: side ? 30 + Math.random() * (W * 0.26) : W * 0.72 + Math.random() * (W * 0.24 - 60),
       y: H * (0.25 + Math.random() * 0.6),
       text: '+' + v + 'x', gold: jackpot,
       alpha: 0, life: 0, vy: 14 + Math.random() * 12,
