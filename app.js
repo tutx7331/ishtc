@@ -1165,6 +1165,14 @@ const SANS = '"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif';
 const MONO = 'ui-monospace,SFMono-Regular,Menlo,Consolas,monospace';
 const cardFont = (w, sz, mono) => w + ' ' + sz + 'px ' + (mono ? MONO : SANS);
 
+/** 超出寬度就截掉並補上省略號，避免長幣名撞到右邊的數字 */
+function clipText(x, text, maxW) {
+  let t = String(text || '');
+  if (x.measureText(t).width <= maxW) return t;
+  while (t.length > 1 && x.measureText(t + '…').width > maxW) t = t.slice(0, -1);
+  return t + '…';
+}
+
 /** 等比例填滿整個畫布（等同 CSS background-size: cover） */
 function drawCover(x, img, W, H) {
   const s = Math.max(W / img.width, H / img.height);
@@ -1224,31 +1232,31 @@ function drawCard(d) {
   x.beginPath(); x.moveTo(PAD, y); x.lineTo(W - PAD, y); x.stroke();
 
   // ---- 主數字：神之手 ----
-  y += 110;
+  y += 88;
   x.textAlign = 'left';
-  x.font = cardFont(500, 32, false);
+  x.font = cardFont(500, 30, false);
   x.fillStyle = '#7d8697';
   x.fillText('每一隻都賣在最高點，我會有', PAD, y);
 
-  y += 118;
-  x.font = cardFont(700, 112, true);
+  y += 104;
+  x.font = cardFont(700, 100, true);
   x.fillStyle = '#14f195';
   x.fillText(fmtUSD(s.ideal), PAD, y);
 
   // ---- 對照：實際 ----
-  y += 96;
-  x.font = cardFont(500, 30, false);
+  y += 76;
+  x.font = cardFont(500, 28, false);
   x.fillStyle = '#7d8697';
   const actLabel = '實際只拿到';
   x.fillText(actLabel, PAD, y);
   const labelW = x.measureText(actLabel).width;
-  x.font = cardFont(700, 44, true);
+  x.font = cardFont(700, 40, true);
   x.fillStyle = '#e8ecf4';
   x.fillText(fmtUSD(s.actual), PAD + labelW + 40, y);
 
   // ---- 錯過的錢（主視覺）----
-  y += 60;
-  const boxH = 280;
+  y += 42;
+  const boxH = 220;
   x.fillStyle = 'rgba(255,77,109,.10)';
   x.fillRect(PAD, y, W - PAD * 2, boxH);
   x.fillStyle = '#ff4d6d';
@@ -1256,13 +1264,13 @@ function drawCard(d) {
   x.strokeStyle = 'rgba(255,77,109,.3)';
   x.strokeRect(PAD, y, W - PAD * 2, boxH);
 
-  x.font = cardFont(600, 30, false);
+  x.font = cardFont(600, 28, false);
   x.fillStyle = '#ff4d6d';
-  x.fillText('我錯過了', PAD + 44, y + 76);
-  x.font = cardFont(700, 108, true);
-  x.fillText(fmtUSD(s.missed), PAD + 44, y + 206);
+  x.fillText('我錯過了', PAD + 44, y + 62);
+  x.font = cardFont(700, 92, true);
+  x.fillText(fmtUSD(s.missed), PAD + 44, y + 170);
 
-  y += boxH + 90;
+  y += boxH + 66;
 
   // ---- 四格指標 ----
   const cells = [
@@ -1273,31 +1281,77 @@ function drawCard(d) {
   ];
   const gw = W - PAD * 2, colW = gw / 4;
   x.strokeStyle = 'rgba(232,236,244,.14)';
+  x.lineWidth = 1;
   x.beginPath(); x.moveTo(PAD, y); x.lineTo(W - PAD, y); x.stroke();
   cells.forEach((cell, i) => {
     const cx = PAD + i * colW;
     if (i > 0) {
-      x.beginPath(); x.moveTo(cx, y + 16); x.lineTo(cx, y + 174); x.stroke();
+      x.beginPath(); x.moveTo(cx, y + 14); x.lineTo(cx, y + 136); x.stroke();
     }
     x.textAlign = 'left';
-    x.font = cardFont(600, 19, true);
+    x.font = cardFont(600, 18, true);
     x.fillStyle = '#565f70';
-    x.fillText(cell[0], cx + (i ? 26 : 0), y + 58);
-    x.font = cardFont(700, 50, true);
+    x.fillText(cell[0], cx + (i ? 24 : 0), y + 48);
+    x.font = cardFont(700, 44, true);
     x.fillStyle = cell[2];
-    x.fillText(cell[1], cx + (i ? 26 : 0), y + 130);
+    x.fillText(cell[1], cx + (i ? 24 : 0), y + 112);
   });
-  y += 190;
+  y += 148;
   x.beginPath(); x.moveTo(PAD, y); x.lineTo(W - PAD, y); x.stroke();
+
+  // ---- MFE 前五名 ----
+  // 右對齊的欄位邊界，跟網頁表格同一套順序
+  const COLX = { cost: 486, actual: 656, missed: 840, mfe: W - PAD };
+  const top5 = d.rows.slice()
+    .filter((r) => isFinite(r.mfeX))
+    .sort((a, b) => b.mfeX - a.mfeX)
+    .slice(0, 5);
+
+  // 一隻都算不出 MFE 就整段不畫，不要留一個空表頭
+  if (top5.length) {
+    y += 62;
+    x.font = cardFont(700, 18, true);
+    x.fillStyle = '#565f70';
+    x.textAlign = 'left';
+    x.fillText('TOP5', PAD, y);
+    x.textAlign = 'right';
+    x.fillText('成本', COLX.cost, y);
+    x.fillText('實拿', COLX.actual, y);
+    x.fillText('賣飛', COLX.missed, y);
+    x.fillText('MFE', COLX.mfe, y);
+
+    y += 12;
+    x.strokeStyle = 'rgba(232,236,244,.14)';
+    x.beginPath(); x.moveTo(PAD, y); x.lineTo(W - PAD, y); x.stroke();
+
+    const ROW_H = 42;
+    top5.forEach((r, i) => {
+      const ry = y + 36 + i * ROW_H;
+      x.textAlign = 'left';
+      x.font = cardFont(700, 25, true);
+      x.fillStyle = '#e8ecf4';
+      x.fillText(clipText(x, r.symbol, 250), PAD, ry);
+
+      x.textAlign = 'right';
+      x.font = cardFont(500, 24, true);
+      x.fillStyle = '#7d8697';
+      x.fillText(fmtUSD(r.costUSD), COLX.cost, ry);
+      x.fillStyle = '#e8ecf4';
+      x.fillText(fmtUSD(r.actualUSD), COLX.actual, ry);
+      x.fillStyle = '#ff4d6d';
+      x.fillText(fmtUSD(r.missedUSD), COLX.missed, ry);
+      x.font = cardFont(700, 26, true);
+      x.fillStyle = isBigDog(r) ? '#ffb020' : '#14f195';
+      x.fillText(fmtX(r.mfeX), COLX.mfe, ry);
+    });
+
+    y += 30 + top5.length * ROW_H;
+    x.beginPath(); x.moveTo(PAD, y); x.lineTo(W - PAD, y); x.stroke();
+  }
 
   // ---- 頁尾 ----
   const footY = H - PAD - 16;
   x.textAlign = 'left';
-  if (s.worst) {
-    x.font = cardFont(500, 24, false);
-    x.fillStyle = '#565f70';
-    x.fillText('最痛的一隻 ' + s.worst.symbol + '　最高漲了 ' + fmtX(s.worst.mfeX), PAD, footY - 36);
-  }
   const handle = ($('#handle').value || '').trim();
   if (handle) {
     x.font = cardFont(700, 26, true);
