@@ -98,6 +98,7 @@ repo 裡沒有任何金鑰，也不會送到任何第三方伺服器。
 | 成交紀錄 + 買入後最高價（**一把搞定**） | [Solana Tracker](https://www.solanatracker.io/data-api) | ✅ 免費方案 |
 | 錢包交易紀錄（沒填 Solana Tracker 時的替代） | [Helius](https://helius.dev) Enhanced Transactions | ✅ 免費方案 |
 | 池子位址、現價、代幣符號 | [DexScreener](https://docs.dexscreener.com/api/reference) | ❌ |
+| SOL 歷史匯率（把成本換算成美元） | Binance → Coinbase → GeckoTerminal 依序嘗試 | ❌ |
 | 買入後最高價（備援，選填） | [Birdeye](https://bds.birdeye.so) OHLCV | ✅ 免費方案 |
 | 買入後最高價（沒填 key 時的預設） | [GeckoTerminal](https://www.geckoterminal.com/dex-api) OHLCV | ❌ |
 
