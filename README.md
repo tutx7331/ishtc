@@ -119,6 +119,23 @@ Solana Tracker 快的原因不只是限速：它有 `/price/history/range` 端�
 
 ---
 
+## 讓訪客免 API key 直接查（代理模式）
+
+`worker/` 目錄是一支 Cloudflare Worker（免費方案即可跑）：
+key 藏在 Worker 的環境變數裡，網頁改打 Worker 代為查詢。內建：
+
+- **最高價快取**：熱門幣一次查詢供所有人共用，省下大半 Solana Tracker 額度
+- **每月額度守門**：用完自動回「冷卻」，網頁顯示
+  「查詢用量過大，暫時冷卻中」並開放訪客自填免費 key 繼續用
+- **每 IP 限流**：防止被外人惡意刷爆
+- **查詢記錄**（選用 D1）：記下查過的地址、統計結果與署名，之後做排行榜用
+
+部署步驟見 [worker/README.md](worker/README.md)。部署完把 Worker 網址填進
+`app.js` 最上面的 `DEFAULT_PROXY` 即可。升級 API 方案後只要改
+`wrangler.toml` 的兩個額度數字重新部署，前端完全不用動。
+
+---
+
 ## 已知誤差
 
 這是一份估算，不是會計報表。已知會不準的地方：

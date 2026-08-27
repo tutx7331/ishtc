@@ -138,6 +138,13 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .err{margin-top:14px;color:var(--red);font-size:13px;font-family:var(--mono);white-space:pre-wrap;
   border-left:3px solid var(--red);padding-left:12px}
 
+/* 額度冷卻橫幅 */
+.cooldown{
+  margin-bottom:16px;padding:13px 16px;font-size:13px;line-height:1.7;
+  color:var(--amber);background:rgba(255,176,32,.08);
+  border:1px solid rgba(255,176,32,.4);border-left:3px solid var(--amber);
+}
+
 /* ---------- 結論 ---------- */
 .verdict{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--accent);padding:26px;margin-bottom:16px}
 .verdict .big{font-size:clamp(22px,4.4vw,34px);font-weight:750;letter-spacing:-.025em;line-height:1.35;margin:0}

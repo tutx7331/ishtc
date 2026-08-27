@@ -28,6 +28,15 @@ const EXCLUDE = new Set([
   '7dHbWXmci3dT8UFYWYZweBLXgycu7Y3iL6trKn1Y7ARj', // stSOL
   'jupSoLaHXQiZZTSfEWMTRRgpnyFm8f6sZdosWBjx93v',  // jupSOL
 ]);
+// ---------- 代理模式 ----------
+// 站長部署 worker/ 之後把網址填進 DEFAULT_PROXY，訪客就不用自備 API key。
+// 留空 = 純 BYOK 模式（現在的行為）。也可用 localStorage 的 fomo:proxy 覆寫（測試用）。
+const DEFAULT_PROXY = '';
+const PROXY_URL = (function () {
+  try { return (localStorage.getItem('fomo:proxy') || '').trim() || DEFAULT_PROXY; }
+  catch (e) { return DEFAULT_PROXY; }
+})().replace(/\/+$/, '');
+
 const GT = 'https://api.geckoterminal.com/api/v2';
 const DS = 'https://api.dexscreener.com';
 const BE = 'https://public-api.birdeye.so';
@@ -145,7 +154,15 @@ async function getJSON(url, opts) {
       const lim = res.headers.get('x-ratelimit-limit');
       if (rem !== null) beQuota = { remaining: Number(rem), limit: lim === null ? NaN : Number(lim) };
     }
-    if (res.status === 429) { sawRateLimit = true; await sleep(4000 * (i + 1)); continue; }
+    if (res.status === 429) {
+      // 代理的額度守門：不是暫時限流，是這個月共用額度用完了，重試沒有意義
+      if (res.headers.get('x-cooldown')) {
+        const err = new Error('查詢用量過大，暫時冷卻中');
+        err.cooldown = true;
+        throw err;
+      }
+      sawRateLimit = true; await sleep(4000 * (i + 1)); continue;
+    }
     if (res.status === 404) return null;
     if (!res.ok) {
       // 5xx 是對方伺服器暫時出問題，值得等久一點再試；4xx 再試也沒用
@@ -203,9 +220,11 @@ async function fetchWalletTxs(address, key, maxTx, onTick) {
   let before = '';
   while (out.length < maxTx) {
     if (abortFlag) throw new Error('__ABORT__');
-    const url = 'https://api.helius.xyz/v0/addresses/' + address + '/transactions'
-      + '?api-key=' + encodeURIComponent(key) + '&limit=100'
-      + (before ? '&before=' + before : '');
+    const url = key
+      ? 'https://api.helius.xyz/v0/addresses/' + address + '/transactions'
+        + '?api-key=' + encodeURIComponent(key) + '&limit=100'
+        + (before ? '&before=' + before : '')
+      : PROXY_URL + '/helius/txs?address=' + address + (before ? '&before=' + before : '');
     let batch;
     try {
       batch = await getJSON(url, { tries: 5 });
@@ -608,9 +627,13 @@ async function fetchPeakSolanaTracker(mint, sinceTs) {
   const key = 'st:' + mint + ':' + Math.floor(sinceTs / 3600);
   let hit = cacheGet(key);
   if (!hit) {
-    const j = await getJSON(ST + '/price/history/range?token=' + mint
-      + '&time_from=' + Math.floor(sinceTs) + '&time_to=' + now,
-      { limiter: stLimit, headers: { 'x-api-key': stKey } });
+    const j = stKey
+      ? await getJSON(ST + '/price/history/range?token=' + mint
+          + '&time_from=' + Math.floor(sinceTs) + '&time_to=' + now,
+          { limiter: stLimit, headers: { 'x-api-key': stKey } })
+      : await getJSON(PROXY_URL + '/st/range?token=' + mint
+          + '&time_from=' + Math.floor(sinceTs) + '&time_to=' + now,
+          { limiter: stLimit });
     const h = j && j.price && j.price.highest;
     if (!h || !(h.price > 0)) return null;
     hit = [h.price, h.time || 0, h.marketcap || 0];
@@ -680,7 +703,7 @@ async function fetchPeak(pool, sinceTs) {
 
 /** 有 Birdeye key 就優先用它，失敗再退回 GeckoTerminal */
 async function fetchPeakBest(mint, pool, sinceTs) {
-  if (stKey) {
+  if (stKey || PROXY_URL) {
     try {
       const r = await fetchPeakSolanaTracker(mint, sinceTs);
       if (r) return r;
@@ -799,7 +822,7 @@ async function run() {
   if (!addrs.length) throw new Error('請至少輸入一個 Solana 地址。');
   const bad = addrs.filter((a) => !isSolAddress(a));
   if (bad.length) throw new Error('這些看起來不是 Solana 地址：\n' + bad.join('\n'));
-  if (!stKey && !key) {
+  if (!stKey && !key && !PROXY_URL) {
     throw new Error('至少要填一把 key。\n'
       + '建議兩把都填：Helius 抓交易紀錄（覆蓋最完整），Solana Tracker 算最高價（最快最準）。\n'
       + '只填 Helius 也能跑，最高價會走免金鑰的 GeckoTerminal，慢很多。\n'
@@ -905,7 +928,7 @@ async function run() {
     };
     setProg(40 + (i / withPool.length) * 58,
       '算最高價 ' + (i + 1) + '/' + withPool.length + '（' + meta.symbol + '）… 剩 '
-      + etaText(withPool.length - i, stKey ? 150 : birdeyeKey ? 50 : 25) + quotaText());
+      + etaText(withPool.length - i, (stKey || PROXY_URL) ? 150 : birdeyeKey ? 50 : 25) + quotaText());
 
     let peak = null;
     try {
@@ -1579,6 +1602,12 @@ function download(name, blob) {
 }
 
 // ---------- 11. 綁定 ----------
+if (PROXY_URL) {
+  // 代理模式：訪客不用 key，整區收起來；額度冷卻時才重新展開
+  $('#key-zone').hidden = true;
+  $('#proxy-note').hidden = false;
+}
+
 $('#helius-key').value = localStorage.getItem('fomo:key') || '';
 $('#birdeye-key').value = localStorage.getItem('fomo:bekey') || '';
 $('#st-key').value = localStorage.getItem('fomo:stkey') || '';
@@ -1586,6 +1615,7 @@ $('#addresses').value = localStorage.getItem('fomo:addrs') || '';
 
 function bestRate() {
   if ($('#st-key').value.trim()) return { perMin: 150, note: '（Solana Tracker 加速中）' };
+  if (PROXY_URL) return { perMin: 150, note: '（本站代付查詢額度）' };
   if ($('#birdeye-key').value.trim()) return { perMin: 50, note: '（Birdeye 加速中，填 Solana Tracker key 還能再快 3 倍）' };
   return { perMin: 25, note: '（填 Solana Tracker key 可以快 6 倍）' };
 }
@@ -1654,9 +1684,35 @@ $('#run').addEventListener('click', async () => {
   $('#run').disabled = true;
   $('#cancel').hidden = false;
   try {
-    render(await run());
+    const d = await run();
+    render(d);
+    if (PROXY_URL) {
+      // 回報一筆查詢記錄給排行榜（fire-and-forget，失敗不影響使用者）
+      try {
+        fetch(PROXY_URL + '/log', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            addresses: d.addrs,
+            handle: ($('#handle').value || '').trim() || undefined,
+            stats: {
+              n: d.sum.n, cost: d.sum.cost, ideal: d.sum.ideal, actual: d.sum.actual,
+              missed: d.sum.missed, bigRate: d.sum.bigRate, smallRate: d.sum.smallRate,
+              efficiency: d.sum.efficiency,
+            },
+          }),
+        }).catch(function () {});
+      } catch (e2) { /* 記錄失敗不影響使用者 */ }
+    }
   } catch (e) {
-    if (e.message !== '__ABORT__') {
+    if (e.cooldown) {
+      // 共用額度用完：亮出冷卻橫幅 + 開放自填 key 的欄位
+      $('#cooldown').hidden = false;
+      $('#key-zone').hidden = false;
+      $('#proxy-note').hidden = true;
+      $('#error').textContent = '⚠ 查詢用量過大，暫時冷卻中。可以在上方填入你自己的免費 API key 繼續查詢。';
+      $('#error').hidden = false;
+    } else if (e.message !== '__ABORT__') {
       $('#error').textContent = '⚠ ' + e.message;
       $('#error').hidden = false;
       $('#intro').hidden = false;

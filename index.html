@@ -27,6 +27,17 @@
         placeholder="7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU&#10;9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"></textarea>
     </label>
 
+    <div class="cooldown" id="cooldown" hidden>
+      ⚠ <b>查詢用量過大，暫時冷卻中</b> —— 本站代付的共用額度這個月用完了。
+      你可以在下方填入自己的免費 API key 繼續查詢（申請約 30 秒），或等下個月額度重置。
+    </div>
+
+    <p class="hint" id="proxy-note" hidden>
+      本站已代付查詢額度，<b>直接貼地址查詢即可，不用申請任何 API key</b>。
+      查詢的地址與統計結果會被記錄用於排行榜。
+    </p>
+
+    <div id="key-zone">
     <label class="field">
       <span class="label">Helius API Key<span class="opt">交易紀錄</span>
         <small>免費申請 → <a href="https://dashboard.helius.dev" target="_blank" rel="noopener">dashboard.helius.dev</a>（每月 100 萬 credits）。
@@ -62,6 +73,8 @@
         </p>
       </div>
     </details>
+
+    </div><!-- /key-zone -->
 
     <details class="advanced" open>
       <summary>進階設定</summary>
@@ -204,8 +217,10 @@
       <li><b>神化率</b>：實際 ÷ 神之手。100% 代表你是神，5% 代表你跟大家一樣。</li>
       <li><b>大金狗</b>：MFE ≥ 100x <u>且</u> 該幣最高市值 ≥ $10M。<b>小金狗</b>：MFE ≥ 10x <u>且</u> 最高市值 ≥ $1M。</li>
     </ul>
-    <p class="hint">全程在你的瀏覽器裡跑，地址與 API key 不會送到任何第三方伺服器，只會直接打
-    Helius / DexScreener / GeckoTerminal / Birdeye。分享卡的背景圖與 logo 也只在本機處理，不會上傳。</p>
+    <p class="hint">自備 API key 時，全程在你的瀏覽器裡跑，地址與 key 只會直接送往資料源
+    （Helius / Solana Tracker / DexScreener / GeckoTerminal / Birdeye / Binance / Coinbase）。
+    使用本站代付額度查詢時，查詢會經過本站的代理伺服器，<b>查過的地址與統計結果會被記錄用於排行榜</b>。
+    分享卡的背景圖與 logo 一律只在本機處理，不會上傳。</p>
   </section>
 
 </main>
