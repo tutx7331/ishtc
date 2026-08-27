@@ -10,6 +10,7 @@
 </head>
 <body>
 
+<div id="landing">
 <section id="hero">
   <canvas id="hero-bg"></canvas>
   <div class="hero-vignette"></div>
@@ -102,23 +103,51 @@
       <button id="clear-cache" class="ghost">清除快取</button>
     </div>
 
-    <div id="progress" hidden>
-      <div class="bar"><div class="bar-glow" id="bar-glow"></div><div class="bar-fill" id="bar-fill"></div></div>
-      <p class="prog-text" id="prog-text"></p>
-    </div>
-
     <p class="err" id="error" hidden></p>
   </section>
   </details>
 
-  <!-- ===== 狗房 ===== -->
-  <section class="panel" id="dog-room-panel" hidden>
-    <h2>你的操盤室</h2>
-    <p class="hint" id="dog-room-hint">金色是金狗，戴皇冠的是大金狗。點狗可以看是哪一隻幣。</p>
-    <canvas id="dog-room"></canvas>
+  <!-- ===== 結果區 ===== -->
+
+  <section class="panel intro" id="intro">
+    <h2>這工具在算什麼</h2>
+    <ul>
+      <li><b>最高倍數</b>：買入後曾漲到的最高價 ÷ 你的買入均價。</li>
+      <li><b>神之手價值</b>：每一隻都賣在最高點能拿到的錢。</li>
+      <li><b>錯過總額</b> ＝ 神之手 − 實際拿到 ＝ <b>賣飛</b> ＋ <b>雲霄飛車</b>。</li>
+      <li><b>神化率</b>：實際 ÷ 神之手。100% 是神，5% 是正常人。</li>
+      <li><b>大金狗</b>：≥ 100x 且最高市值 ≥ $10M；<b>小金狗</b>：≥ 10x 且 ≥ $1M。</li>
+    </ul>
+    <p class="hint">自備 key 時全程在你的瀏覽器執行；用本站額度時查詢經過本站代理，紀錄用於排行榜。圖片僅在本機處理。</p>
   </section>
 
-  <!-- ===== 結果區 ===== -->
+</main>
+
+<footer class="wrap">
+  <p>Helius · Solana Tracker · DexScreener · GeckoTerminal · Birdeye　—　這不是投資建議，只是一份帳單。</p>
+</footer>
+</div><!-- /landing -->
+
+
+
+<!-- ===== 操盤室（全螢幕場景）===== -->
+<section id="dog-room-panel" hidden>
+  <canvas id="dog-room"></canvas>
+
+  <div id="screen-frame">
+    <div id="screen-head">
+      <span class="scr-dot"></span><span class="scr-dot"></span><span class="scr-dot"></span>
+      <span class="scr-title">ISHTC · TERMINAL</span>
+    </div>
+    <div id="screen-body">
+      <div id="screen-terminal">
+        <pre id="binstream"></pre>
+        <div id="progress" hidden>
+          <div class="bar"><div class="bar-glow" id="bar-glow"></div><div class="bar-fill" id="bar-fill"></div></div>
+          <p class="prog-text" id="prog-text"></p>
+        </div>
+        <p class="hint" id="dog-room-hint">金色是金狗，戴皇冠的是大金狗。點狗看幣名，抓起來丟也可以。</p>
+      </div>
   <section id="results" hidden>
 
     <div class="verdict" id="verdict"></div>
@@ -210,24 +239,11 @@
     </div>
 
   </section>
+    </div>
+  </div>
 
-  <section class="panel intro" id="intro">
-    <h2>這工具在算什麼</h2>
-    <ul>
-      <li><b>最高倍數</b>：買入後曾漲到的最高價 ÷ 你的買入均價。</li>
-      <li><b>神之手價值</b>：每一隻都賣在最高點能拿到的錢。</li>
-      <li><b>錯過總額</b> ＝ 神之手 − 實際拿到 ＝ <b>賣飛</b> ＋ <b>雲霄飛車</b>。</li>
-      <li><b>神化率</b>：實際 ÷ 神之手。100% 是神，5% 是正常人。</li>
-      <li><b>大金狗</b>：≥ 100x 且最高市值 ≥ $10M；<b>小金狗</b>：≥ 10x 且 ≥ $1M。</li>
-    </ul>
-    <p class="hint">自備 key 時全程在你的瀏覽器執行；用本站額度時查詢經過本站代理，紀錄用於排行榜。圖片僅在本機處理。</p>
-  </section>
-
-</main>
-
-<footer class="wrap">
-  <p>Helius · Solana Tracker · DexScreener · GeckoTerminal · Birdeye　—　這不是投資建議，只是一份帳單。</p>
-</footer>
+  <button id="back-home" type="button">↩ 回首頁</button>
+</section>
 
 <script src="app.js"></script>
 <script src="dogs.js"></script>

@@ -192,12 +192,68 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .verdict .big em{font-style:normal;color:var(--accent);font-family:var(--mono);font-size:.94em}
 .verdict p:not(.big){margin:12px 0 0;color:var(--muted);font-size:14px}
 
-/* ---------- 狗房 ---------- */
-#dog-room{display:block;width:100%;image-rendering:pixelated;background:#0e1116;border:1px solid var(--line);touch-action:none;user-select:none}
-/* 查詢開始的過場：房間從下方滑入 */
-#dog-room-panel.reveal{animation:room-in .55s cubic-bezier(.2,.7,.2,1)}
-@keyframes room-in{from{opacity:0;transform:translateY(36px)}to{opacity:1;transform:translateY(0)}}
-@media (prefers-reduced-motion:reduce){#dog-room-panel.reveal{animation:none}}
+/* ---------- 操盤室：全螢幕場景 ---------- */
+#dog-room-panel{
+  position:fixed;inset:0;z-index:60;background:#0a0b0e;overflow:hidden;
+}
+#dog-room-panel.reveal{animation:room-in .5s cubic-bezier(.2,.7,.2,1)}
+@keyframes room-in{from{opacity:0;transform:scale(1.03)}to{opacity:1;transform:none}}
+#dog-room{
+  position:absolute;inset:0;width:100%;height:100%;
+  image-rendering:pixelated;touch-action:none;user-select:none;display:block;
+}
+/* 首頁離場過場 */
+#landing.leaving{animation:landing-out .45s ease-in forwards}
+@keyframes landing-out{to{opacity:0;transform:translateY(-34px)}}
+@media (prefers-reduced-motion:reduce){
+  #dog-room-panel.reveal,#landing.leaving{animation:none}
+}
+
+/* ---- 牆上大螢幕（DOM，內容可捲動互動）---- */
+#screen-frame{
+  position:absolute;left:50%;top:5%;transform:translateX(-50%);
+  width:min(920px,90vw);height:50%;
+  display:flex;flex-direction:column;
+  background:#05070b;border:3px solid #202734;
+  box-shadow:0 0 0 2px #05070b,0 6px 40px rgba(0,0,0,.6),0 0 36px rgba(20,241,149,.10);
+}
+#screen-head{
+  flex:none;display:flex;align-items:center;gap:6px;
+  padding:8px 12px;background:#0b0e14;border-bottom:1px solid #202734;
+}
+.scr-dot{width:8px;height:8px;border-radius:50%;background:#2e3542}
+.scr-dot:first-child{background:rgba(255,77,109,.7)}
+.scr-title{margin-left:8px;font:700 10px var(--mono);letter-spacing:.2em;color:var(--dim)}
+#screen-body{
+  flex:1;overflow-y:auto;overflow-x:hidden;padding:16px 18px;
+  scrollbar-width:thin;scrollbar-color:#2e3542 transparent;
+}
+#screen-body::-webkit-scrollbar{width:8px}
+#screen-body::-webkit-scrollbar-thumb{background:#2e3542}
+#screen-body .panel{background:#0b0e14;border-color:#202734;padding:16px;margin-bottom:14px}
+#screen-body .stat{background:#0b0e14}
+#screen-body .stat-grid{border-color:#202734;background:#202734}
+#screen-body .verdict{background:#0b0e14;border-color:#202734}
+
+/* 查詢中的終端畫面 */
+#screen-terminal{padding:6px 2px}
+#binstream{
+  margin:0 0 14px;height:180px;overflow:hidden;
+  font:12px/1.7 var(--mono);color:rgba(20,241,149,.42);
+  white-space:pre-wrap;word-break:break-all;
+}
+#screen-terminal .hint{color:var(--dim)}
+
+#back-home{
+  position:absolute;top:14px;left:14px;z-index:5;
+  background:rgba(10,11,14,.7);border:1px solid var(--line-2);color:var(--muted);
+  padding:9px 14px;font:700 12px var(--mono);letter-spacing:.08em;cursor:pointer;
+}
+#back-home:hover{border-color:var(--accent);color:var(--accent)}
+@media (max-width:560px){
+  #screen-frame{width:94vw;top:4%;height:56%}
+  #screen-body{padding:10px}
+}
 
 /* ---------- 數據卡 ---------- */
 .stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);margin-bottom:16px}

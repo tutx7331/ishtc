@@ -1616,6 +1616,42 @@ function initFromUrl() {
   } catch (e) { return false; }
 }
 
+// ---------- 場景切換 ----------
+let landingHideTimer = 0;
+function enterRoom() {
+  const landing = $('#landing');
+  const scene = $('#dog-room-panel');
+  if (landing && landing.classList) {
+    landing.classList.add('leaving');
+    clearTimeout(landingHideTimer);
+    landingHideTimer = setTimeout(() => { landing.hidden = true; }, 430);
+  } else if (landing) {
+    landing.hidden = true;
+  }
+  if (scene) {
+    scene.hidden = false;
+    if (scene.classList) {
+      scene.classList.remove('reveal');
+      void (scene.offsetWidth || 0);
+      scene.classList.add('reveal');
+    }
+  }
+}
+function exitRoom() {
+  clearTimeout(landingHideTimer);
+  const landing = $('#landing');
+  const scene = $('#dog-room-panel');
+  if (scene) scene.hidden = true;
+  if (landing) {
+    landing.hidden = false;
+    if (landing.classList) landing.classList.remove('leaving');
+  }
+}
+(function wireBack() {
+  const b = $('#back-home');
+  if (b && b.addEventListener) b.addEventListener('click', exitRoom);
+})();
+
 // ---------- 全屏 hero ----------
 (function wireHero() {
   const form = $('#hero-form');
@@ -1675,22 +1711,15 @@ $('#run').addEventListener('click', async () => {
   $('#error').hidden = true;
   $('#results').hidden = true;
   $('#progress').hidden = false;
-  if (dogRoom()) dogRoom().reset();   // 狗房清場，等狗從螢幕噴出來
-  // 過場：房間滑入 + 平滑捲動下去（hero 保持原樣，不壓縮）
-  const roomPanel = $('#dog-room-panel');
-  if (roomPanel && roomPanel.classList) {
-    roomPanel.classList.remove('reveal');
-    void (roomPanel.offsetWidth || 0);           // 重觸發動畫
-    roomPanel.classList.add('reveal');
-  }
-  if (roomPanel && roomPanel.scrollIntoView) {
-    setTimeout(() => roomPanel.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
-  }
+  enterRoom();                        // 換頁過場：首頁離場 → 全螢幕操盤室
+  if (dogRoom()) dogRoom().reset();   // 清場，等狗從螢幕噴出來
+  $('#screen-terminal').hidden = false;   // 大螢幕先跑終端動畫
   $('#run').disabled = true;
   $('#cancel').hidden = false;
   try {
     const d = await run();
     render(d);
+    $('#screen-terminal').hidden = true;   // 終端讓位給報告
     try { history.replaceState(null, '', shareUrlFor(d.addrs)); } catch (e2) {}
     if (PROXY_URL) {
       // 回報一筆查詢記錄給排行榜（fire-and-forget，失敗不影響使用者）
@@ -1712,6 +1741,7 @@ $('#run').addEventListener('click', async () => {
     }
   } catch (e) {
     if (e.cooldown) {
+      exitRoom();
       // 共用額度用完：亮出冷卻橫幅 + 展開進階區 + 開放自填 key 的欄位
       const mp = $('#manual-panel'); if (mp) mp.open = true;
       $('#cooldown').hidden = false;
@@ -1720,6 +1750,7 @@ $('#run').addEventListener('click', async () => {
       $('#error').textContent = '⚠ 查詢用量過大，暫時冷卻中。';
       $('#error').hidden = false;
     } else if (e.message !== '__ABORT__') {
+      exitRoom();
       const mp = $('#manual-panel'); if (mp) mp.open = true;
       $('#error').textContent = '⚠ ' + e.message;
       $('#error').hidden = false;
