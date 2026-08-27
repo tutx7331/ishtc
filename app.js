@@ -1191,8 +1191,6 @@ function render(d) {
     ['神化率', fmtPct(eff), '實際 ÷ 神之手', grade[1]],
     ['大金狗捕獲率', fmtPct(s.bigRate), s.bigDogs + ' / ' + s.n + ' 隻　100x 且市值破 $10M', s.bigDogs ? 'good' : ''],
     ['小金狗捕獲率', fmtPct(s.smallRate), s.smallDogs + ' / ' + s.n + ' 隻　10x 且市值破 $1M', s.smallDogs ? 'good' : ''],
-    ['全損率', fmtPct(s.dead / s.n), s.dead + ' 隻的現價不到你成本的 5%', 'bad'],
-    ['已死率', fmtPct(s.rugged / s.n), s.rugged + ' 隻流動性見底或跌掉 99%', 'bad'],
     ['平均到頂天數', isFinite(s.avgDaysToPeak) ? s.avgDaysToPeak.toFixed(1) + ' 天' : '—', '從你第一次買到最高點', ''],
   ];
   $('#stat-grid').innerHTML = stats.map((r) =>
@@ -1454,7 +1452,7 @@ function drawCard(d) {
     ['大金狗捕獲率', fmtPct(s.bigRate), '#ffb020'],
     ['小金狗捕獲率', fmtPct(s.smallRate), '#ffb020'],
     ['神化率', fmtPct(s.efficiency), '#e8ecf4'],
-    ['全損率', fmtPct(s.dead / s.n), '#ff4d6d'],
+    ['平均到頂天數', isFinite(s.avgDaysToPeak) ? s.avgDaysToPeak.toFixed(1) + ' 天' : '—', '#e8ecf4'],
   ];
   const gw = W - PAD * 2, colW = gw / 4;
   x.strokeStyle = 'rgba(232,236,244,.14)';
