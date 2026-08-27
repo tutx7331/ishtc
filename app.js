@@ -8,9 +8,20 @@
 const WSOL  = 'So11111111111111111111111111111111111111112';
 const USDC  = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 const USDT  = 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB';
-// 這些不算 memecoin，從報告排除
+// 這些不算 memecoin，從報告排除。
+// 穩定幣特別重要：它們的價格常有離譜的錯誤報價（USD1 就出現過 $999 的假高點），
+// 不排掉會被算成幾百倍的假金狗。
 const EXCLUDE = new Set([
   WSOL, USDC, USDT,
+  'USD1ttGY1N17NEEHLmELoaybftRBUSErhqYiQzvEmuB',  // USD1 (World Liberty Financial)
+  'JuprjznTrTSp2UFa3ZBUFgwdAmtZCq4MQCwysN55USD',  // JupUSD
+  '2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo', // PYUSD
+  'USDSwr9ApdHk5bvJKMjzff41FfuX8bSxdKcR81vTwcA',  // USDS
+  '9zNQRsGLjNKwCUU5Gq5LR8beUCPzQMVMqKAi3SSZh54u', // FDUSD
+  'DEkqHyPN7GMRJ5cArtQFAWefqbZb33Hyf6s5iCwjEonT', // USDe
+  '2u1tszSeqZ3qBWF3uNGPFc8TzMk2tdiwknnRMWGWjGWH', // USDG
+  'HzwqbKZw8HxMN6bF2yFZNrht3c2iXXzpKcFu7uBEDKtr', // EURC
+  'A1KLoBrKBde8Ty9qtNQUtq3C2ortoC3u7twggz7sEto6', // USDY
   'mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So',  // mSOL
   'J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn', // jitoSOL
   'bSo13r4TkiE4KumL71LsHTPpL2euBYLFx6h9HP3piy1',  // bSOL
@@ -251,14 +262,16 @@ function buildPositionsFromTrades(trades, minCost) {
   const pos = new Map();
   const touched = new Set();
 
-  const get = (mint, dec) => {
+  const get = (mint, tok) => {
     let p = pos.get(mint);
     if (!p) {
       p = { mint: mint, boughtAmt: 0, costUSD: 0, soldAmt: 0, proceedsUSD: 0,
             netAmt: 0, firstBuyTs: 0, lastTs: 0, buys: 0, sells: 0, movedOut: 0,
-            decimals: dec || 0 };
+            decimals: (tok && tok.decimals) || 0, symbol: (tok && tok.symbol) || '' };
       pos.set(mint, p);
     }
+    // DexScreener 查不到池子的幣就靠這個名字，不然只能顯示地址
+    if (!p.symbol && tok && tok.symbol) p.symbol = tok.symbol;
     return p;
   };
 
@@ -276,7 +289,7 @@ function buildPositionsFromTrades(trades, minCost) {
 
     if (!toQuote) {                              // 買進 to.address
       touched.add(to.address);
-      const p = get(to.address, to.token && to.token.decimals);
+      const p = get(to.address, to.token);
       const amt = Number(to.amount) || 0;
       if (amt > 0 && usd > 0) {
         p.boughtAmt += amt;
@@ -289,7 +302,7 @@ function buildPositionsFromTrades(trades, minCost) {
     }
     if (!fromQuote) {                            // 賣出 from.address
       touched.add(from.address);
-      const p = get(from.address, from.token && from.token.decimals);
+      const p = get(from.address, from.token);
       const amt = Number(from.amount) || 0;
       if (amt > 0 && usd > 0) {
         p.soldAmt += amt;
@@ -602,6 +615,21 @@ function peakMcapOf(r) {
   if (!(r.mcap > 0) || !(r.price > 0) || !(r.peak > 0)) return NaN;
   return (r.mcap / r.price) * r.peak;
 }
+/**
+ * 用「最高點市值」回推「最高點價格」，跟資料源回報的最高價對照。
+ * 兩個數字來自同一時刻，差到 10 倍以上就代表其中一個是錯誤報價 ——
+ * 穩定幣特別容易出現這種假插針（USD1 就報過 $999，實際只值 $1）。
+ * 市值序列比單筆成交價穩定，所以以市值推回來的為準。
+ */
+const PEAK_SANITY_RATIO = 10;
+function sanePeak(reportedPeak, peakMcap, currentPrice, currentMcap) {
+  if (!(reportedPeak > 0) || !(peakMcap > 0) || !(currentPrice > 0) || !(currentMcap > 0)) return null;
+  const implied = (peakMcap * currentPrice) / currentMcap;
+  if (!(implied > 0)) return null;
+  if (reportedPeak > implied * PEAK_SANITY_RATIO) return implied;
+  return null;
+}
+
 function isBigDog(r) { return r.mfeX >= BIG_DOG.x && r.peakMcap >= BIG_DOG.mcap; }
 function isSmallDog(r) { return r.mfeX >= SMALL_DOG.x && r.peakMcap >= SMALL_DOG.mcap; }
 
@@ -729,19 +757,26 @@ async function run() {
     (d, t) => setProg(30 + (d / t) * 10, '查池子與現價… ' + d + '/' + t));
 
   // 7.5 逐幣算 MFE
+  // 只有 GeckoTerminal 需要池子位址；Solana Tracker 與 Birdeye 都是按代幣地址查。
+  // 所以有 key 的時候，DexScreener 找不到池子的幣（多半已經死透）還是要算進來 ——
+  // 那些正是你賠最慘的，把它們丟掉會讓分母變小、金狗率虛高。
+  const canSkipPool = !!(stKey || birdeyeKey);
   const rows = [];
   const noPool = [];
   const withPool = [];
   for (const p of positions) {
     const meta = info.get(p.mint);
-    if (meta && meta.pool) withPool.push(p); else noPool.push(p.mint);
+    if ((meta && meta.pool) || canSkipPool) withPool.push(p); else noPool.push(p.mint);
   }
 
   let aborted = false;
   for (let i = 0; i < withPool.length; i++) {
     if (abortFlag) { aborted = true; break; }
     const p = withPool[i];
-    const meta = info.get(p.mint);
+    const meta = info.get(p.mint) || {
+      pool: '', liq: 0, symbol: p.symbol || shortAddr(p.mint), name: '',
+      price: 0, mcap: 0, createdAt: 0,
+    };
     setProg(40 + (i / withPool.length) * 58,
       '算最高價 ' + (i + 1) + '/' + withPool.length + '（' + meta.symbol + '）… 剩 '
       + etaText(withPool.length - i, stKey ? 150 : birdeyeKey ? 50 : 25) + quotaText());
@@ -755,7 +790,11 @@ async function run() {
       if (/Birdeye API key/.test(e.message)) throw e;
     }
 
-    const peakP = (peak && peak.peak) || Math.max(meta.price, p.avgBuy);
+    let peakP = (peak && peak.peak) || Math.max(meta.price, p.avgBuy);
+    // 明顯的錯誤報價（例如穩定幣被報成 $999）在這裡擋掉
+    const fixed = sanePeak(peakP, peak && peak.peakMcap, meta.price, meta.mcap);
+    const peakFixed = fixed !== null;
+    if (peakFixed) peakP = Math.max(fixed, p.avgBuy);
     const holdAmt = Math.max(0, p.netAmt);
     const row = Object.assign({}, p, meta, {
       peak: peakP,
@@ -763,6 +802,7 @@ async function run() {
       partial: !!(peak && peak.partial),
       hasPeak: !!peak,
       peakSrc: (peak && peak.src) || '',
+      peakFixed: peakFixed,
       mfeX: p.avgBuy > 0 ? peakP / p.avgBuy : NaN,
       idealUSD: p.boughtAmt * peakP,
       holdAmt: holdAmt,
@@ -821,6 +861,7 @@ async function run() {
       aborted: aborted, planned: withPool.length,
       touched: built.touched, lostToMulti: built.lostToMulti,
       neverBought: built.neverBought, belowMinCost: built.belowMinCost,
+      peakFixed: rows.filter((r) => r.peakFixed).length,
       stRows: rows.filter((r) => r.peakSrc === 'solanatracker').length,
       exactMcap: rows.filter((r) => r.mcapExact).length,
       beRows: rows.filter((r) => r.peakSrc === 'birdeye').length,
@@ -1036,9 +1077,20 @@ function render(d) {
   if (m.lostToMulti) funnel.push('<b>' + m.lostToMulti + '</b> 隻只在多幣同筆交易裡出現過，被讓位');
   funnel.push('真正買過且過門檻的有 <b>' + m.totalFound + '</b> 隻');
   if (m.truncated) funnel.push('本次只分析成本前 <b>' + d.rows.length + '</b> 隻，另有 ' + m.truncated + ' 隻沒算（進階設定可調高上限）');
-  if (m.noPool.length) funnel.push('<b>' + m.noPool.length + '</b> 隻在 DexScreener 查不到池子（多半已下架），無法算最高價');
+  if (m.noPool.length) {
+    funnel.push('<b>' + m.noPool.length + '</b> 隻在 DexScreener 查不到池子（多半已下架），沒有 key 就算不出最高價');
+  }
 
   cav.push('<b>幣數是怎麼收斂的</b>：' + funnel.join(' → ') + '。');
+  if (m.noPool.length) {
+    cav.push('那 ' + m.noPool.length + ' 隻查不到池子的幣多半已經完全死透，<b>正是你賠最慘的那些</b>。'
+      + '填一把 Solana Tracker 或 Birdeye key 就能把它們算進來 —— 這兩家是按代幣地址查，不需要池子。'
+      + '少了它們，分母會偏小、金狗率會虛高。');
+  }
+  if (m.peakFixed) {
+    cav.push('<b>' + m.peakFixed + ' 隻</b>的最高價被判定為錯誤報價並修正過：'
+      + '資料源回報的最高價與同一時刻的最高市值差了 10 倍以上，已改用市值回推的價格。');
+  }
   cav.push('<b>跟 GMGN 之類的工具對不起來是正常的</b>：那些工具通常把「碰過的幣」全部算進去，'
     + '包含空投與別人轉進來的垃圾幣；這裡只算<b>你真的花錢買過</b>的。'
     + '想放寬就把進階設定的「最小買入成本」調低。',
