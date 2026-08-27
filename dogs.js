@@ -303,7 +303,6 @@
       const sc = Math.max(W / roomImg.width, H / roomImg.height);
       const dw = roomImg.width * sc, dh = roomImg.height * sc;
       ctx.drawImage(roomImg, (W - dw) / 2, (H - dh) / 2, dw, dh);
-      drawLightStrip();
       drawTicker();
       return;
     }

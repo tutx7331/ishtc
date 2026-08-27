@@ -213,7 +213,8 @@ button:disabled{opacity:.4;cursor:not-allowed}
 #screen-wall{
   position:absolute;left:50%;transform:translateX(-50%);
   top:30px;width:min(1240px,84vw);height:calc(63vh - 46px);
-  display:grid;grid-template-columns:1fr 1.45fr .92fr;grid-template-rows:1fr 1fr;gap:12px;
+  display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.45fr) minmax(0,.92fr);
+  grid-template-rows:minmax(0,1fr) minmax(0,1fr);gap:12px;
   z-index:2;
 }
 #scr-1{grid-column:1;grid-row:1}
@@ -221,7 +222,7 @@ button:disabled{opacity:.4;cursor:not-allowed}
 #scr-3{grid-column:2;grid-row:1/3}
 #scr-4{grid-column:3;grid-row:1/3}
 .scr{
-  display:flex;flex-direction:column;min-height:0;
+  display:flex;flex-direction:column;min-height:0;min-width:0;
   background:#05070b;border:3px solid #202734;
   box-shadow:0 0 0 2px #05070b,0 6px 40px rgba(0,0,0,.6),0 0 26px rgba(20,241,149,.08);
   transition:box-shadow .25s;
@@ -235,20 +236,35 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .scr-dot:first-child{background:rgba(255,77,109,.7)}
 .scr-title{margin-left:6px;font:700 10px var(--mono);letter-spacing:.2em;color:var(--dim);white-space:nowrap;overflow:hidden}
 .scr-body{
-  flex:1;min-height:0;position:relative;overflow-y:auto;overflow-x:hidden;padding:12px;
+  flex:1;min-height:0;min-width:0;position:relative;overflow-y:auto;overflow-x:hidden;padding:10px 12px;
   scrollbar-width:thin;scrollbar-color:#2e3542 transparent;
 }
 .scr-body::-webkit-scrollbar{width:8px}
 .scr-body::-webkit-scrollbar-thumb{background:#2e3542}
 .scr-body .panel{background:#0b0e14;border-color:#202734;padding:14px;margin-bottom:12px}
 .scr-body .stat{background:#0b0e14}
-.scr-body .stat-grid{border-color:#202734;background:#202734;grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}
+.scr-body .stat-grid{border-color:#202734;background:#202734;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));margin-bottom:12px}
 .scr-body .verdict{background:#0b0e14;border-color:#202734}
 .scr-body .share-layout{grid-template-columns:1fr}
 
 /* 查詢完成前：其他螢幕待機、內容隱藏 */
 .scr-content{display:none}
 #screen-wall.done .scr-content{display:block}
+
+/* 螢幕裡的內容整體縮小：一屏一題，資訊密度優先 */
+.scr-body .panel{padding:12px;margin-bottom:10px}
+.scr-body .panel h2{font-size:11px;margin-bottom:8px}
+.scr-body .hint{font-size:11px;margin-bottom:10px}
+.scr-body .verdict{padding:16px 18px;margin-bottom:12px}
+.scr-body .verdict .big{font-size:clamp(17px,1.55vw,25px);line-height:1.45}
+.scr-body .verdict p:not(.big){font-size:12px;margin-top:8px}
+.scr-body .stat{padding:10px 12px}
+.scr-body .stat .k{font-size:9px}
+.scr-body .stat .v{font-size:clamp(14px,1.35vw,20px);margin-top:6px}
+.scr-body table{font-size:11px}
+.scr-body th,.scr-body td{padding:7px 9px}
+.scr-body #pager{margin-top:8px}
+.scr-body .badge{font-size:9px;padding:1px 5px}
 #screen-wall.done .standby{display:none}
 .standby{
   position:absolute;inset:0;display:flex;align-items:center;justify-content:center;

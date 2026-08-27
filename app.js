@@ -1059,22 +1059,14 @@ async function run() {
 
 // ---------- 8. 排行榜：排序 + 分頁 ----------
 const PAGE_SIZE = 10;
+// 排行榜只留五欄，完整數據在 CSV
 const ALL_COLS = [
   { key: 'symbol',    label: '幣',          num: false },
   { key: 'addrLabel', label: '買入地址',    num: false, multi: true },
-  { key: 'costUSD',   label: '成本 USD',    num: true, fmt: fmtUSD },
-  { key: 'avgBuy',    label: '均價',        num: true, fmt: fmtPrice },
-  { key: 'peak',      label: '買入後最高',  num: true, fmt: fmtPrice },
+  { key: 'costUSD',   label: '成本',        num: true, fmt: fmtUSD },
   { key: 'mfeX',      label: '最高倍數',    num: true, fmt: fmtX },
-  { key: 'buyMcap',   label: '買入市值',    num: true, fmt: fmtUSD },
-  { key: 'peakMcap',  label: '最高市值',    num: true, fmt: fmtUSD },
-  { key: 'liq',       label: '流動性',      num: true, fmt: fmtUSD },
-  { key: 'idealUSD',  label: '神之手價值',  num: true, fmt: fmtUSD },
   { key: 'actualUSD', label: '實際拿到',    num: true, fmt: fmtUSD },
   { key: 'missedUSD', label: '錯過總額',    num: true, fmt: fmtUSD },
-  { key: 'paperhandUSD', label: '賣飛',     num: true, fmt: fmtUSD },
-  { key: 'roundtripUSD', label: '雲霄飛車', num: true, fmt: fmtUSD },
-  { key: 'daysToPeak', label: '到頂天數',   num: true, fmt: (v) => (isFinite(v) ? v.toFixed(1) : '—') },
 ];
 
 /** 只有一個地址時「買入地址」整欄沒意義，不顯示 */
@@ -1140,7 +1132,7 @@ function renderTable() {
       if (c.key === 'mfeX') cls += r.mfeX >= 2 ? ' pos' : ' neg';
       if (c.key === 'missedUSD') cls += ' neg';
       let txt = isFinite(v) ? c.fmt(v) : '—';
-      if (c.key === 'peak' && r.partial) txt += ' *';
+      if (c.key === 'mfeX' && r.partial) txt += ' *';
       return '<td class="' + cls + '">' + txt + '</td>';
     }).join('');
     return '<tr>'
