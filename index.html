@@ -78,8 +78,15 @@
     <div class="stat-grid" id="stat-grid"></div>
 
     <div class="panel">
-      <h2>金狗命中率</h2>
-      <p class="hint">「金狗」= 你買進之後，該幣曾經漲到你成本的幾倍。只看最高點，不管你有沒有賣。</p>
+      <h2>選狗品味</h2>
+      <p class="hint">光是漲幅大不算數 —— 100x 但市值只到二十萬，那是插針。
+        真金狗要<b>漲幅</b>與<b>市值</b>同時過關。分母是你買過的每一隻幣。</p>
+      <div id="dog-taste"></div>
+    </div>
+
+    <div class="panel">
+      <h2>漲幅命中率</h2>
+      <p class="hint">你買進之後，該幣曾經漲到你成本的幾倍。只看最高點，不管你有沒有賣，也不看市值。</p>
       <div id="golden"></div>
     </div>
 
@@ -95,6 +102,7 @@
               <th class="num">均價</th>
               <th class="num">買入後最高</th>
               <th class="num">MFE</th>
+              <th class="num">最高市值</th>
               <th class="num">神之手價值</th>
               <th class="num">實際拿到</th>
               <th class="num">賣飛金額</th>
@@ -149,6 +157,8 @@
       <li><b>神之手價值</b>：假設你買進的每一顆都精準賣在歷史最高點，總共會拿到多少錢。</li>
       <li><b>賣飛金額</b>：神之手價值 減掉 你實際賣掉拿到的錢 加上 現在還抱著的市值。這就是你錯過的數字。</li>
       <li><b>出場效率</b>：實際 ÷ 神之手。100% 代表你是神，5% 代表你跟大家一樣。</li>
+      <li><b>大金狗</b>：MFE ≥ 100x <u>且</u> 該幣最高市值 ≥ $10M。<b>小金狗</b>：MFE ≥ 10x <u>且</u> 最高市值 ≥ $1M。
+        兩個門檻都要過，是為了濾掉那種只在幾萬鎂市值插一根針的假訊號。</li>
     </ul>
     <p class="hint">全程在你的瀏覽器裡跑，地址與 API key 不會送到任何第三方伺服器，只會直接打 Helius / DexScreener / GeckoTerminal。</p>
   </section>

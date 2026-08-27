@@ -311,6 +311,7 @@ async function fetchPools(mints, onTick) {
           symbol: p.baseToken.symbol || '???',
           name: p.baseToken.name || '',
           price: Number(p.priceUsd) || 0,
+          mcap: Number(p.marketCap || p.fdv) || 0,
           createdAt: p.pairCreatedAt ? Math.floor(p.pairCreatedAt / 1000) : 0,
         });
       }
@@ -356,10 +357,24 @@ async function fetchPeak(pool, sinceTs) {
 // ---------- 6. 統計 ----------
 const TIERS = [2, 5, 10, 50, 100];
 
+// 選狗品味：只有「漲幅夠大」且「市值真的做起來」才算數。
+// 光是 100x 但市值只到 20 萬，那是插針，不是金狗。
+const BIG_DOG   = { x: 100, mcap: 10e6 };
+const SMALL_DOG = { x: 10,  mcap: 1e6 };
+
+/** 買入後曾經到過的最高市值。供給量由 fdv ÷ 現價 反推，假設供給量不變。 */
+function peakMcapOf(r) {
+  if (!(r.mcap > 0) || !(r.price > 0) || !(r.peak > 0)) return NaN;
+  return (r.mcap / r.price) * r.peak;
+}
+function isBigDog(r) { return r.mfeX >= BIG_DOG.x && r.peakMcap >= BIG_DOG.mcap; }
+function isSmallDog(r) { return r.mfeX >= SMALL_DOG.x && r.peakMcap >= SMALL_DOG.mcap; }
+
 function summarize(rows) {
   const s = {
     n: rows.length, cost: 0, ideal: 0, actual: 0, realized: 0, holding: 0,
     missed: 0, tiers: {}, dead: 0, daysToPeakSum: 0, daysToPeakN: 0, worst: null,
+    bigDogs: 0, smallDogs: 0, mcapUnknown: 0, topDog: null,
   };
   TIERS.forEach((t) => { s.tiers[t] = 0; });
   for (const r of rows) {
@@ -371,7 +386,15 @@ function summarize(rows) {
     if (r.price > 0 && r.avgBuy > 0 && r.price <= r.avgBuy * 0.05) s.dead++;
     if (isFinite(r.daysToPeak)) { s.daysToPeakSum += r.daysToPeak; s.daysToPeakN++; }
     if (!s.worst || r.missedUSD > s.worst.missedUSD) s.worst = r;
+    if (!isFinite(r.peakMcap)) s.mcapUnknown++;
+    else {
+      if (isBigDog(r)) s.bigDogs++;
+      if (isSmallDog(r)) s.smallDogs++;
+      if (!s.topDog || r.peakMcap > s.topDog.peakMcap) s.topDog = r;
+    }
   }
+  s.bigRate = s.n ? s.bigDogs / s.n : 0;
+  s.smallRate = s.n ? s.smallDogs / s.n : 0;
   s.actual = s.realized + s.holding;
   s.missed = Math.max(0, s.ideal - s.actual);
   s.pnl = s.actual - s.cost;
@@ -479,6 +502,7 @@ async function run() {
     });
     row.missedUSD = Math.max(0, row.idealUSD - (row.proceedsUSD + row.holdingUSD));
     row.daysToPeak = (peak && peak.peakTs) ? (peak.peakTs - p.firstBuyTs) / 86400 : NaN;
+    row.peakMcap = peakMcapOf(row);
     rows.push(row);
   }
 
@@ -495,6 +519,7 @@ async function run() {
         const holdAmt = Math.max(0, p.netAmt);
         const r = Object.assign({}, p, {
           symbol: g.symbol, price: g.price, peak: g.peak, daysToPeak: g.daysToPeak,
+          mcap: g.mcap, peakMcap: g.peakMcap,
           mfeX: p.avgBuy > 0 ? g.peak / p.avgBuy : NaN,
           idealUSD: p.boughtAmt * g.peak,
           holdingUSD: holdAmt * (g.price || 0),
@@ -546,7 +571,7 @@ function render(d) {
     ['神之手總值', fmtUSD(s.ideal), '每隻都賣在最高點', ''],
     ['錯過的錢', fmtUSD(s.missed), '賣飛總額', 'bad'],
     ['出場效率', fmtPct(eff), '實際 ÷ 神之手', grade[1]],
-    ['10x 命中率', fmtPct(s.tiers[10] / s.n), s.tiers[10] + ' / ' + s.n + ' 隻曾漲 10 倍以上', s.tiers[10] ? 'good' : ''],
+    ['大金狗捕獲率', fmtPct(s.bigRate), s.bigDogs + ' / ' + s.n + ' 隻　100x 且市值破 $10M', s.bigDogs ? 'good' : ''],
     ['歸零率', fmtPct(s.dead / s.n), s.dead + ' 隻現價低於成本 5%', 'bad'],
     ['平均到頂天數', isFinite(s.avgDaysToPeak) ? s.avgDaysToPeak.toFixed(1) + ' 天' : '—', '從你第一次買到最高點', ''],
   ];
@@ -554,16 +579,36 @@ function render(d) {
     '<div class="stat"><div class="k">' + r[0] + '</div><div class="v ' + r[3] + '">'
     + r[1] + '</div><div class="n">' + r[2] + '</div></div>').join('');
 
+  // 選狗品味：漲幅 × 市值雙門檻
+  const taste = s.bigRate >= 0.05 ? ['你抓得到大狗。', 'good']
+    : s.smallRate >= 0.15 ? ['小狗抓得不錯，大狗還差一步。', 'warn']
+    : s.smallRate > 0 ? ['偶爾中，但多半是插針。', 'warn']
+    : ['目前一隻真金狗都沒抓到。', 'bad'];
+  $('#dog-taste').innerHTML =
+    '<div class="dog-grid">'
+    + '<div class="dog big"><div class="k">大金狗捕獲率</div>'
+      + '<div class="v ' + (s.bigDogs ? 'good' : '') + '">' + fmtPct(s.bigRate) + '</div>'
+      + '<div class="n">' + s.bigDogs + ' / ' + s.n + ' 隻　MFE ≥ 100x 且最高市值 ≥ $10M</div></div>'
+    + '<div class="dog"><div class="k">小金狗捕獲率</div>'
+      + '<div class="v ' + (s.smallDogs ? 'good' : '') + '">' + fmtPct(s.smallRate) + '</div>'
+      + '<div class="n">' + s.smallDogs + ' / ' + s.n + ' 隻　MFE ≥ 10x 且最高市值 ≥ $1M</div></div>'
+    + '</div>'
+    + '<p class="taste-verdict ' + taste[1] + '">' + taste[0] + '</p>'
+    + (s.topDog ? '<p class="hint">你抓過市值做最大的一隻是 <b>' + escapeHTML(s.topDog.symbol)
+        + '</b>，最高衝到 ' + fmtUSD(s.topDog.peakMcap) + '，你的成本位對應 ' + fmtX(s.topDog.mfeX) + '。</p>' : '')
+    + (s.mcapUnknown ? '<p class="hint">' + s.mcapUnknown + ' 隻查不到市值，不計入分子但仍在分母。</p>' : '');
+
   const maxT = Math.max(1, ...TIERS.map((t) => s.tiers[t]));
   $('#golden').innerHTML = TIERS.map((t) => {
     const c = s.tiers[t];
     return '<div class="gold-row"><span class="tag">' + t + 'x+</span>'
-      + '<span class="track"><span class="fill" style="width:' + (c / maxT) * 100 + '%"></span></span>'
+      + '<span class="track"><span class="fill" style="width:' + ((c / maxT) * 100).toFixed(2) + '%"></span></span>'
       + '<span class="val">' + c + ' 隻 · ' + fmtPct(c / s.n) + '</span></div>';
   }).join('');
 
   $('#tokens-table tbody').innerHTML = d.rows.map((r) => {
-    const gold = r.mfeX >= 10 ? '<span class="badge gold">金狗</span>' : '';
+    const gold = isBigDog(r) ? '<span class="badge big">大金狗</span>'
+      : isSmallDog(r) ? '<span class="badge gold">小金狗</span>' : '';
     const dead = (r.price > 0 && r.avgBuy > 0 && r.price <= r.avgBuy * 0.05)
       ? '<span class="badge dead">歸零</span>' : '';
     return '<tr>'
@@ -574,6 +619,7 @@ function render(d) {
       + '<td class="num">' + fmtPrice(r.avgBuy) + '</td>'
       + '<td class="num">' + fmtPrice(r.peak) + (r.partial ? ' *' : '') + '</td>'
       + '<td class="num ' + (r.mfeX >= 2 ? 'pos' : 'neg') + '">' + fmtX(r.mfeX) + '</td>'
+      + '<td class="num">' + (isFinite(r.peakMcap) ? fmtUSD(r.peakMcap) : '—') + '</td>'
       + '<td class="num">' + fmtUSD(r.idealUSD) + '</td>'
       + '<td class="num">' + fmtUSD(r.proceedsUSD + r.holdingUSD) + '</td>'
       + '<td class="num neg">' + fmtUSD(r.missedUSD) + '</td>'
@@ -605,6 +651,7 @@ function render(d) {
         + ' 隻未分析，可在進階設定調高上限）。' : '。'),
     '<b>最高價取自目前流動性最深的那個池子</b>。pump.fun 這類先在 bonding curve 交易、之後才遷移的幣，遷移前的價格不在這個池子裡，MFE 可能被低估。',
     '標了 <b>*</b> 的幣代表 K 線沒有完整覆蓋到你第一次買入的時間，最高價只算了有資料的區間。',
+    '<b>最高市值是推算的</b>：用目前的市值 ÷ 目前價格反推流通量，再乘上歷史最高價。假設流通量沒變過，遇到增發或大額燒毀會失真。',
     '買入成本以「該筆交易錢包淨減少的 SOL / USDC / USDT」估算，SOL 以當日收盤價換算美元，跟實際成交價會有小幅誤差。',
     '「實際拿到」＝ 已賣出所得 ＋ 目前持倉市值。<b>轉出到沒填進來的地址不算賣出</b>，所以如果你還有其他錢包，記得一起貼上。',
   ];
@@ -623,79 +670,94 @@ function drawCard(d) {
   const x = c.getContext('2d');
   const W = c.width, H = c.height, s = d.sum;
 
-  const g = x.createLinearGradient(0, 0, W, H);
-  g.addColorStop(0, '#12061f');
-  g.addColorStop(0.5, '#0b0d12');
-  g.addColorStop(1, '#04140f');
-  x.fillStyle = g;
+  x.fillStyle = '#0a0b0e';
   x.fillRect(0, 0, W, H);
-  x.strokeStyle = 'rgba(153,69,255,.4)';
-  x.lineWidth = 4;
-  x.strokeRect(24, 24, W - 48, H - 48);
-
-  const F = (w, sz) => w + ' ' + sz + 'px "Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif';
-  x.textAlign = 'center';
-
-  x.fillStyle = '#8b95a8'; x.font = F(600, 34);
-  x.fillText('賣飛計算機 · SOLANA', W / 2, 120);
-
-  x.fillStyle = '#e8ecf4'; x.font = F(700, 46);
-  x.fillText('我買過 ' + s.n + ' 隻 memecoin', W / 2, 230);
-  x.fillStyle = '#8b95a8'; x.font = F(500, 38);
-  x.fillText('如果每一隻都賣在最高點', W / 2, 300);
-
-  const gg = x.createLinearGradient(0, 340, W, 460);
-  gg.addColorStop(0, '#14f195');
-  gg.addColorStop(1, '#9945ff');
-  x.fillStyle = gg; x.font = F(800, 118);
-  x.fillText(fmtUSD(s.ideal), W / 2, 450);
-
-  x.fillStyle = '#8b95a8'; x.font = F(500, 36);
-  x.fillText('我實際拿到', W / 2, 540);
-  x.fillStyle = '#e8ecf4'; x.font = F(800, 76);
-  x.fillText(fmtUSD(s.actual), W / 2, 625);
-
-  x.fillStyle = 'rgba(255,77,109,.12)';
-  x.fillRect(80, 680, W - 160, 190);
-  x.strokeStyle = 'rgba(255,77,109,.45)';
+  x.strokeStyle = '#232833';
   x.lineWidth = 2;
-  x.strokeRect(80, 680, W - 160, 190);
-  x.fillStyle = '#ff4d6d'; x.font = F(600, 36);
-  x.fillText('我錯過了', W / 2, 745);
-  x.font = F(800, 92);
-  x.fillText(fmtUSD(s.missed), W / 2, 840);
+  x.strokeRect(40, 40, W - 80, H - 80);
+  // 左上角的方形強調塊，呼應網頁標題
+  x.fillStyle = '#14f195';
+  x.fillRect(40, 40, 6, 78);
+
+  const SANS = '"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif';
+  const MONO = 'ui-monospace,SFMono-Regular,Menlo,Consolas,monospace';
+  const F = (w, sz) => w + ' ' + sz + 'px ' + SANS;
+  const M = (w, sz) => w + ' ' + sz + 'px ' + MONO;
+
+  x.textAlign = 'left';
+  x.fillStyle = '#7d8697'; x.font = M(700, 26);
+  x.fillText('賣飛計算機 / SOLANA', 68, 90);
+
+  x.textAlign = 'center';
+  x.fillStyle = '#e8ecf4'; x.font = F(700, 44);
+  x.fillText('我買過 ' + s.n + ' 隻 memecoin', W / 2, 235);
+  x.fillStyle = '#7d8697'; x.font = F(500, 36);
+  x.fillText('如果每一隻都賣在最高點', W / 2, 302);
+
+  x.fillStyle = '#14f195'; x.font = M(700, 112);
+  x.fillText(fmtUSD(s.ideal), W / 2, 432);
+
+  x.fillStyle = '#7d8697'; x.font = F(500, 34);
+  x.fillText('我實際拿到', W / 2, 520);
+  x.fillStyle = '#e8ecf4'; x.font = M(700, 72);
+  x.fillText(fmtUSD(s.actual), W / 2, 604);
+
+  x.fillStyle = '#150a0e';
+  x.fillRect(80, 664, W - 160, 196);
+  x.fillStyle = '#ff4d6d';
+  x.fillRect(80, 664, 5, 196);
+  x.strokeStyle = 'rgba(255,77,109,.35)';
+  x.lineWidth = 1;
+  x.strokeRect(80, 664, W - 160, 196);
+  x.fillStyle = '#ff4d6d'; x.font = F(600, 34);
+  x.fillText('我錯過了', W / 2, 732);
+  x.font = M(700, 88);
+  x.fillText(fmtUSD(s.missed), W / 2, 828);
 
   const cells = [
+    ['大金狗捕獲率', fmtPct(s.bigRate)],
+    ['小金狗捕獲率', fmtPct(s.smallRate)],
     ['出場效率', fmtPct(s.efficiency)],
-    ['10x 命中率', fmtPct(s.tiers[10] / s.n)],
-    ['100x 命中', s.tiers[100] + ' 隻'],
     ['歸零率', fmtPct(s.dead / s.n)],
   ];
+  // 2×2 方格，用細線分隔而不是留白
+  const gx = 80, gy = 920, gw = W - 160, gh = 260;
+  x.strokeStyle = '#232833'; x.lineWidth = 1;
+  x.strokeRect(gx, gy, gw, gh);
+  x.beginPath();
+  x.moveTo(gx + gw / 2, gy); x.lineTo(gx + gw / 2, gy + gh);
+  x.moveTo(gx, gy + gh / 2); x.lineTo(gx + gw, gy + gh / 2);
+  x.stroke();
+
   cells.forEach((cell, i) => {
-    const cx = W / 4 + (i % 2) * (W / 2);
-    const cy = 960 + Math.floor(i / 2) * 150;
-    x.fillStyle = '#8b95a8'; x.font = F(500, 30);
-    x.fillText(cell[0], cx, cy);
-    x.fillStyle = '#e8ecf4'; x.font = F(800, 58);
-    x.fillText(cell[1], cx, cy + 66);
+    const cx = gx + (i % 2) * (gw / 2) + gw / 4;
+    const cy = gy + Math.floor(i / 2) * (gh / 2);
+    x.fillStyle = '#7d8697'; x.font = M(700, 25);
+    x.fillText(cell[0], cx, cy + 50);
+    x.fillStyle = i < 2 ? '#ffb020' : '#e8ecf4'; x.font = M(700, 54);
+    x.fillText(cell[1], cx, cy + 108);
   });
 
   if (s.worst) {
-    x.fillStyle = '#8b95a8'; x.font = F(500, 30);
-    x.fillText('最痛的一隻：' + s.worst.symbol + '　最高漲了 ' + fmtX(s.worst.mfeX), W / 2, 1270);
+    x.fillStyle = '#565f70'; x.font = F(500, 28);
+    x.fillText('最痛的一隻：' + s.worst.symbol + '　最高漲了 ' + fmtX(s.worst.mfeX), W / 2, 1268);
   }
 }
 
 // ---------- 10. CSV ----------
 function toCSV(d) {
   const head = ['symbol', 'mint', 'cost_usd', 'avg_buy_price', 'peak_price', 'mfe_x',
+    'peak_mcap_usd', 'current_mcap_usd', 'dog_tier',
     'ideal_usd', 'realized_usd', 'holding_usd', 'missed_usd', 'days_to_peak',
     'buys', 'sells', 'current_price', 'first_buy_utc'];
   const lines = [head.join(',')];
   for (const r of d.rows) {
     lines.push([
       JSON.stringify(r.symbol), r.mint, r.costUSD.toFixed(2), r.avgBuy, r.peak,
-      isFinite(r.mfeX) ? r.mfeX.toFixed(3) : '', r.idealUSD.toFixed(2),
+      isFinite(r.mfeX) ? r.mfeX.toFixed(3) : '',
+      isFinite(r.peakMcap) ? r.peakMcap.toFixed(0) : '', r.mcap || '',
+      isBigDog(r) ? 'big' : isSmallDog(r) ? 'small' : '',
+      r.idealUSD.toFixed(2),
       r.proceedsUSD.toFixed(2), r.holdingUSD.toFixed(2), r.missedUSD.toFixed(2),
       isFinite(r.daysToPeak) ? r.daysToPeak.toFixed(2) : '',
       r.buys, r.sells, r.price, new Date(r.firstBuyTs * 1000).toISOString(),
