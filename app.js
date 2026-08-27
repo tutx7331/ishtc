@@ -745,7 +745,8 @@ function isRugged(r) {
 function summarize(rows) {
   const s = {
     n: rows.length, cost: 0, ideal: 0, actual: 0, realized: 0, holding: 0,
-    missed: 0, tiers: {}, dead: 0, rugged: 0, daysToPeakSum: 0, daysToPeakN: 0, worst: null,
+    missed: 0, paperhand: 0, roundtrip: 0, soldNow: 0, tiers: {}, dead: 0, rugged: 0,
+    daysToPeakSum: 0, daysToPeakN: 0, worst: null,
     bigDogs: 0, smallDogs: 0, mcapUnknown: 0, topDog: null,
   };
   TIERS.forEach((t) => { s.tiers[t] = 0; });
@@ -754,6 +755,9 @@ function summarize(rows) {
     s.ideal += r.idealUSD;
     s.realized += r.proceedsUSD;
     s.holding += r.holdingUSD;
+    if (isFinite(r.paperhandUSD)) s.paperhand += r.paperhandUSD;
+    if (isFinite(r.roundtripUSD)) s.roundtrip += r.roundtripUSD;
+    if (isFinite(r.soldNowUSD)) s.soldNow += r.soldNowUSD;
     for (const t of TIERS) if (r.mfeX >= t) s.tiers[t]++;
     if (isWipeout(r)) s.dead++;
     if (isRugged(r)) s.rugged++;
@@ -940,6 +944,20 @@ async function run() {
     // 「每一隻都賣在最高點」不可能比你實際拿到的還少
     row.idealUSD = Math.max(row.idealUSD, row.actualUSD);
     row.missedUSD = Math.max(0, row.idealUSD - row.actualUSD);
+
+    // 買入與峰值的「市值」比價格好懂太多 —— 沒人在講 $0.0000169，都是講幾 K 幾 M 市值
+    const supply = (meta.mcap > 0 && meta.price > 0) ? meta.mcap / meta.price : NaN;
+    row.buyMcap = isFinite(supply) ? supply * p.avgBuy : NaN;
+
+    // 錯過的錢拆成兩種痛，兩者相加剛好等於 missedUSD：
+    //   賣飛   = 已賣掉的部位，賣價與最高價的落差
+    //   雲霄飛車 = 還抱著的部位，最高價與現價的落差
+    const sellPx = p.soldAmt > 0 ? p.proceedsUSD / p.soldAmt : 0;
+    row.paperhandUSD = Math.max(0, p.soldAmt * (peakP - sellPx));
+    row.roundtripUSD = Math.max(0, holdAmt * (peakP - (meta.price || 0)));
+    // 你賣掉的那些，如果抱到現在值多少（有時比你賣的還低，那是安慰）
+    row.soldNowUSD = p.soldAmt * (meta.price || 0);
+    row.holdDays = (p.lastTs && p.firstBuyTs) ? (p.lastTs - p.firstBuyTs) / 86400 : NaN;
     row.daysToPeak = (peak && peak.peakTs) ? (peak.peakTs - p.firstBuyTs) / 86400 : NaN;
     // Solana Tracker 直接給最高點當下的市值，比反推流通量準
     row.peakMcap = (peak && peak.peakMcap > 0) ? peak.peakMcap : peakMcapOf(row);
@@ -1015,11 +1033,14 @@ const ALL_COLS = [
   { key: 'avgBuy',    label: '均價',        num: true, fmt: fmtPrice },
   { key: 'peak',      label: '買入後最高',  num: true, fmt: fmtPrice },
   { key: 'mfeX',      label: 'MFE',         num: true, fmt: fmtX },
+  { key: 'buyMcap',   label: '買入市值',    num: true, fmt: fmtUSD },
   { key: 'peakMcap',  label: '最高市值',    num: true, fmt: fmtUSD },
   { key: 'liq',       label: '流動性',      num: true, fmt: fmtUSD },
   { key: 'idealUSD',  label: '神之手價值',  num: true, fmt: fmtUSD },
   { key: 'actualUSD', label: '實際拿到',    num: true, fmt: fmtUSD },
-  { key: 'missedUSD', label: '賣飛金額',    num: true, fmt: fmtUSD },
+  { key: 'missedUSD', label: '錯過總額',    num: true, fmt: fmtUSD },
+  { key: 'paperhandUSD', label: '賣飛',     num: true, fmt: fmtUSD },
+  { key: 'roundtripUSD', label: '雲霄飛車', num: true, fmt: fmtUSD },
   { key: 'daysToPeak', label: '到頂天數',   num: true, fmt: (v) => (isFinite(v) ? v.toFixed(1) : '—') },
 ];
 
@@ -1146,17 +1167,28 @@ function render(d) {
     : eff >= 0.08 ? ['正常人水準。', 'warn']
     : ['你就是那個一賣就漲的人。', 'bad'];
 
+  const pain = s.missed > 0
+    ? '其中 <b>' + fmtUSD(s.paperhand) + '</b> 是賣掉之後它還在漲，<b>'
+      + fmtUSD(s.roundtrip) + '</b> 是沒賣、漲上去又跌回來。'
+    : '';
+  const consol = (s.soldNow > 0 && s.soldNow < s.realized)
+    ? '　不過你賣掉的那些如果抱到現在只值 ' + fmtUSD(s.soldNow)
+      + '，比你當初賣的 ' + fmtUSD(s.realized) + ' 還少 —— 至少那幾筆你賣對了。'
+    : '';
   $('#verdict').innerHTML =
     '<p class="big">你買過 ' + s.n + ' 隻幣，如果每一隻都賣在最高點<br>'
     + '你會有 <em>' + fmtUSD(s.ideal) + '</em>。</p>'
     + '<p>你實際拿到 ' + fmtUSD(s.actual) + '，也就是說你錯過了 <b>'
-    + fmtUSD(s.missed) + '</b>。' + grade[0] + '</p>';
+    + fmtUSD(s.missed) + '</b>。' + grade[0] + '</p>'
+    + (pain ? '<p>' + pain + consol + '</p>' : '');
 
   const stats = [
     ['總投入成本', fmtUSD(s.cost), d.meta.txCount.toLocaleString() + ' 筆交易掃描', ''],
     ['實際損益', (s.pnl >= 0 ? '+' : '') + fmtUSD(s.pnl), '已實現 + 現有持倉', s.pnl >= 0 ? 'good' : 'bad'],
     ['神之手總值', fmtUSD(s.ideal), '每隻都賣在最高點', ''],
-    ['錯過的錢', fmtUSD(s.missed), '賣飛總額', 'bad'],
+    ['錯過的錢', fmtUSD(s.missed), '賣飛 + 雲霄飛車', 'bad'],
+    ['賣飛', fmtUSD(s.paperhand), '賣掉之後它還在漲', 'bad'],
+    ['雲霄飛車', fmtUSD(s.roundtrip), '沒賣，漲上去又跌回來', 'bad'],
     ['神化率', fmtPct(eff), '實際 ÷ 神之手', grade[1]],
     ['大金狗捕獲率', fmtPct(s.bigRate), s.bigDogs + ' / ' + s.n + ' 隻　100x 且市值破 $10M', s.bigDogs ? 'good' : ''],
     ['小金狗捕獲率', fmtPct(s.smallRate), s.smallDogs + ' / ' + s.n + ' 隻　10x 且市值破 $1M', s.smallDogs ? 'good' : ''],
@@ -1516,19 +1548,23 @@ function drawCard(d) {
 // ---------- 10. CSV ----------
 function toCSV(d) {
   const head = ['symbol', 'mint', 'cost_usd', 'avg_buy_price', 'peak_price', 'mfe_x',
-    'peak_mcap_usd', 'current_mcap_usd', 'dog_tier', 'bought_by',
-    'ideal_usd', 'realized_usd', 'holding_usd', 'missed_usd', 'days_to_peak',
+    'buy_mcap_usd', 'peak_mcap_usd', 'current_mcap_usd', 'dog_tier', 'bought_by',
+    'ideal_usd', 'realized_usd', 'holding_usd', 'missed_usd',
+    'paperhand_usd', 'roundtrip_usd', 'sold_now_worth_usd', 'hold_days', 'days_to_peak',
     'buys', 'sells', 'current_price', 'first_buy_utc'];
   const lines = [head.join(',')];
   for (const r of d.rows) {
     lines.push([
       JSON.stringify(r.symbol), r.mint, r.costUSD.toFixed(2), r.avgBuy, r.peak,
       isFinite(r.mfeX) ? r.mfeX.toFixed(3) : '',
+      isFinite(r.buyMcap) ? r.buyMcap.toFixed(0) : '',
       isFinite(r.peakMcap) ? r.peakMcap.toFixed(0) : '', r.mcap || '',
       isBigDog(r) ? 'big' : isSmallDog(r) ? 'small' : '',
       JSON.stringify((r.addrs || []).join(' ')),
       r.idealUSD.toFixed(2),
       r.proceedsUSD.toFixed(2), r.holdingUSD.toFixed(2), r.missedUSD.toFixed(2),
+      (r.paperhandUSD || 0).toFixed(2), (r.roundtripUSD || 0).toFixed(2),
+      (r.soldNowUSD || 0).toFixed(2), isFinite(r.holdDays) ? r.holdDays.toFixed(2) : '',
       isFinite(r.daysToPeak) ? r.daysToPeak.toFixed(2) : '',
       r.buys, r.sells, r.price, new Date(r.firstBuyTs * 1000).toISOString(),
     ].join(','));
