@@ -28,34 +28,38 @@
     </label>
 
     <label class="field">
-      <span class="label">Solana Tracker API Key
+      <span class="label">Helius API Key<span class="opt">交易紀錄</span>
+        <small>免費申請 → <a href="https://dashboard.helius.dev" target="_blank" rel="noopener">dashboard.helius.dev</a>（每月 100 萬 credits）。
+        整條 Endpoint URL 直接貼進來也可以。<b>負責抓「你買過哪些幣」</b>，
+        它是從錢包的原始餘額變化推算，任何程式搬動代幣都跑不掉，覆蓋率最完整。</small>
+      </span>
+      <input id="helius-key" type="password" spellcheck="false" autocomplete="off" placeholder="Helius API key，或整條 https://mainnet.helius-rpc.com/?api-key=…">
+    </label>
+
+    <label class="field">
+      <span class="label">Solana Tracker API Key<span class="opt">最高價</span>
         <small>免費申請 → <a href="https://www.solanatracker.io/data-api" target="_blank" rel="noopener">solanatracker.io/data-api</a>（10,000 次/月、3 req/秒）。
-        <b>填這一把就夠了</b>：成交紀錄與買入後最高價它都給，成交價直接是美元不用推算，
-        最高市值也是最高點當下的真實值。只存在你自己的瀏覽器。</small>
+        <b>負責算「買入後最高漲到哪」</b>，直接回傳區間最高價與當下真實市值，
+        比另外兩家快 3–6 倍。沒填會退回免金鑰的 GeckoTerminal，慢很多。</small>
       </span>
       <input id="st-key" type="password" spellcheck="false" autocomplete="off" placeholder="貼上你的 Solana Tracker API key">
     </label>
 
     <details class="advanced" id="alt-keys">
-      <summary>其他資料來源（選填，沒填 Solana Tracker 才需要）</summary>
+      <summary>備援來源（選填）</summary>
       <div class="alt-body">
-        <label class="field">
-          <span class="label">Helius API Key<span class="opt">選填</span>
-            <small>免費申請 → <a href="https://dashboard.helius.dev" target="_blank" rel="noopener">dashboard.helius.dev</a>。
-            整條 Endpoint URL 直接貼進來也可以。<b>只在沒填 Solana Tracker 時才會用到</b>，
-            用來抓錢包交易紀錄（買賣價從 SOL 差額推算，會有小幅誤差）。</small>
-          </span>
-          <input id="helius-key" type="password" spellcheck="false" autocomplete="off" placeholder="Helius API key，或整條 https://mainnet.helius-rpc.com/?api-key=…">
-        </label>
-
         <label class="field">
           <span class="label">Birdeye API Key<span class="opt">選填</span>
             <small>免費申請 → <a href="https://bds.birdeye.so" target="_blank" rel="noopener">bds.birdeye.so</a>，
             註冊後在左側選單的 <b>Security</b> 分頁按 Generate Key（不在 Packages 那頁）。
-            抓最高價的備援來源，比免金鑰的 GeckoTerminal 快一倍、涵蓋 pump.fun 遷移前那段。</small>
+            Solana Tracker 查不到時的備援，比免金鑰的 GeckoTerminal 快一倍。</small>
           </span>
           <input id="birdeye-key" type="password" spellcheck="false" autocomplete="off" placeholder="留空即可，不影響使用">
         </label>
+        <p class="hint" style="margin:0">
+          兩把主 key 各司其職，建議都填。只填 Solana Tracker 也能跑，
+          但它的成交索引只涵蓋整合過的 DEX，走冷門路由或 launchpad 的交易會漏掉。
+        </p>
       </div>
     </details>
 

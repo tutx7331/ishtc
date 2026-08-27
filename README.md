@@ -50,12 +50,19 @@ git clone https://github.com/<your-name>/sol-fomo.git
 
 免費申請 → [solanatracker.io/data-api](https://www.solanatracker.io/data-api)（10,000 次/月、3 req/秒）。
 
-**填這一把就夠了**，兩半資料它都給：
+兩把 key 各司其職，建議都填：
 
-- `/wallet/{owner}/trades` — 每筆成交直接附**美元成交價**，不用從 SOL 差額推算、也不用查當日 SOL 匯率
-- `/price/history/range` — 直接回傳**指定區間的最高價與最高點當下的真實市值**
+| key | 負責 | 為什麼 |
+|---|---|---|
+| **Helius** | 你買過哪些幣 | 從錢包**原始餘額變化**推算，任何程式搬動代幣都跑不掉。覆蓋率最完整。 |
+| **Solana Tracker** | 買入後最高漲到哪 | `/price/history/range` 直接回傳區間最高價與**最高點當下的真實市值**，比其他家快 3–6 倍。 |
 
-沒有它也能跑，見下方替代方案。
+**為什麼不能只用 Solana Tracker 一把搞定？**
+它的 `/wallet/{owner}/trades` 成交索引只涵蓋整合過的 DEX，
+走冷門路由或 launchpad 的交易（bags.fm、部分 Token-2022 代幣）會整批漏掉。
+實測某錢包用 bags.fm 買的 8 隻幣全部缺席。所以交易紀錄還是走 Helius。
+
+只填其中一把也能跑，報告會標明用了哪條路以及可能的缺口。
 
 ---
 

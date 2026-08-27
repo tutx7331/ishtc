@@ -148,12 +148,16 @@ async function getJSON(url, opts) {
     if (res.status === 429) { sawRateLimit = true; await sleep(4000 * (i + 1)); continue; }
     if (res.status === 404) return null;
     if (!res.ok) {
+      // 5xx 是對方伺服器暫時出問題，值得等久一點再試；4xx 再試也沒用
+      const transient = res.status >= 500;
       if (i === tries - 1) {
-        const err = new Error('HTTP ' + res.status);
+        const err = new Error(transient
+          ? host + ' 暫時出問題（HTTP ' + res.status + '），重試 ' + tries + ' 次都沒過'
+          : host + ' 回應 HTTP ' + res.status);
         err.status = res.status;
         throw err;
       }
-      await sleep(700 * (i + 1));
+      await sleep((transient ? 2500 : 700) * (i + 1));
       continue;
     }
     return res.json();
@@ -204,10 +208,13 @@ async function fetchWalletTxs(address, key, maxTx, onTick) {
       + (before ? '&before=' + before : '');
     let batch;
     try {
-      batch = await getJSON(url, { tries: 3 });
+      batch = await getJSON(url, { tries: 5 });
     } catch (e) {
+      if (e.message === '__ABORT__') throw e;
       if (e.status === 401) throw new Error('Helius API key 無效或已停用。');
       if (e.status === 429) throw new Error('Helius 額度用完或被限流，稍後再試。');
+      // 翻到一半掛掉：已經抓到的先留著
+      if (out.length) { out.partial = true; break; }
       throw e;
     }
     // 只有回傳空陣列才代表到底了。
@@ -230,15 +237,19 @@ async function fetchWalletTxs(address, key, maxTx, onTick) {
 async function fetchWalletTradesST(address, maxTx, onTick) {
   const out = [];
   let cursor = '';
+  let partial = false;   // 中途被伺服器打斷，資料不完整
   while (out.length < maxTx) {
     if (abortFlag) throw new Error('__ABORT__');
     const url = ST + '/wallet/' + address + '/trades'
       + (cursor ? '?cursor=' + encodeURIComponent(cursor) : '');
     let j;
     try {
-      j = await getJSON(url, { limiter: stLimit, headers: { 'x-api-key': stKey } });
+      j = await getJSON(url, { limiter: stLimit, tries: 5, headers: { 'x-api-key': stKey } });
     } catch (e) {
+      if (e.message === '__ABORT__') throw e;
       if (e.status === 401) throw new Error('Solana Tracker API key 無效或已停用。');
+      // 翻到一半掛掉：已經抓到的先留著，整份丟掉更糟
+      if (out.length) { partial = true; break; }
       throw e;
     }
     const batch = (j && j.trades) || [];
@@ -250,6 +261,7 @@ async function fetchWalletTradesST(address, maxTx, onTick) {
     if (next === cursor) break;   // 游標沒前進
     cursor = next;
   }
+  if (partial) out.partial = true;
   return out;
 }
 
@@ -696,8 +708,9 @@ async function run() {
   if (bad.length) throw new Error('這些看起來不是 Solana 地址：\n' + bad.join('\n'));
   if (!stKey && !key) {
     throw new Error('至少要填一把 key。\n'
-      + '建議用 Solana Tracker（免費申請：solanatracker.io/data-api），一把就能跑完整份報告。\n'
-      + '或是用 Helius + 免金鑰的 GeckoTerminal 也可以。');
+      + '建議兩把都填：Helius 抓交易紀錄（覆蓋最完整），Solana Tracker 算最高價（最快最準）。\n'
+      + '只填 Helius 也能跑，最高價會走免金鑰的 GeckoTerminal，慢很多。\n'
+      + '只填 Solana Tracker 也能跑，但走冷門路由或 launchpad 的交易會漏掉。');
   }
 
   localStorage.setItem('fomo:key', key);
@@ -709,9 +722,14 @@ async function run() {
     $('#prog-text').textContent = txt;
   };
 
-  // 7.1 交易紀錄。有 Solana Tracker key 就走它（成交價直接給，不用推算），否則走 Helius
-  const useST = !!stKey;
+  // 7.1 交易紀錄。
+  // Helius 是從錢包的原始餘額變化推出來的，任何程式搬動代幣都抓得到；
+  // Solana Tracker 的成交索引只涵蓋它整合過的 DEX，
+  // 走冷門路由或 launchpad（bags.fm、部分 Token-2022 代幣）的交易會整批漏掉。
+  // 所以有 Helius key 就用 Helius，覆蓋率優先於價格精度。
+  const useST = !key && !!stKey;
   const txsByAddr = new Map();
+  const partialAddrs = [];   // 抓到一半被伺服器打斷的地址
   for (let i = 0; i < addrs.length; i++) {
     const a = addrs[i];
     const base = 2 + (i / addrs.length) * 18;
@@ -722,6 +740,7 @@ async function run() {
     const txs = useST
       ? await fetchWalletTradesST(a, maxTx, tick)
       : await fetchWalletTxs(a, key, maxTx, tick);
+    if (txs.partial) partialAddrs.push(a);
     txsByAddr.set(a, txs);
   }
   const dedup = new Map();
@@ -856,6 +875,7 @@ async function run() {
     meta: {
       txCount: allTxs.length, totalFound: totalFound, truncated: truncated,
       txSrc: useST ? 'solanatracker' : 'helius',
+      partialAddrs: partialAddrs.slice(),
       noPool: noPool, minCost: minCost, skippedMulti: built.skippedMulti,
       noPeak: rows.filter((r) => !r.hasPeak).length,
       aborted: aborted, planned: withPool.length,
@@ -1082,6 +1102,16 @@ function render(d) {
   }
 
   cav.push('<b>幣數是怎麼收斂的</b>：' + funnel.join(' → ') + '。');
+  if (m.partialAddrs && m.partialAddrs.length) {
+    cav.push('<b>有 ' + m.partialAddrs.length + ' 個地址的紀錄沒抓完</b>（'
+      + m.partialAddrs.map(shortAddr).join('、')
+      + '）：資料源中途回了 5xx，已抓到的部分照樣分析，但那幾個地址會少算。稍後重跑一次通常就好了。');
+  }
+  if (m.txSrc === 'solanatracker') {
+    cav.push('<b>這次的成交紀錄來自 Solana Tracker，可能有漏</b>：它的索引只涵蓋整合過的 DEX，'
+      + '走冷門路由或 launchpad 的交易（bags.fm、部分 Token-2022 代幣）抓不到。'
+      + '想要完整覆蓋，補一把免費的 Helius key —— 它是從錢包原始餘額變化推算的，任何程式搬動代幣都跑不掉。');
+  }
   if (m.noPool.length) {
     cav.push('那 ' + m.noPool.length + ' 隻查不到池子的幣多半已經完全死透，<b>正是你賠最慘的那些</b>。'
       + '填一把 Solana Tracker 或 Birdeye key 就能把它們算進來 —— 這兩家是按代幣地址查，不需要池子。'
