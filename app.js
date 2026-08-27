@@ -59,6 +59,16 @@ function fmtPct(x) { return (isFinite(x) ? (x * 100).toFixed(1) : '—') + '%'; 
 function shortAddr(a) { return a.slice(0, 4) + '…' + a.slice(-4); }
 function isSolAddress(s) { return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(s); }
 
+/** 允許直接貼整條 Helius endpoint URL，自動把 api-key 拆出來 */
+function normalizeKey(raw) {
+  const s = String(raw || '').trim().replace(/^["']|["']$/g, '');
+  const m = s.match(/api[-_]?key=([0-9a-fA-F-]{20,})/);
+  if (m) return m[1];
+  const uuid = s.match(/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/);
+  if (uuid) return uuid[0];
+  return s;
+}
+
 function escapeHTML(s) {
   return String(s).replace(/[&<>"']/g, (c) =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -377,7 +387,7 @@ async function run() {
   abortFlag = false;
   const addrs = Array.from(new Set(
     $('#addresses').value.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean)));
-  const key = $('#helius-key').value.trim();
+  const key = normalizeKey($('#helius-key').value);
   const maxTokens = clamp(parseInt($('#max-tokens').value, 10) || 80, 5, 500);
   const minCost = Math.max(0, parseFloat($('#min-cost').value) || 0);
   const maxTx = clamp(parseInt($('#max-tx').value, 10) || 3000, 100, 20000);
