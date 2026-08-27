@@ -447,27 +447,58 @@ function buildPositions(txs, walletSet, solPrice, minCost) {
 }
 
 // ---------- 3. SOL 歷史價 ----------
-async function buildSolPrice() {
-  let list = cacheGet('solprice');
-  if (!list) {
-    const pairs = await getJSON(DS + '/tokens/v1/solana/' + WSOL, { limiter: dsLimit });
-    const all = (pairs || []).slice().sort((a, b) =>
-      ((b.liquidity && b.liquidity.usd) || 0) - ((a.liquidity && a.liquidity.usd) || 0));
-    const stable = all.filter((p) => p.quoteToken &&
-      (p.quoteToken.address === USDC || p.quoteToken.address === USDT));
-    const pair = stable[0] || all[0];
-    if (!pair) throw new Error('抓不到 SOL 的池子，DexScreener 可能暫時無回應。');
-    const j = await getJSON(GT + '/networks/solana/pools/' + pair.pairAddress
-      + '/ohlcv/day?aggregate=1&limit=1000&currency=usd', { limiter: gtLimit });
+// GeckoTerminal 的日線一次最多只回 ~181 根，不管 limit 給多少。
+// 沒有往前翻的話，比這更早的交易全部會被夾成最舊那筆價格 ——
+// 實測 2025-08 的 SOL 是 $205，被夾成 $84 等於成本算低 2.4 倍，MFE 直接虛高。
+const GT_DAY_PAGE_MAX = 12;   // 最多往前翻幾頁，一頁約半年
+
+/** 把某個池子的日線一路往前翻到涵蓋 sinceTs 為止 */
+async function fetchDailyBack(pool, sinceTs) {
+  const out = [];
+  let before = 0;
+  for (let page = 0; page < GT_DAY_PAGE_MAX; page++) {
+    const j = await getJSON(GT + '/networks/solana/pools/' + pool
+      + '/ohlcv/day?aggregate=1&limit=1000&currency=usd'
+      + (before ? '&before_timestamp=' + before : ''), { limiter: gtLimit });
     const raw = (j && j.data && j.data.attributes && j.data.attributes.ohlcv_list) || [];
-    list = raw.map((c) => [c[0], c[4]]).sort((a, b) => a[0] - b[0]);
-    if (list.length) cacheSet('solprice', list);
+    if (!raw.length) break;
+    out.push.apply(out, raw);
+    let oldest = raw[0][0];
+    for (const c of raw) if (c[0] < oldest) oldest = c[0];
+    if (oldest <= sinceTs) break;
+    if (before && oldest >= before) break;   // 沒往前走，避免無限迴圈
+    before = oldest;
+  }
+  return out;
+}
+
+async function buildSolPrice(sinceTs) {
+  const need = sinceTs || (Math.floor(Date.now() / 1000) - 400 * 86400);
+  const cacheKey = 'solprice:' + Math.floor(need / 86400);
+  let list = cacheGet(cacheKey);
+  if (!list) {
+    const pairs = await getJSON(DS + '/token-pairs/v1/solana/' + WSOL, { limiter: dsLimit });
+    const usable = (pairs || []).filter((p) => p.quoteToken
+      && (p.quoteToken.address === USDC || p.quoteToken.address === USDT)
+      && (p.liquidity && p.liquidity.usd > 200000));
+    // 池子要夠老才有夠長的歷史，同樣老的挑流動性最深的
+    const oldEnough = usable.filter((p) => p.pairCreatedAt && p.pairCreatedAt / 1000 <= need);
+    const pool = (oldEnough.length ? oldEnough : usable)
+      .sort((a, b) => (b.liquidity.usd || 0) - (a.liquidity.usd || 0))[0];
+    if (!pool) throw new Error('抓不到 SOL 的計價池，DexScreener 可能暫時無回應。');
+
+    const raw = await fetchDailyBack(pool.pairAddress, need);
+    const byTs = new Map();
+    for (const c of raw) byTs.set(c[0], c[4]);
+    list = Array.from(byTs.entries()).sort((a, b) => a[0] - b[0]);
+    if (list.length) cacheSet(cacheKey, list);
   }
   if (!list.length) throw new Error('抓不到 SOL 歷史價。');
 
   const ts = list.map((c) => c[0]);
-  return function solPrice(t) {
-    if (t <= ts[0]) return list[0][1];
+  const startTs = ts[0];
+  const solPrice = function (t) {
+    if (t <= startTs) return list[0][1];
     if (t >= ts[ts.length - 1]) return list[list.length - 1][1];
     let lo = 0, hi = ts.length - 1;
     while (lo < hi - 1) {
@@ -476,6 +507,10 @@ async function buildSolPrice() {
     }
     return list[lo][1];
   };
+  // 讓呼叫端知道序列從哪天開始，比這更早的成本是用起點價格估的
+  solPrice.startTs = startTs;
+  solPrice.days = list.length;
+  return solPrice;
 }
 
 // ---------- 4. 池子與現價 ----------
@@ -566,13 +601,19 @@ async function fetchPeakBirdeye(mint, sinceTs) {
 async function fetchPeak(pool, sinceTs) {
   const ageDays = (Date.now() / 1000 - sinceTs) / 86400;
   const gran = pickGranularity(ageDays);
-  const key = pool + ':' + gran.tf + ':' + gran.agg;
+  const key = pool + ':' + gran.tf + ':' + gran.agg + ':' + Math.floor(sinceTs / 86400);
   let list = cacheGet(key);
   if (!list) {
-    const j = await getJSON(GT + '/networks/solana/pools/' + pool + '/ohlcv/' + gran.tf
-      + '?aggregate=' + gran.agg + '&limit=1000&currency=usd', { limiter: gtLimit });
-    const raw = (j && j.data && j.data.attributes && j.data.attributes.ohlcv_list) || [];
-    list = raw.map((c) => [c[0], c[2]]); // [ts, high]，GeckoTerminal 由新到舊
+    let raw;
+    if (gran.tf === 'day') {
+      // 日線一次只回 ~181 根，買很久的幣要往前翻才涵蓋得到第一次買入
+      raw = await fetchDailyBack(pool, sinceTs);
+    } else {
+      const j = await getJSON(GT + '/networks/solana/pools/' + pool + '/ohlcv/' + gran.tf
+        + '?aggregate=' + gran.agg + '&limit=1000&currency=usd', { limiter: gtLimit });
+      raw = (j && j.data && j.data.attributes && j.data.attributes.ohlcv_list) || [];
+    }
+    list = raw.map((c) => [c[0], c[2]]); // [ts, high]
     if (list.length) cacheSet(key, list);
   }
   if (!list.length) return null;
@@ -585,7 +626,8 @@ async function fetchPeak(pool, sinceTs) {
     if (c[1] > best) { best = c[1]; bestTs = c[0]; }
   }
   if (best <= 0) return null;
-  const oldest = list[list.length - 1] ? list[list.length - 1][0] : 0;
+  let oldest = Infinity;
+  for (const c of list) if (c[0] < oldest) oldest = c[0];
   return { peak: best, peakTs: bestTs, partial: !covered || oldest > sinceTs + bucket, src: 'gecko' };
 }
 
@@ -754,7 +796,9 @@ async function run() {
   let solPrice = null;
   if (!useST) {
     setProg(22, '抓 SOL 歷史價…');
-    solPrice = await buildSolPrice();
+    let earliest = Math.floor(Date.now() / 1000);
+    for (const t of allTxs) if (t.timestamp && t.timestamp < earliest) earliest = t.timestamp;
+    solPrice = await buildSolPrice(earliest - 86400);
   }
 
   // 7.3 重建部位（多地址合併計算，錢包之間互轉會自動抵銷）
