@@ -230,6 +230,7 @@ button.up-clear{
   color:var(--dim);font-size:9px;letter-spacing:.08em;vertical-align:2px;
 }
 td.num,th.num{text-align:right;font-family:var(--mono)}
+.addr-cell{font-family:var(--mono);line-height:1.5}
 tbody tr:hover{background:var(--panel-2)}
 .sym{font:700 13px/1 var(--mono);letter-spacing:.02em}
 .mint{color:var(--dim);font:11px/1 var(--mono);text-decoration:none}

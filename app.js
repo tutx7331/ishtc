@@ -806,6 +806,18 @@ async function run() {
   const built = useST
     ? buildPositionsFromTrades(allTxs, minCost)
     : buildPositions(allTxs, new Set(addrs), solPrice, minCost);
+
+  // 每隻幣是哪個（些）地址買的。合併報告看不出來，但這是最常被問的一件事。
+  const ownersOf = new Map();
+  for (const a of addrs) {
+    const one = useST
+      ? buildPositionsFromTrades(txsByAddr.get(a) || [], minCost)
+      : buildPositions(txsByAddr.get(a) || [], new Set([a]), solPrice, minCost);
+    for (const mint of one.pos.keys()) {
+      if (!ownersOf.has(mint)) ownersOf.set(mint, []);
+      ownersOf.get(mint).push(a);
+    }
+  }
   let positions = Array.from(built.pos.values()).sort((a, b) => b.costUSD - a.costUSD);
   const totalFound = positions.length;
   const truncated = Math.max(0, totalFound - maxTokens);
@@ -866,6 +878,8 @@ async function run() {
       hasPeak: !!peak,
       peakSrc: (peak && peak.src) || '',
       peakFixed: peakFixed,
+      addrs: ownersOf.get(p.mint) || [],
+      addrLabel: (ownersOf.get(p.mint) || []).map(shortAddr).join(' '),
       mfeX: p.avgBuy > 0 ? peakP / p.avgBuy : NaN,
       idealUSD: p.boughtAmt * peakP,
       holdAmt: holdAmt,
@@ -937,8 +951,9 @@ async function run() {
 
 // ---------- 8. 排行榜：排序 + 分頁 ----------
 const PAGE_SIZE = 10;
-const COLS = [
+const ALL_COLS = [
   { key: 'symbol',    label: '幣',          num: false },
+  { key: 'addrLabel', label: '買入地址',    num: false, multi: true },
   { key: 'costUSD',   label: '成本 USD',    num: true, fmt: fmtUSD },
   { key: 'avgBuy',    label: '均價',        num: true, fmt: fmtPrice },
   { key: 'peak',      label: '買入後最高',  num: true, fmt: fmtPrice },
@@ -950,12 +965,19 @@ const COLS = [
   { key: 'missedUSD', label: '賣飛金額',    num: true, fmt: fmtUSD },
   { key: 'daysToPeak', label: '到頂天數',   num: true, fmt: (v) => (isFinite(v) ? v.toFixed(1) : '—') },
 ];
+
+/** 只有一個地址時「買入地址」整欄沒意義，不顯示 */
+function cols() {
+  const multi = LAST && LAST.addrs && LAST.addrs.length > 1;
+  return ALL_COLS.filter((c) => !c.multi || multi);
+}
 let sortKey = 'missedUSD';
 let sortDir = -1;   // -1 由大到小
 let page = 0;
 
 function sortedRows() {
-  const col = COLS.find((c) => c.key === sortKey) || COLS[9];
+  const C = cols();
+  const col = C.find((c) => c.key === sortKey) || C[C.length - 2];
   const rows = LAST.rows.slice();
   rows.sort((a, b) => {
     let x = a[col.key], y = b[col.key];
@@ -979,7 +1001,8 @@ function renderTable() {
   page = clamp(page, 0, pages - 1);
   const slice = rows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
-  $('#tokens-table thead').innerHTML = '<tr>' + COLS.map((c) => {
+  const C = cols();
+  $('#tokens-table thead').innerHTML = '<tr>' + C.map((c) => {
     const active = c.key === sortKey;
     const arrow = active ? (sortDir === -1 ? '▼' : '▲') : '<span class="sort-idle">↕</span>';
     return '<th class="' + (c.num ? 'num ' : '') + 'sortable' + (active ? ' active' : '') + '"'
@@ -993,8 +1016,16 @@ function renderTable() {
       : isSmallDog(r) ? '<span class="badge gold">小金狗</span>' : '';
     const wipe = isWipeout(r) ? '<span class="badge dead">全損</span>' : '';
     const rug = isRugged(r) ? '<span class="badge rug">已死</span>' : '';
-    const cells = COLS.slice(1).map((c) => {
+    const cells = C.slice(1).map((c) => {
       const v = r[c.key];
+      if (!c.num) {
+        // 買入地址：多個就全部列出，一行一個
+        const list = (r.addrs || []);
+        return '<td class="addr-cell">' + (list.length
+          ? list.map((a) => '<a class="mint" href="https://solscan.io/account/' + a
+              + '" target="_blank" rel="noopener">' + shortAddr(a) + '</a>').join('<br>')
+          : '—') + '</td>';
+      }
       let cls = 'num';
       if (c.key === 'mfeX') cls += r.mfeX >= 2 ? ' pos' : ' neg';
       if (c.key === 'missedUSD') cls += ' neg';
@@ -1414,7 +1445,7 @@ function drawCard(d) {
 // ---------- 10. CSV ----------
 function toCSV(d) {
   const head = ['symbol', 'mint', 'cost_usd', 'avg_buy_price', 'peak_price', 'mfe_x',
-    'peak_mcap_usd', 'current_mcap_usd', 'dog_tier',
+    'peak_mcap_usd', 'current_mcap_usd', 'dog_tier', 'bought_by',
     'ideal_usd', 'realized_usd', 'holding_usd', 'missed_usd', 'days_to_peak',
     'buys', 'sells', 'current_price', 'first_buy_utc'];
   const lines = [head.join(',')];
@@ -1424,6 +1455,7 @@ function toCSV(d) {
       isFinite(r.mfeX) ? r.mfeX.toFixed(3) : '',
       isFinite(r.peakMcap) ? r.peakMcap.toFixed(0) : '', r.mcap || '',
       isBigDog(r) ? 'big' : isSmallDog(r) ? 'small' : '',
+      JSON.stringify((r.addrs || []).join(' ')),
       r.idealUSD.toFixed(2),
       r.proceedsUSD.toFixed(2), r.holdingUSD.toFixed(2), r.missedUSD.toFixed(2),
       isFinite(r.daysToPeak) ? r.daysToPeak.toFixed(2) : '',
