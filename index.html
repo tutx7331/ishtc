@@ -37,8 +37,9 @@
 
     <label class="field">
       <span class="label">Birdeye API Key<span class="opt">選填</span>
-        <small>免費申請 → <a href="https://bds.birdeye.so" target="_blank" rel="noopener">bds.birdeye.so</a>。
-        填了會用 Birdeye 抓最高價：它是<b>按代幣查、涵蓋所有池子</b>，補得到 pump.fun 遷移前那段行情，而且速度快一倍。
+        <small>免費申請 → <a href="https://bds.birdeye.so" target="_blank" rel="noopener">bds.birdeye.so</a>
+        註冊後在左側選單的 <b>Security</b> 分頁按 Generate Key（不在 Packages 那頁）。
+        填了會用 Birdeye 抓最高價：它是<b>按代幣查、涵蓋所有池子</b>，補得到 pump.fun 遷移前那段行情，速度也快一倍。
         不填就用免金鑰的 GeckoTerminal。</small>
       </span>
       <input id="birdeye-key" type="password" spellcheck="false" autocomplete="off" placeholder="留空即可，不影響使用">
@@ -89,8 +90,7 @@
 
     <div class="panel">
       <h2>金狗品味</h2>
-      <p class="hint">光是漲幅大不算數 —— 100x 但市值只到二十萬，那是插針。
-        真金狗要<b>漲幅</b>與<b>市值</b>同時過關。分母是你買過的每一隻幣。</p>
+      <p class="hint">真金狗要<b>漲幅</b>與<b>市值</b>同時過關。分母是你買過的每一隻幣。</p>
       <div id="dog-taste"></div>
     </div>
 
@@ -124,7 +124,7 @@
               <th class="num">總成本</th>
               <th class="num">神之手價值</th>
               <th class="num">實際</th>
-              <th class="num">出場效率</th>
+              <th class="num">神化率</th>
               <th class="num">10x 命中率</th>
             </tr>
           </thead>
@@ -181,17 +181,17 @@
       <li><b>MFE（最大有利波動）</b>：你第一次買進之後，這隻幣曾經漲到的最高價，除以你的平均買入成本。這是「你最多能吃到幾 %」的上限。</li>
       <li><b>神之手價值</b>：假設你買進的每一顆都精準賣在歷史最高點，總共會拿到多少錢。</li>
       <li><b>賣飛金額</b>：神之手價值 減掉 你實際賣掉拿到的錢 加上 現在還抱著的市值。這就是你錯過的數字。</li>
-      <li><b>出場效率</b>：實際 ÷ 神之手。100% 代表你是神，5% 代表你跟大家一樣。</li>
-      <li><b>大金狗</b>：MFE ≥ 100x <u>且</u> 該幣最高市值 ≥ $10M。<b>小金狗</b>：MFE ≥ 10x <u>且</u> 最高市值 ≥ $1M。
-        兩個門檻都要過，是為了濾掉那種只在幾萬鎂市值插一根針的假訊號。</li>
+      <li><b>神化率</b>：實際 ÷ 神之手。100% 代表你是神，5% 代表你跟大家一樣。</li>
+      <li><b>大金狗</b>：MFE ≥ 100x <u>且</u> 該幣最高市值 ≥ $10M。<b>小金狗</b>：MFE ≥ 10x <u>且</u> 最高市值 ≥ $1M。</li>
     </ul>
-    <p class="hint">全程在你的瀏覽器裡跑，地址與 API key 不會送到任何第三方伺服器，只會直接打 Helius / DexScreener / GeckoTerminal。</p>
+    <p class="hint">全程在你的瀏覽器裡跑，地址與 API key 不會送到任何第三方伺服器，只會直接打
+    Helius / DexScreener / GeckoTerminal / Birdeye。分享卡的背景圖與 logo 也只在本機處理，不會上傳。</p>
   </section>
 
 </main>
 
 <footer class="wrap">
-  <p>資料來源：Helius（交易紀錄）、DexScreener（池子與現價）、GeckoTerminal（歷史 K 線）。<br>
+  <p>資料來源：Helius（交易紀錄）、DexScreener（池子與現價）、GeckoTerminal／Birdeye（歷史 K 線）。<br>
   這不是投資建議，只是一份帳單。</p>
 </footer>
 

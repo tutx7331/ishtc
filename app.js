@@ -60,9 +60,9 @@ function fmtX(x) {
 
 function fmtPct(x) { return (isFinite(x) ? (x * 100).toFixed(1) : '—') + '%'; }
 
-/** GeckoTerminal 無金鑰限速 25/min，n 隻幣要多久 */
-function etaText(n) {
-  const secs = Math.round((n * 60) / 25);
+/** n 隻幣要多久。速率取決於走 Birdeye(50/min) 還是 GeckoTerminal(25/min) */
+function etaText(n, perMin) {
+  const secs = Math.round((n * 60) / (perMin || 25));
   if (secs >= 3600) return '約 ' + (secs / 3600).toFixed(1) + ' 小時';
   if (secs >= 60) return '約 ' + Math.ceil(secs / 60) + ' 分';
   return '約 ' + secs + ' 秒';
@@ -101,6 +101,13 @@ const beLimit = new Limiter(50);   // Birdeye 免費方案 1 rps，留餘裕
 
 let abortFlag = false;
 let birdeyeKey = '';   // 選填。有填就用 Birdeye 抓最高價，涵蓋範圍與速度都比較好
+let beQuota = null;    // Birdeye 回傳的剩餘額度，從 response header 讀來的
+
+function quotaText() {
+  if (!beQuota || !isFinite(beQuota.remaining)) return '';
+  return '　Birdeye 剩 ' + beQuota.remaining.toLocaleString()
+    + (isFinite(beQuota.limit) ? ' / ' + beQuota.limit.toLocaleString() : '');
+}
 
 async function getJSON(url, opts) {
   const { limiter, tries = 3, headers } = opts || {};
@@ -116,6 +123,12 @@ async function getJSON(url, opts) {
       if (i === tries - 1) throw new Error('網路錯誤，連不到 ' + host);
       await sleep(800 * (i + 1));
       continue;
+    }
+    // Birdeye 會把額度資訊放在 header 且允許跨網域讀取，順手記下來給進度列顯示
+    if (host.indexOf('birdeye') >= 0) {
+      const rem = res.headers.get('x-ratelimit-remaining');
+      const lim = res.headers.get('x-ratelimit-limit');
+      if (rem !== null) beQuota = { remaining: Number(rem), limit: lim === null ? NaN : Number(lim) };
     }
     if (res.status === 429) { sawRateLimit = true; await sleep(4000 * (i + 1)); continue; }
     if (res.status === 404) return null;
@@ -553,7 +566,8 @@ async function run() {
     const p = withPool[i];
     const meta = info.get(p.mint);
     setProg(40 + (i / withPool.length) * 58,
-      '算最高價 ' + (i + 1) + '/' + withPool.length + '（' + meta.symbol + '）… 剩 ' + etaText(withPool.length - i));
+      '算最高價 ' + (i + 1) + '/' + withPool.length + '（' + meta.symbol + '）… 剩 '
+      + etaText(withPool.length - i, birdeyeKey ? 50 : 25) + quotaText());
 
     let peak = null;
     try {
@@ -623,6 +637,9 @@ async function run() {
       noPool: noPool, minCost: minCost, skippedMulti: built.skippedMulti,
       noPeak: rows.filter((r) => !r.hasPeak).length,
       aborted: aborted, planned: withPool.length,
+      beRows: rows.filter((r) => r.peakSrc === 'birdeye').length,
+      gtRows: rows.filter((r) => r.peakSrc === 'gecko').length,
+      beQuotaLeft: beQuota && isFinite(beQuota.remaining) ? beQuota.remaining : 0,
     },
   };
 }
@@ -761,7 +778,7 @@ function render(d) {
     ['實際損益', (s.pnl >= 0 ? '+' : '') + fmtUSD(s.pnl), '已實現 + 現有持倉', s.pnl >= 0 ? 'good' : 'bad'],
     ['神之手總值', fmtUSD(s.ideal), '每隻都賣在最高點', ''],
     ['錯過的錢', fmtUSD(s.missed), '賣飛總額', 'bad'],
-    ['出場效率', fmtPct(eff), '實際 ÷ 神之手', grade[1]],
+    ['神化率', fmtPct(eff), '實際 ÷ 神之手', grade[1]],
     ['大金狗捕獲率', fmtPct(s.bigRate), s.bigDogs + ' / ' + s.n + ' 隻　100x 且市值破 $10M', s.bigDogs ? 'good' : ''],
     ['小金狗捕獲率', fmtPct(s.smallRate), s.smallDogs + ' / ' + s.n + ' 隻　10x 且市值破 $1M', s.smallDogs ? 'good' : ''],
     ['全損率', fmtPct(s.dead / s.n), s.dead + ' 隻的現價不到你成本的 5%', 'bad'],
@@ -775,7 +792,7 @@ function render(d) {
   // 金狗品味：漲幅 × 市值雙門檻
   const taste = s.bigRate >= 0.05 ? ['你抓得到大狗。', 'good']
     : s.smallRate >= 0.15 ? ['小狗抓得不錯，大狗還差一步。', 'warn']
-    : s.smallRate > 0 ? ['偶爾中，但多半是插針。', 'warn']
+    : s.smallRate > 0 ? ['偶爾中，但還沒抓到真正做大的。', 'warn']
     : ['目前一隻真金狗都沒抓到。', 'bad'];
   $('#dog-taste').innerHTML =
     '<div class="dog-grid">'
@@ -836,6 +853,11 @@ function render(d) {
     '「實際拿到」＝ 已賣出所得 ＋ 目前持倉市值。<b>轉出到沒填進來的地址不算賣出</b>，所以如果你還有其他錢包，記得一起貼上。');
   if (m.minCost < 1) {
     cav.push('最小買入成本設在 $' + m.minCost + '，測試單與零星小額也會被算成一隻幣進到分母，金狗率會被稀釋。想看真實選幣品味可以調到 $5–$20 再跑一次。');
+  }
+  if (m.beRows) {
+    cav.push('這次有 <b>' + m.beRows + ' 隻</b>的最高價來自 Birdeye（按代幣查、涵蓋所有池子，含 pump.fun 遷移前）'
+      + (m.gtRows ? '，另外 ' + m.gtRows + ' 隻退回 GeckoTerminal（只看單一池子，可能低估）' : '') + '。'
+      + (m.beQuotaLeft ? '你的 Birdeye 額度還剩 ' + m.beQuotaLeft.toLocaleString() + '。' : ''));
   }
   if (m.noPool.length) cav.push(m.noPool.length + ' 隻幣在 DexScreener 查不到池子（多半已完全歸零或下架），未列入報告。');
   if (m.noPeak) cav.push(m.noPeak + ' 隻幣抓不到歷史 K 線，最高價以現價與買入均價中較高者代替。');
@@ -958,7 +980,7 @@ function drawCard(d) {
   const cells = [
     ['大金狗捕獲率', fmtPct(s.bigRate), '#ffb020'],
     ['小金狗捕獲率', fmtPct(s.smallRate), '#ffb020'],
-    ['出場效率', fmtPct(s.efficiency), '#e8ecf4'],
+    ['神化率', fmtPct(s.efficiency), '#e8ecf4'],
     ['全損率', fmtPct(s.dead / s.n), '#ff4d6d'],
   ];
   const gw = W - PAD * 2, colW = gw / 4;
@@ -1041,12 +1063,10 @@ $('#addresses').value = localStorage.getItem('fomo:addrs') || '';
 
 function updateEta() {
   const n = clamp(parseInt($('#max-tokens').value, 10) || 0, 0, 5000);
-  const rate = $('#birdeye-key').value.trim() ? 50 : 25;
-  const secs = Math.round((n * 60) / rate);
-  const t = secs >= 3600 ? '約 ' + (secs / 3600).toFixed(1) + ' 小時'
-    : secs >= 60 ? '約 ' + Math.ceil(secs / 60) + ' 分' : '約 ' + secs + ' 秒';
-  $('#eta-hint').textContent = '依買入成本由大到小排序。全部沒快取的話最多要跑 ' + t
-    + (rate === 25 ? '（填 Birdeye key 可以快一倍）' : '（Birdeye 加速中）')
+  const hasBe = !!$('#birdeye-key').value.trim();
+  $('#eta-hint').textContent = '依買入成本由大到小排序。全部沒快取的話最多要跑 '
+    + etaText(n, hasBe ? 50 : 25)
+    + (hasBe ? '（Birdeye 加速中）' : '（填 Birdeye key 可以快一倍）')
     + '，中途按「停止」會保留已經算完的部分。';
 }
 $('#max-tokens').addEventListener('input', updateEta);
