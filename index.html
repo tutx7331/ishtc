@@ -35,6 +35,15 @@
       <input id="helius-key" type="password" spellcheck="false" autocomplete="off" placeholder="Helius API key，或整條 https://mainnet.helius-rpc.com/?api-key=…">
     </label>
 
+    <label class="field">
+      <span class="label">Birdeye API Key<span class="opt">選填</span>
+        <small>免費申請 → <a href="https://bds.birdeye.so" target="_blank" rel="noopener">bds.birdeye.so</a>。
+        填了會用 Birdeye 抓最高價：它是<b>按代幣查、涵蓋所有池子</b>，補得到 pump.fun 遷移前那段行情，而且速度快一倍。
+        不填就用免金鑰的 GeckoTerminal。</small>
+      </span>
+      <input id="birdeye-key" type="password" spellcheck="false" autocomplete="off" placeholder="留空即可，不影響使用">
+    </label>
+
     <details class="advanced" open>
       <summary>進階設定</summary>
       <div class="adv-grid">
@@ -93,26 +102,15 @@
 
     <div class="panel">
       <h2>賣飛排行榜</h2>
-      <p class="hint">如果每一隻都精準賣在最高點，跟你實際拿到的錢差多少。</p>
+      <p class="hint">如果每一隻都精準賣在最高點，跟你實際拿到的錢差多少。
+        點欄位標題可以排序，再點一次換升冪降冪。<b>全損</b>＝現價不到你成本的 5%；<b>已死</b>＝這隻幣流動性見底或從高點跌掉 99%。</p>
       <div class="table-scroll">
         <table id="tokens-table">
-          <thead>
-            <tr>
-              <th>幣</th>
-              <th class="num">成本 USD</th>
-              <th class="num">均價</th>
-              <th class="num">買入後最高</th>
-              <th class="num">MFE</th>
-              <th class="num">最高市值</th>
-              <th class="num">神之手價值</th>
-              <th class="num">實際拿到</th>
-              <th class="num">賣飛金額</th>
-              <th class="num">到頂天數</th>
-            </tr>
-          </thead>
+          <thead></thead>
           <tbody></tbody>
         </table>
       </div>
+      <div id="pager"></div>
     </div>
 
     <div class="panel" id="per-address-panel">
@@ -137,7 +135,33 @@
 
     <div class="panel">
       <h2>分享</h2>
-      <div id="share-wrap"><canvas id="share-canvas" width="1080" height="1350"></canvas></div>
+      <div class="share-layout">
+        <div id="share-wrap"><canvas id="share-canvas" width="1080" height="1350"></canvas></div>
+        <div class="share-side">
+          <div class="upload">
+            <span class="up-label">背景圖</span>
+            <label class="up-btn">選擇圖片<input id="bg-file" type="file" accept="image/*" hidden></label>
+            <button class="up-clear" id="bg-clear" hidden>移除</button>
+            <small>會鋪滿整張並自動壓暗，確保文字讀得到</small>
+          </div>
+          <div class="upload">
+            <span class="up-label">Logo</span>
+            <label class="up-btn">選擇圖片<input id="logo-file" type="file" accept="image/*" hidden></label>
+            <button class="up-clear" id="logo-clear" hidden>移除</button>
+            <small>放右下角，最長邊 120px</small>
+          </div>
+          <div class="upload">
+            <span class="up-label">署名</span>
+            <input id="handle" type="text" maxlength="24" placeholder="@yourhandle">
+            <small>留空就不顯示</small>
+          </div>
+          <div class="upload">
+            <span class="up-label">背景暗度</span>
+            <input id="dim" type="range" min="0" max="90" value="62">
+            <small>只有放了背景圖才有作用</small>
+          </div>
+        </div>
+      </div>
       <div class="actions">
         <button id="download-card" class="primary">下載分享圖</button>
         <button id="download-csv" class="ghost">下載 CSV</button>

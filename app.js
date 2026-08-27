@@ -18,6 +18,8 @@ const EXCLUDE = new Set([
 ]);
 const GT = 'https://api.geckoterminal.com/api/v2';
 const DS = 'https://api.dexscreener.com';
+const BE = 'https://public-api.birdeye.so';
+const DEAD_LIQ = 1000;   // 流動性低於這個數字視為這隻幣已經沒人玩了
 const CACHE_PREFIX = 'fomo:gt:';
 const CACHE_TTL = 6 * 3600 * 1000;
 const CACHE_MAX = 500;
@@ -35,6 +37,7 @@ function fmtUSD(n) {
   if (a >= 1e6) return s + '$' + (a / 1e6).toFixed(2) + 'M';
   if (a >= 1e3) return s + '$' + (a / 1e3).toFixed(1) + 'K';
   if (a >= 1)   return s + '$' + a.toFixed(2);
+  if (a === 0)  return '$0';
   return s + '$' + a.toFixed(4);
 }
 
@@ -94,23 +97,27 @@ class Limiter {
 }
 const gtLimit = new Limiter(25);   // GeckoTerminal 無 key 上限 30/min，留餘裕
 const dsLimit = new Limiter(240);  // DexScreener token 端點 300/min
+const beLimit = new Limiter(50);   // Birdeye 免費方案 1 rps，留餘裕
 
 let abortFlag = false;
+let birdeyeKey = '';   // 選填。有填就用 Birdeye 抓最高價，涵蓋範圍與速度都比較好
 
 async function getJSON(url, opts) {
-  const { limiter, tries = 3 } = opts || {};
+  const { limiter, tries = 3, headers } = opts || {};
+  const host = new URL(url).host;
+  let sawRateLimit = false;
   for (let i = 0; i < tries; i++) {
     if (abortFlag) throw new Error('__ABORT__');
     if (limiter) await limiter.take();
     let res;
     try {
-      res = await fetch(url, { headers: { Accept: 'application/json' } });
+      res = await fetch(url, { headers: Object.assign({ Accept: 'application/json' }, headers) });
     } catch (e) {
-      if (i === tries - 1) throw new Error('網路錯誤，連不到 ' + new URL(url).host);
+      if (i === tries - 1) throw new Error('網路錯誤，連不到 ' + host);
       await sleep(800 * (i + 1));
       continue;
     }
-    if (res.status === 429) { await sleep(3000 * (i + 1)); continue; }
+    if (res.status === 429) { sawRateLimit = true; await sleep(4000 * (i + 1)); continue; }
     if (res.status === 404) return null;
     if (!res.ok) {
       if (i === tries - 1) {
@@ -122,6 +129,13 @@ async function getJSON(url, opts) {
       continue;
     }
     return res.json();
+  }
+  // 重試次數用完了。是被限流還是單純沒資料，錯誤訊息要說得清楚
+  if (sawRateLimit) {
+    const err = new Error('被 ' + host + ' 限流（429），重試幾次都沒過。等幾分鐘再試'
+      + (host.indexOf('geckoterminal') >= 0 ? '，或填一把 Birdeye key 走另一條線。' : '。'));
+    err.status = 429;
+    throw err;
   }
   return null;
 }
@@ -336,6 +350,32 @@ function pickGranularity(ageDays) {
   return { tf: 'day', agg: 1 };                       // ≈ 2.7 年
 }
 
+/** Birdeye 是「按代幣地址」查，涵蓋所有池子，含 pump.fun bonding curve 那段 */
+const BE_TF = { 'hour:1': '1H', 'hour:4': '4H', 'day:1': '1D' };
+
+async function fetchPeakBirdeye(mint, sinceTs) {
+  const ageDays = (Date.now() / 1000 - sinceTs) / 86400;
+  const gran = pickGranularity(ageDays);
+  const tf = BE_TF[gran.tf + ':' + gran.agg] || '1D';
+  const key = 'be:' + mint + ':' + tf + ':' + Math.floor(sinceTs / 86400);
+  let list = cacheGet(key);
+  if (!list) {
+    const now = Math.floor(Date.now() / 1000);
+    const j = await getJSON(BE + '/defi/ohlcv?address=' + mint + '&type=' + tf
+      + '&time_from=' + Math.floor(sinceTs) + '&time_to=' + now,
+      { limiter: beLimit, headers: { 'X-API-KEY': birdeyeKey, 'x-chain': 'solana' } });
+    const items = (j && j.data && j.data.items) || [];
+    list = items.map((c) => [c.unixTime, c.h]);
+    if (list.length) cacheSet(key, list);
+  }
+  if (!list.length) return null;
+  let best = 0, bestTs = 0;
+  for (const c of list) if (c[1] > best) { best = c[1]; bestTs = c[0]; }
+  if (best <= 0) return null;
+  // 是按 time_from 切的，所以涵蓋範圍必然從第一次買入開始
+  return { peak: best, peakTs: bestTs, partial: false, src: 'birdeye' };
+}
+
 async function fetchPeak(pool, sinceTs) {
   const ageDays = (Date.now() / 1000 - sinceTs) / 86400;
   const gran = pickGranularity(ageDays);
@@ -359,7 +399,22 @@ async function fetchPeak(pool, sinceTs) {
   }
   if (best <= 0) return null;
   const oldest = list[list.length - 1] ? list[list.length - 1][0] : 0;
-  return { peak: best, peakTs: bestTs, partial: !covered || oldest > sinceTs + bucket };
+  return { peak: best, peakTs: bestTs, partial: !covered || oldest > sinceTs + bucket, src: 'gecko' };
+}
+
+/** 有 Birdeye key 就優先用它，失敗再退回 GeckoTerminal */
+async function fetchPeakBest(mint, pool, sinceTs) {
+  if (birdeyeKey) {
+    try {
+      const r = await fetchPeakBirdeye(mint, sinceTs);
+      if (r) return r;
+    } catch (e) {
+      if (e.message === '__ABORT__') throw e;
+      if (e.status === 401) throw new Error('Birdeye API key 無效。清空該欄位就會改用免金鑰的 GeckoTerminal。');
+      // 其他錯誤（額度用完、單一代幣查不到）就靜靜退回 GeckoTerminal
+    }
+  }
+  return fetchPeak(pool, sinceTs);
 }
 
 // ---------- 6. 統計 ----------
@@ -378,10 +433,18 @@ function peakMcapOf(r) {
 function isBigDog(r) { return r.mfeX >= BIG_DOG.x && r.peakMcap >= BIG_DOG.mcap; }
 function isSmallDog(r) { return r.mfeX >= SMALL_DOG.x && r.peakMcap >= SMALL_DOG.mcap; }
 
+/** 全損：現價不到你買入均價的 5%，這筆你等於全賠光（跟幣本身死沒死無關） */
+function isWipeout(r) { return r.price > 0 && r.avgBuy > 0 && r.price <= r.avgBuy * 0.05; }
+/** 已死：池子流動性見底，或現價不到自己歷史最高價的 1%。這是幣的狀態，跟你買在哪無關 */
+function isRugged(r) {
+  if (r.liq > 0 && r.liq < DEAD_LIQ) return true;
+  return r.peak > 0 && r.price > 0 && r.price <= r.peak * 0.01;
+}
+
 function summarize(rows) {
   const s = {
     n: rows.length, cost: 0, ideal: 0, actual: 0, realized: 0, holding: 0,
-    missed: 0, tiers: {}, dead: 0, daysToPeakSum: 0, daysToPeakN: 0, worst: null,
+    missed: 0, tiers: {}, dead: 0, rugged: 0, daysToPeakSum: 0, daysToPeakN: 0, worst: null,
     bigDogs: 0, smallDogs: 0, mcapUnknown: 0, topDog: null,
   };
   TIERS.forEach((t) => { s.tiers[t] = 0; });
@@ -391,7 +454,8 @@ function summarize(rows) {
     s.realized += r.proceedsUSD;
     s.holding += r.holdingUSD;
     for (const t of TIERS) if (r.mfeX >= t) s.tiers[t]++;
-    if (r.price > 0 && r.avgBuy > 0 && r.price <= r.avgBuy * 0.05) s.dead++;
+    if (isWipeout(r)) s.dead++;
+    if (isRugged(r)) s.rugged++;
     if (isFinite(r.daysToPeak)) { s.daysToPeakSum += r.daysToPeak; s.daysToPeakN++; }
     if (!s.worst || r.missedUSD > s.worst.missedUSD) s.worst = r;
     if (!isFinite(r.peakMcap)) s.mcapUnknown++;
@@ -419,6 +483,8 @@ async function run() {
   const addrs = Array.from(new Set(
     $('#addresses').value.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean)));
   const key = normalizeKey($('#helius-key').value);
+  birdeyeKey = $('#birdeye-key').value.trim();
+  localStorage.setItem('fomo:bekey', birdeyeKey);
   const maxTokens = clamp(parseInt($('#max-tokens').value, 10) || 300, 5, 5000);
   const minCost = Math.max(0, parseFloat($('#min-cost').value) || 0);
   const maxTx = clamp(parseInt($('#max-tx').value, 10) || 30000, 100, 200000);
@@ -491,10 +557,11 @@ async function run() {
 
     let peak = null;
     try {
-      peak = await fetchPeak(meta.pool, p.firstBuyTs);
+      peak = await fetchPeakBest(p.mint, meta.pool, p.firstBuyTs);
     } catch (e) {
       // 中途停止時保留已經算完的部分，不要整份丟掉
       if (e.message === '__ABORT__') { aborted = true; break; }
+      if (/Birdeye API key/.test(e.message)) throw e;
     }
 
     const peakP = (peak && peak.peak) || Math.max(meta.price, p.avgBuy);
@@ -504,12 +571,14 @@ async function run() {
       peakTs: (peak && peak.peakTs) || 0,
       partial: !!(peak && peak.partial),
       hasPeak: !!peak,
+      peakSrc: (peak && peak.src) || '',
       mfeX: p.avgBuy > 0 ? peakP / p.avgBuy : NaN,
       idealUSD: p.boughtAmt * peakP,
       holdAmt: holdAmt,
       holdingUSD: holdAmt * (meta.price || 0),
     });
-    row.missedUSD = Math.max(0, row.idealUSD - (row.proceedsUSD + row.holdingUSD));
+    row.actualUSD = row.proceedsUSD + row.holdingUSD;
+    row.missedUSD = Math.max(0, row.idealUSD - row.actualUSD);
     row.daysToPeak = (peak && peak.peakTs) ? (peak.peakTs - p.firstBuyTs) / 86400 : NaN;
     row.peakMcap = peakMcapOf(row);
     rows.push(row);
@@ -558,7 +627,117 @@ async function run() {
   };
 }
 
-// ---------- 8. 畫面 ----------
+// ---------- 8. 排行榜：排序 + 分頁 ----------
+const PAGE_SIZE = 10;
+const COLS = [
+  { key: 'symbol',    label: '幣',          num: false },
+  { key: 'costUSD',   label: '成本 USD',    num: true, fmt: fmtUSD },
+  { key: 'avgBuy',    label: '均價',        num: true, fmt: fmtPrice },
+  { key: 'peak',      label: '買入後最高',  num: true, fmt: fmtPrice },
+  { key: 'mfeX',      label: 'MFE',         num: true, fmt: fmtX },
+  { key: 'peakMcap',  label: '最高市值',    num: true, fmt: fmtUSD },
+  { key: 'liq',       label: '流動性',      num: true, fmt: fmtUSD },
+  { key: 'idealUSD',  label: '神之手價值',  num: true, fmt: fmtUSD },
+  { key: 'actualUSD', label: '實際拿到',    num: true, fmt: fmtUSD },
+  { key: 'missedUSD', label: '賣飛金額',    num: true, fmt: fmtUSD },
+  { key: 'daysToPeak', label: '到頂天數',   num: true, fmt: (v) => (isFinite(v) ? v.toFixed(1) : '—') },
+];
+let sortKey = 'missedUSD';
+let sortDir = -1;   // -1 由大到小
+let page = 0;
+
+function sortedRows() {
+  const col = COLS.find((c) => c.key === sortKey) || COLS[9];
+  const rows = LAST.rows.slice();
+  rows.sort((a, b) => {
+    let x = a[col.key], y = b[col.key];
+    if (!col.num) {
+      return String(x || '').localeCompare(String(y || '')) * sortDir;
+    }
+    // 沒有值的一律沉到最底，不管升冪降冪
+    const nx = isFinite(x), ny = isFinite(y);
+    if (!nx && !ny) return 0;
+    if (!nx) return 1;
+    if (!ny) return -1;
+    return (x - y) * sortDir;
+  });
+  return rows;
+}
+
+function renderTable() {
+  if (!LAST) return;
+  const rows = sortedRows();
+  const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  page = clamp(page, 0, pages - 1);
+  const slice = rows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
+  $('#tokens-table thead').innerHTML = '<tr>' + COLS.map((c) => {
+    const active = c.key === sortKey;
+    const arrow = active ? (sortDir === -1 ? '▼' : '▲') : '<span class="sort-idle">↕</span>';
+    return '<th class="' + (c.num ? 'num ' : '') + 'sortable' + (active ? ' active' : '') + '"'
+      + ' data-key="' + c.key + '" tabindex="0" role="button"'
+      + ' aria-sort="' + (active ? (sortDir === -1 ? 'descending' : 'ascending') : 'none') + '">'
+      + escapeHTML(c.label) + ' <span class="arrow">' + arrow + '</span></th>';
+  }).join('') + '</tr>';
+
+  $('#tokens-table tbody').innerHTML = slice.map((r) => {
+    const dog = isBigDog(r) ? '<span class="badge big">大金狗</span>'
+      : isSmallDog(r) ? '<span class="badge gold">小金狗</span>' : '';
+    const wipe = isWipeout(r) ? '<span class="badge dead">全損</span>' : '';
+    const rug = isRugged(r) ? '<span class="badge rug">已死</span>' : '';
+    const cells = COLS.slice(1).map((c) => {
+      const v = r[c.key];
+      let cls = 'num';
+      if (c.key === 'mfeX') cls += r.mfeX >= 2 ? ' pos' : ' neg';
+      if (c.key === 'missedUSD') cls += ' neg';
+      let txt = isFinite(v) ? c.fmt(v) : '—';
+      if (c.key === 'peak' && r.partial) txt += ' *';
+      return '<td class="' + cls + '">' + txt + '</td>';
+    }).join('');
+    return '<tr>'
+      + '<td><span class="sym">' + escapeHTML(r.symbol) + '</span>' + dog + wipe + rug + '<br>'
+      + '<a class="mint" href="https://dexscreener.com/solana/' + r.mint
+      + '" target="_blank" rel="noopener">' + shortAddr(r.mint) + '</a></td>'
+      + cells + '</tr>';
+  }).join('');
+
+  const from = rows.length ? page * PAGE_SIZE + 1 : 0;
+  $('#pager').innerHTML =
+    '<button class="pg" data-go="0"' + (page === 0 ? ' disabled' : '') + '>«</button>'
+    + '<button class="pg" data-go="' + (page - 1) + '"' + (page === 0 ? ' disabled' : '') + '>‹</button>'
+    + '<span class="pg-info">' + from + '–' + Math.min(rows.length, (page + 1) * PAGE_SIZE)
+    + ' / ' + rows.length + '　第 ' + (page + 1) + ' / ' + pages + ' 頁</span>'
+    + '<button class="pg" data-go="' + (page + 1) + '"' + (page >= pages - 1 ? ' disabled' : '') + '>›</button>'
+    + '<button class="pg" data-go="' + (pages - 1) + '"' + (page >= pages - 1 ? ' disabled' : '') + '>»</button>';
+}
+
+function onSortClick(th) {
+  const key = th.getAttribute('data-key');
+  if (!key) return;
+  if (key === sortKey) sortDir = -sortDir;
+  else { sortKey = key; sortDir = key === 'symbol' ? 1 : -1; }
+  page = 0;
+  renderTable();
+}
+
+$('#tokens-table thead').addEventListener('click', (e) => {
+  const th = e.target.closest('th.sortable');
+  if (th) onSortClick(th);
+});
+$('#tokens-table thead').addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  const th = e.target.closest('th.sortable');
+  if (th) { e.preventDefault(); onSortClick(th); }
+});
+$('#pager').addEventListener('click', (e) => {
+  const b = e.target.closest('button.pg');
+  if (!b || b.disabled) return;
+  page = parseInt(b.getAttribute('data-go'), 10);
+  renderTable();
+  $('#tokens-table').scrollIntoView({ block: 'start', behavior: 'smooth' });
+});
+
+// ---------- 8b. 畫面 ----------
 function render(d) {
   LAST = d;
   const s = d.sum;
@@ -584,7 +763,9 @@ function render(d) {
     ['錯過的錢', fmtUSD(s.missed), '賣飛總額', 'bad'],
     ['出場效率', fmtPct(eff), '實際 ÷ 神之手', grade[1]],
     ['大金狗捕獲率', fmtPct(s.bigRate), s.bigDogs + ' / ' + s.n + ' 隻　100x 且市值破 $10M', s.bigDogs ? 'good' : ''],
-    ['歸零率', fmtPct(s.dead / s.n), s.dead + ' 隻現價低於成本 5%', 'bad'],
+    ['小金狗捕獲率', fmtPct(s.smallRate), s.smallDogs + ' / ' + s.n + ' 隻　10x 且市值破 $1M', s.smallDogs ? 'good' : ''],
+    ['全損率', fmtPct(s.dead / s.n), s.dead + ' 隻的現價不到你成本的 5%', 'bad'],
+    ['已死率', fmtPct(s.rugged / s.n), s.rugged + ' 隻流動性見底或跌掉 99%', 'bad'],
     ['平均到頂天數', isFinite(s.avgDaysToPeak) ? s.avgDaysToPeak.toFixed(1) + ' 天' : '—', '從你第一次買到最高點', ''],
   ];
   $('#stat-grid').innerHTML = stats.map((r) =>
@@ -618,26 +799,8 @@ function render(d) {
       + '<span class="val">' + c + ' 隻 · ' + fmtPct(c / s.n) + '</span></div>';
   }).join('');
 
-  $('#tokens-table tbody').innerHTML = d.rows.map((r) => {
-    const gold = isBigDog(r) ? '<span class="badge big">大金狗</span>'
-      : isSmallDog(r) ? '<span class="badge gold">小金狗</span>' : '';
-    const dead = (r.price > 0 && r.avgBuy > 0 && r.price <= r.avgBuy * 0.05)
-      ? '<span class="badge dead">歸零</span>' : '';
-    return '<tr>'
-      + '<td><span class="sym">' + escapeHTML(r.symbol) + '</span>' + gold + dead + '<br>'
-      + '<a class="mint" href="https://dexscreener.com/solana/' + r.mint
-      + '" target="_blank" rel="noopener">' + shortAddr(r.mint) + '</a></td>'
-      + '<td class="num">' + fmtUSD(r.costUSD) + '</td>'
-      + '<td class="num">' + fmtPrice(r.avgBuy) + '</td>'
-      + '<td class="num">' + fmtPrice(r.peak) + (r.partial ? ' *' : '') + '</td>'
-      + '<td class="num ' + (r.mfeX >= 2 ? 'pos' : 'neg') + '">' + fmtX(r.mfeX) + '</td>'
-      + '<td class="num">' + (isFinite(r.peakMcap) ? fmtUSD(r.peakMcap) : '—') + '</td>'
-      + '<td class="num">' + fmtUSD(r.idealUSD) + '</td>'
-      + '<td class="num">' + fmtUSD(r.proceedsUSD + r.holdingUSD) + '</td>'
-      + '<td class="num neg">' + fmtUSD(r.missedUSD) + '</td>'
-      + '<td class="num">' + (isFinite(r.daysToPeak) ? r.daysToPeak.toFixed(1) : '—') + '</td>'
-      + '</tr>';
-  }).join('');
+  sortKey = 'missedUSD'; sortDir = -1; page = 0;
+  renderTable();
 
   const pa = $('#per-address-panel');
   if (d.perAddr.length > 1) {
@@ -684,82 +847,159 @@ function render(d) {
 }
 
 // ---------- 9. 分享圖 ----------
+const CARD = { W: 1080, H: 1350, PAD: 72 };
+let bgImage = null;    // 使用者上傳的背景圖
+let logoImage = null;  // 使用者上傳的 logo
+
+const SANS = '"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif';
+const MONO = 'ui-monospace,SFMono-Regular,Menlo,Consolas,monospace';
+const cardFont = (w, sz, mono) => w + ' ' + sz + 'px ' + (mono ? MONO : SANS);
+
+/** 等比例填滿整個畫布（等同 CSS background-size: cover） */
+function drawCover(x, img, W, H) {
+  const s = Math.max(W / img.width, H / img.height);
+  const w = img.width * s, h = img.height * s;
+  x.drawImage(img, (W - w) / 2, (H - h) / 2, w, h);
+}
+
 function drawCard(d) {
   const c = $('#share-canvas');
   const x = c.getContext('2d');
-  const W = c.width, H = c.height, s = d.sum;
+  const { W, H, PAD } = CARD;
+  const s = d.sum;
+  const dim = (parseInt($('#dim').value, 10) || 0) / 100;
 
+  x.clearRect(0, 0, W, H);
   x.fillStyle = '#0a0b0e';
   x.fillRect(0, 0, W, H);
-  x.strokeStyle = '#232833';
-  x.lineWidth = 2;
-  x.strokeRect(40, 40, W - 80, H - 80);
-  // 左上角的方形強調塊，呼應網頁標題
-  x.fillStyle = '#14f195';
-  x.fillRect(40, 40, 6, 78);
 
-  const SANS = '"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif';
-  const MONO = 'ui-monospace,SFMono-Regular,Menlo,Consolas,monospace';
-  const F = (w, sz) => w + ' ' + sz + 'px ' + SANS;
-  const M = (w, sz) => w + ' ' + sz + 'px ' + MONO;
+  if (bgImage) {
+    x.save();
+    drawCover(x, bgImage, W, H);
+    x.fillStyle = 'rgba(10,11,14,' + dim + ')';
+    x.fillRect(0, 0, W, H);
+    // 底部再壓一層漸層，讓下半部的小字不會糊在花俏的背景上
+    const g = x.createLinearGradient(0, H * 0.45, 0, H);
+    g.addColorStop(0, 'rgba(10,11,14,0)');
+    g.addColorStop(1, 'rgba(10,11,14,.9)');
+    x.fillStyle = g;
+    x.fillRect(0, H * 0.45, W, H * 0.55);
+    x.restore();
+  }
 
-  x.textAlign = 'left';
-  x.fillStyle = '#7d8697'; x.font = M(700, 26);
-  x.fillText('賣飛計算機 / SOLANA', 68, 90);
-
-  x.textAlign = 'center';
-  x.fillStyle = '#e8ecf4'; x.font = F(700, 44);
-  x.fillText('我買過 ' + s.n + ' 隻 memecoin', W / 2, 235);
-  x.fillStyle = '#7d8697'; x.font = F(500, 36);
-  x.fillText('如果每一隻都賣在最高點', W / 2, 302);
-
-  x.fillStyle = '#14f195'; x.font = M(700, 112);
-  x.fillText(fmtUSD(s.ideal), W / 2, 432);
-
-  x.fillStyle = '#7d8697'; x.font = F(500, 34);
-  x.fillText('我實際拿到', W / 2, 520);
-  x.fillStyle = '#e8ecf4'; x.font = M(700, 72);
-  x.fillText(fmtUSD(s.actual), W / 2, 604);
-
-  x.fillStyle = '#150a0e';
-  x.fillRect(80, 664, W - 160, 196);
-  x.fillStyle = '#ff4d6d';
-  x.fillRect(80, 664, 5, 196);
-  x.strokeStyle = 'rgba(255,77,109,.35)';
+  // ---- 外框與角標 ----
+  x.strokeStyle = 'rgba(232,236,244,.14)';
   x.lineWidth = 1;
-  x.strokeRect(80, 664, W - 160, 196);
-  x.fillStyle = '#ff4d6d'; x.font = F(600, 34);
-  x.fillText('我錯過了', W / 2, 732);
-  x.font = M(700, 88);
-  x.fillText(fmtUSD(s.missed), W / 2, 828);
+  x.strokeRect(PAD - 24, PAD - 24, W - (PAD - 24) * 2, H - (PAD - 24) * 2);
 
+  let y = PAD + 24;
+
+  // ---- 頁首 ----
+  x.textAlign = 'left';
+  x.fillStyle = '#14f195';
+  x.fillRect(PAD, y - 22, 5, 30);
+  x.font = cardFont(700, 24, true);
+  x.fillStyle = '#e8ecf4';
+  x.fillText('賣飛計算機', PAD + 20, y);
+  x.fillStyle = '#565f70';
+  x.fillText('SOLANA', PAD + 20 + x.measureText('賣飛計算機').width + 18, y);
+
+  x.textAlign = 'right';
+  x.font = cardFont(600, 22, true);
+  x.fillStyle = '#565f70';
+  x.fillText(s.n + ' TOKENS', W - PAD, y);
+
+  y += 34;
+  x.strokeStyle = 'rgba(232,236,244,.14)';
+  x.beginPath(); x.moveTo(PAD, y); x.lineTo(W - PAD, y); x.stroke();
+
+  // ---- 主數字：神之手 ----
+  y += 110;
+  x.textAlign = 'left';
+  x.font = cardFont(500, 32, false);
+  x.fillStyle = '#7d8697';
+  x.fillText('每一隻都賣在最高點，我會有', PAD, y);
+
+  y += 118;
+  x.font = cardFont(700, 112, true);
+  x.fillStyle = '#14f195';
+  x.fillText(fmtUSD(s.ideal), PAD, y);
+
+  // ---- 對照：實際 ----
+  y += 96;
+  x.font = cardFont(500, 30, false);
+  x.fillStyle = '#7d8697';
+  const actLabel = '實際只拿到';
+  x.fillText(actLabel, PAD, y);
+  const labelW = x.measureText(actLabel).width;
+  x.font = cardFont(700, 44, true);
+  x.fillStyle = '#e8ecf4';
+  x.fillText(fmtUSD(s.actual), PAD + labelW + 40, y);
+
+  // ---- 錯過的錢（主視覺）----
+  y += 60;
+  const boxH = 280;
+  x.fillStyle = 'rgba(255,77,109,.10)';
+  x.fillRect(PAD, y, W - PAD * 2, boxH);
+  x.fillStyle = '#ff4d6d';
+  x.fillRect(PAD, y, 5, boxH);
+  x.strokeStyle = 'rgba(255,77,109,.3)';
+  x.strokeRect(PAD, y, W - PAD * 2, boxH);
+
+  x.font = cardFont(600, 30, false);
+  x.fillStyle = '#ff4d6d';
+  x.fillText('我錯過了', PAD + 44, y + 76);
+  x.font = cardFont(700, 108, true);
+  x.fillText(fmtUSD(s.missed), PAD + 44, y + 206);
+
+  y += boxH + 90;
+
+  // ---- 四格指標 ----
   const cells = [
-    ['大金狗捕獲率', fmtPct(s.bigRate)],
-    ['小金狗捕獲率', fmtPct(s.smallRate)],
-    ['出場效率', fmtPct(s.efficiency)],
-    ['歸零率', fmtPct(s.dead / s.n)],
+    ['大金狗捕獲率', fmtPct(s.bigRate), '#ffb020'],
+    ['小金狗捕獲率', fmtPct(s.smallRate), '#ffb020'],
+    ['出場效率', fmtPct(s.efficiency), '#e8ecf4'],
+    ['全損率', fmtPct(s.dead / s.n), '#ff4d6d'],
   ];
-  // 2×2 方格，用細線分隔而不是留白
-  const gx = 80, gy = 920, gw = W - 160, gh = 260;
-  x.strokeStyle = '#232833'; x.lineWidth = 1;
-  x.strokeRect(gx, gy, gw, gh);
-  x.beginPath();
-  x.moveTo(gx + gw / 2, gy); x.lineTo(gx + gw / 2, gy + gh);
-  x.moveTo(gx, gy + gh / 2); x.lineTo(gx + gw, gy + gh / 2);
-  x.stroke();
-
+  const gw = W - PAD * 2, colW = gw / 4;
+  x.strokeStyle = 'rgba(232,236,244,.14)';
+  x.beginPath(); x.moveTo(PAD, y); x.lineTo(W - PAD, y); x.stroke();
   cells.forEach((cell, i) => {
-    const cx = gx + (i % 2) * (gw / 2) + gw / 4;
-    const cy = gy + Math.floor(i / 2) * (gh / 2);
-    x.fillStyle = '#7d8697'; x.font = M(700, 25);
-    x.fillText(cell[0], cx, cy + 50);
-    x.fillStyle = i < 2 ? '#ffb020' : '#e8ecf4'; x.font = M(700, 54);
-    x.fillText(cell[1], cx, cy + 108);
+    const cx = PAD + i * colW;
+    if (i > 0) {
+      x.beginPath(); x.moveTo(cx, y + 16); x.lineTo(cx, y + 174); x.stroke();
+    }
+    x.textAlign = 'left';
+    x.font = cardFont(600, 19, true);
+    x.fillStyle = '#565f70';
+    x.fillText(cell[0], cx + (i ? 26 : 0), y + 58);
+    x.font = cardFont(700, 50, true);
+    x.fillStyle = cell[2];
+    x.fillText(cell[1], cx + (i ? 26 : 0), y + 130);
   });
+  y += 190;
+  x.beginPath(); x.moveTo(PAD, y); x.lineTo(W - PAD, y); x.stroke();
 
+  // ---- 頁尾 ----
+  const footY = H - PAD - 16;
+  x.textAlign = 'left';
   if (s.worst) {
-    x.fillStyle = '#565f70'; x.font = F(500, 28);
-    x.fillText('最痛的一隻：' + s.worst.symbol + '　最高漲了 ' + fmtX(s.worst.mfeX), W / 2, 1268);
+    x.font = cardFont(500, 24, false);
+    x.fillStyle = '#565f70';
+    x.fillText('最痛的一隻 ' + s.worst.symbol + '　最高漲了 ' + fmtX(s.worst.mfeX), PAD, footY - 36);
+  }
+  const handle = ($('#handle').value || '').trim();
+  if (handle) {
+    x.font = cardFont(700, 26, true);
+    x.fillStyle = '#e8ecf4';
+    x.fillText(handle, PAD, footY);
+  }
+
+  if (logoImage) {
+    const maxSide = 120;
+    const sc = Math.min(maxSide / logoImage.width, maxSide / logoImage.height);
+    const lw = logoImage.width * sc, lh = logoImage.height * sc;
+    x.drawImage(logoImage, W - PAD - lw, footY - lh + 8, lw, lh);
   }
 }
 
@@ -796,15 +1036,60 @@ function download(name, blob) {
 
 // ---------- 11. 綁定 ----------
 $('#helius-key').value = localStorage.getItem('fomo:key') || '';
+$('#birdeye-key').value = localStorage.getItem('fomo:bekey') || '';
 $('#addresses').value = localStorage.getItem('fomo:addrs') || '';
 
 function updateEta() {
   const n = clamp(parseInt($('#max-tokens').value, 10) || 0, 0, 5000);
-  $('#eta-hint').textContent = '依買入成本由大到小排序。全部沒快取的話最多要跑 '
-    + etaText(n) + '，中途按「停止」會保留已經算完的部分。';
+  const rate = $('#birdeye-key').value.trim() ? 50 : 25;
+  const secs = Math.round((n * 60) / rate);
+  const t = secs >= 3600 ? '約 ' + (secs / 3600).toFixed(1) + ' 小時'
+    : secs >= 60 ? '約 ' + Math.ceil(secs / 60) + ' 分' : '約 ' + secs + ' 秒';
+  $('#eta-hint').textContent = '依買入成本由大到小排序。全部沒快取的話最多要跑 ' + t
+    + (rate === 25 ? '（填 Birdeye key 可以快一倍）' : '（Birdeye 加速中）')
+    + '，中途按「停止」會保留已經算完的部分。';
 }
 $('#max-tokens').addEventListener('input', updateEta);
+$('#birdeye-key').addEventListener('input', updateEta);
 updateEta();
+
+// ---------- 分享圖的圖片上傳 ----------
+function loadImageFile(file, onDone) {
+  if (!file) return;
+  if (!/^image\//.test(file.type)) return;
+  const fr = new FileReader();
+  fr.onload = () => {
+    const img = new Image();
+    img.onload = () => onDone(img);
+    img.onerror = () => onDone(null);
+    img.src = fr.result;
+  };
+  fr.readAsDataURL(file);
+}
+function redrawCard() { if (LAST) drawCard(LAST); }
+
+$('#bg-file').addEventListener('change', (e) => {
+  loadImageFile(e.target.files[0], (img) => {
+    bgImage = img;
+    $('#bg-clear').hidden = !img;
+    redrawCard();
+  });
+});
+$('#logo-file').addEventListener('change', (e) => {
+  loadImageFile(e.target.files[0], (img) => {
+    logoImage = img;
+    $('#logo-clear').hidden = !img;
+    redrawCard();
+  });
+});
+$('#bg-clear').addEventListener('click', () => {
+  bgImage = null; $('#bg-file').value = ''; $('#bg-clear').hidden = true; redrawCard();
+});
+$('#logo-clear').addEventListener('click', () => {
+  logoImage = null; $('#logo-file').value = ''; $('#logo-clear').hidden = true; redrawCard();
+});
+$('#dim').addEventListener('input', redrawCard);
+$('#handle').addEventListener('input', redrawCard);
 
 $('#run').addEventListener('click', async () => {
   $('#error').hidden = true;
