@@ -44,9 +44,15 @@
     // 以腳底中心為原點：藝術座標 x -7..8, y -11..0
     c.translate(-7 * s, (-11 + bob) * s);
 
-    if (T.glow) {                               // 金狗身上有微光
-      c.fillStyle = T.glow;
-      c.fillRect(0 * s, 1 * s, 16 * s, 10 * s);
+    if (T.glow) {                               // 金狗身上有微光（放射漸層，不是方塊）
+      const gx = 7.5 * s, gy = 5.5 * s, gr = 9.5 * s;
+      const grad = c.createRadialGradient(gx, gy, s, gx, gy, gr);
+      grad.addColorStop(0, T.glow);
+      grad.addColorStop(1, 'rgba(255,211,77,0)');
+      c.fillStyle = grad;
+      c.beginPath();
+      c.ellipse(gx, gy, gr, gr * 0.7, 0, 0, Math.PI * 2);
+      c.fill();
     }
     // 尾巴（上翹，兩節，搖擺）
     px(0, 3 + wag, 1, 2, T.shade);

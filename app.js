@@ -191,8 +191,7 @@ async function getJSON(url, opts) {
   }
   // 重試次數用完了。是被限流還是單純沒資料，錯誤訊息要說得清楚
   if (sawRateLimit) {
-    const err = new Error('被 ' + host + ' 限流（429），重試幾次都沒過。等幾分鐘再試'
-      + (host.indexOf('geckoterminal') >= 0 ? '，或填一把 Birdeye key 走另一條線。' : '。'));
+    const err = new Error(host + ' 暫時限流中，請稍後再試。');
     err.status = 429;
     throw err;
   }
@@ -833,10 +832,7 @@ async function run() {
   const bad = addrs.filter((a) => !isSolAddress(a));
   if (bad.length) throw new Error('這些看起來不是 Solana 地址：\n' + bad.join('\n'));
   if (!stKey && !key && !PROXY_URL) {
-    throw new Error('至少要填一把 key。\n'
-      + '建議兩把都填：Helius 抓交易紀錄（覆蓋最完整），Solana Tracker 算最高價（最快最準）。\n'
-      + '只填 Helius 也能跑，最高價會走免金鑰的 GeckoTerminal，慢很多。\n'
-      + '只填 Solana Tracker 也能跑，但走冷門路由或 launchpad 的交易會漏掉。');
+    throw new Error('請至少填一把 API key（建議 Helius + Solana Tracker 都填）。');
   }
 
   localStorage.setItem('fomo:key', key);
@@ -938,7 +934,7 @@ async function run() {
     };
     setProg(40 + (i / withPool.length) * 58,
       '算最高價 ' + (i + 1) + '/' + withPool.length + '（' + meta.symbol + '）… 剩 '
-      + etaText(withPool.length - i, (stKey || PROXY_URL) ? 150 : birdeyeKey ? 50 : 25) + quotaText());
+      + etaText(withPool.length - i, (stKey || PROXY_URL) ? 150 : birdeyeKey ? 50 : 25));
 
     let peak = null;
     try {
@@ -1069,7 +1065,7 @@ const ALL_COLS = [
   { key: 'costUSD',   label: '成本 USD',    num: true, fmt: fmtUSD },
   { key: 'avgBuy',    label: '均價',        num: true, fmt: fmtPrice },
   { key: 'peak',      label: '買入後最高',  num: true, fmt: fmtPrice },
-  { key: 'mfeX',      label: 'MFE',         num: true, fmt: fmtX },
+  { key: 'mfeX',      label: '最高倍數',    num: true, fmt: fmtX },
   { key: 'buyMcap',   label: '買入市值',    num: true, fmt: fmtUSD },
   { key: 'peakMcap',  label: '最高市值',    num: true, fmt: fmtUSD },
   { key: 'liq',       label: '流動性',      num: true, fmt: fmtUSD },
@@ -1252,7 +1248,7 @@ function render(d) {
     + '<p class="taste-verdict ' + taste[1] + '">' + taste[0] + '</p>'
     + (s.topDog ? '<p class="hint">你抓過市值做最大的一隻是 <b>' + escapeHTML(s.topDog.symbol)
         + '</b>，最高衝到 ' + fmtUSD(s.topDog.peakMcap) + '，你的成本位對應 ' + fmtX(s.topDog.mfeX) + '。</p>' : '')
-    + (s.mcapUnknown ? '<p class="hint">' + s.mcapUnknown + ' 隻查不到市值，不計入分子但仍在分母。</p>' : '');
+    + (s.mcapUnknown ? '<p class="hint">' + s.mcapUnknown + ' 隻查不到市值。</p>' : '');
 
   const maxT = Math.max(1, ...TIERS.map((t) => s.tiers[t]));
   $('#golden').innerHTML = TIERS.map((t) => {
@@ -1284,85 +1280,37 @@ function render(d) {
   const m = d.meta;
   const cav = [];
   if (m.aborted) {
-    cav.push('<b>這份報告是中途停止的</b>：預計要算 ' + m.planned + ' 隻，實際只算完 '
-      + d.rows.length + ' 隻。下面所有比率的分母都只是這 ' + d.rows.length + ' 隻，不是你買過的全部。');
+    cav.push('<b>中途停止</b>：預計 ' + m.planned + ' 隻，只算完 ' + d.rows.length + ' 隻，比率分母以此為準。');
   }
-  // 一條龍列出每一關刷掉多少，才能回答「為什麼只找到這幾隻」
-  const funnel = [];
-  funnel.push('掃描 <b>' + m.txCount.toLocaleString() + '</b> 筆交易');
-  if (isFinite(m.touched)) funnel.push('碰過 <b>' + m.touched + '</b> 隻幣');
-  if (m.neverBought) funnel.push('其中 <b>' + m.neverBought + '</b> 隻只收到沒買過（空投、別人轉進來）');
-  if (m.belowMinCost) funnel.push('<b>' + m.belowMinCost + '</b> 隻買入成本低於 $' + m.minCost);
-  if (m.lostToMulti) funnel.push('<b>' + m.lostToMulti + '</b> 隻只在多幣同筆交易裡出現過，被讓位');
-  funnel.push('真正買過且過門檻的有 <b>' + m.totalFound + '</b> 隻');
-  if (m.truncated) funnel.push('本次只分析成本前 <b>' + d.rows.length + '</b> 隻，另有 ' + m.truncated + ' 隻沒算（進階設定可調高上限）');
-  if (m.noPool.length) {
-    funnel.push('<b>' + m.noPool.length + '</b> 隻在 DexScreener 查不到池子（多半已下架），沒有 key 就算不出最高價');
-  }
-
-  cav.push('<b>幣數是怎麼收斂的</b>：' + funnel.join(' → ') + '。');
   if (m.partialAddrs && m.partialAddrs.length) {
-    cav.push('<b>有 ' + m.partialAddrs.length + ' 個地址的紀錄沒抓完</b>（'
-      + m.partialAddrs.map(shortAddr).join('、')
-      + '）：資料源中途回了 5xx，已抓到的部分照樣分析，但那幾個地址會少算。稍後重跑一次通常就好了。');
+    cav.push(m.partialAddrs.map(shortAddr).join('、') + ' 的紀錄沒抓完（資料源暫時故障），稍後重跑即可。');
   }
-  if (m.solSrc) {
-    cav.push('SOL 的美元匯率來自 <b>' + m.solSrc + '</b> 的日線收盤價（買入成本要靠它把 SOL 換算成美元）。'
-      + '用的是當日收盤，跟你當下成交的盤中價會有幾個百分點的落差。'
-      + (m.solStale
-        ? ' <b>其中 ' + m.solStale + ' 隻的第一次買入早於匯率資料起點（'
-          + new Date(m.solStartTs * 1000).toISOString().slice(0, 10)
-          + '），成本是用起點價估的，MFE 會失真。</b>'
-        : ''));
+  // 幣數漏斗：回答「為什麼只有這幾隻」
+  const funnel = ['掃描 <b>' + m.txCount.toLocaleString() + '</b> 筆交易'];
+  if (isFinite(m.touched)) funnel.push('碰過 <b>' + m.touched + '</b> 隻幣');
+  if (m.neverBought) funnel.push('<b>' + m.neverBought + '</b> 隻只收到沒買過');
+  if (m.belowMinCost) funnel.push('<b>' + m.belowMinCost + '</b> 隻成本低於 $' + m.minCost);
+  if (m.lostToMulti) funnel.push('<b>' + m.lostToMulti + '</b> 隻被多幣交易讓位');
+  funnel.push('計入 <b>' + m.totalFound + '</b> 隻');
+  if (m.truncated) funnel.push('另有 ' + m.truncated + ' 隻沒算（可調高上限）');
+  if (m.noPool.length) funnel.push('<b>' + m.noPool.length + '</b> 隻查不到池子');
+  cav.push(funnel.join(' → ') + '。');
+
+  if (m.solStale) {
+    cav.push('<b>' + m.solStale + ' 隻</b>的買入早於匯率資料起點（'
+      + new Date(m.solStartTs * 1000).toISOString().slice(0, 10) + '），成本為估算值。');
   }
   if (m.txSrc === 'solanatracker') {
-    cav.push('<b>這次的成交紀錄來自 Solana Tracker，可能有漏</b>：它的索引只涵蓋整合過的 DEX，'
-      + '走冷門路由或 launchpad 的交易（bags.fm、部分 Token-2022 代幣）抓不到。'
-      + '想要完整覆蓋，補一把免費的 Helius key —— 它是從錢包原始餘額變化推算的，任何程式搬動代幣都跑不掉。');
+    cav.push('成交紀錄來自 Solana Tracker，冷門路由的交易可能有漏；補一把 Helius key 可完整覆蓋。');
   }
-  if (m.noPool.length) {
-    cav.push('那 ' + m.noPool.length + ' 隻查不到池子的幣多半已經完全死透，<b>正是你賠最慘的那些</b>。'
-      + '填一把 Solana Tracker 或 Birdeye key 就能把它們算進來 —— 這兩家是按代幣地址查，不需要池子。'
-      + '少了它們，分母會偏小、金狗率會虛高。');
+  if (m.underwater) cav.push(m.underwater + ' 隻最高倍數低於 1x，來自滑價與手續費。');
+  if (m.peakFixed) cav.push(m.peakFixed + ' 隻的最高價為錯誤報價，已用市值回推修正。');
+  if (m.exactMcap !== d.rows.length) {
+    cav.push((m.exactMcap ? (d.rows.length - m.exactMcap) + ' 隻的' : '') + '最高市值為推算值（以現市值反推流通量）。');
   }
-  if (m.underwater) {
-    cav.push('<b>' + m.underwater + ' 隻的 MFE 小於 1x</b>，代表買進之後市場再也沒回到你的成本。'
-      + '這通常是滑價與手續費造成的 —— 均價是「總成本 ÷ 拿到的顆數」含滑價，'
-      + '最高價則是 K 線的市場價，買 memecoin 差個幾 % 很正常。');
-  }
-  if (m.peakFixed) {
-    cav.push('<b>' + m.peakFixed + ' 隻</b>的最高價被判定為錯誤報價並修正過：'
-      + '資料源回報的最高價與同一時刻的最高市值差了 10 倍以上，已改用市值回推的價格。');
-  }
-  cav.push('<b>跟 GMGN 之類的工具對不起來是正常的</b>：那些工具通常把「碰過的幣」全部算進去，'
-    + '包含空投與別人轉進來的垃圾幣；這裡只算<b>你真的花錢買過</b>的。'
-    + '想放寬就把進階設定的「最小買入成本」調低。',
-    (m.stRows === d.rows.length
-      ? '最高價全部來自 Solana Tracker，直接取你第一次買入之後的區間最高價，涵蓋所有池子含 pump.fun 遷移前。'
-      : '<b>沒有 Solana Tracker / Birdeye key 時，最高價取自目前流動性最深的那個池子</b>。pump.fun 這類先在 bonding curve 交易、之後才遷移的幣，遷移前的價格不在這個池子裡，MFE 可能被低估。'),
-    '標了 <b>*</b> 的幣代表 K 線沒有完整覆蓋到你第一次買入的時間，最高價只算了有資料的區間。',
-    (m.exactMcap === d.rows.length
-      ? '最高市值是<b>最高點當下的真實市值</b>，由 Solana Tracker 直接提供，不是推算的。'
-      : m.exactMcap
-        ? m.exactMcap + ' 隻的最高市值是真實值（Solana Tracker 提供），其餘是用目前市值 ÷ 目前價格反推流通量再乘上最高價推算的，遇到增發或大額燒毀會失真。'
-        : '<b>最高市值是推算的</b>：用目前的市值 ÷ 目前價格反推流通量，再乘上歷史最高價。假設流通量沒變過，遇到增發或大額燒毀會失真。'),
-    '買入成本以「該筆交易錢包淨減少的 SOL / USDC / USDT」估算，SOL 以當日收盤價換算美元，跟實際成交價會有小幅誤差。',
-    '「實際拿到」＝ 已賣出所得 ＋ 目前持倉市值。<b>轉出到沒填進來的地址不算賣出</b>，所以如果你還有其他錢包，記得一起貼上。');
-  if (m.minCost < 1) {
-    cav.push('最小買入成本設在 $' + m.minCost + '，測試單與零星小額也會被算成一隻幣進到分母，金狗率會被稀釋。想看真實選幣品味可以調到 $5–$20 再跑一次。');
-  }
-  if (m.stRows) {
-    cav.push('這次有 <b>' + m.stRows + ' 隻</b>的最高價來自 Solana Tracker（直接回傳區間最高價，最快也最準）'
-      + ((m.beRows || m.gtRows) ? '，其餘退回 ' + (m.beRows ? m.beRows + ' 隻 Birdeye' : '')
-          + (m.beRows && m.gtRows ? '、' : '') + (m.gtRows ? m.gtRows + ' 隻 GeckoTerminal' : '') : '') + '。');
-  }
-  if (m.beRows) {
-    cav.push('這次有 <b>' + m.beRows + ' 隻</b>的最高價來自 Birdeye（按代幣查、涵蓋所有池子，含 pump.fun 遷移前）'
-      + (m.gtRows ? '，另外 ' + m.gtRows + ' 隻退回 GeckoTerminal（只看單一池子，可能低估）' : '') + '。'
-      + (m.beQuotaLeft ? '你的 Birdeye 額度還剩 ' + m.beQuotaLeft.toLocaleString() + '。' : ''));
-  }
-  if (m.noPeak) cav.push(m.noPeak + ' 隻幣抓不到歷史 K 線，最高價以現價與買入均價中較高者代替。');
-  if (m.skippedMulti) cav.push(m.skippedMulti + ' 筆交易同時牽涉多隻代幣，只採計變動量最大的那隻。');
+  cav.push('標 <b>*</b> 的幣，K 線未完整涵蓋買入時間，最高價可能被低估。');
+  if (m.noPeak) cav.push(m.noPeak + ' 隻抓不到歷史 K 線，以現價與均價較高者代替。');
+  cav.push('轉出到未列入的地址不算賣出 —— 有其他錢包記得一起貼上。');
   $('#caveats-list').innerHTML = cav.map((c) => '<li>' + c + '</li>').join('');
 
   if (dogRoom()) {
@@ -1539,7 +1487,7 @@ function drawCard(d) {
     x.fillText('成本', COLX.cost, y);
     x.fillText('實拿', COLX.actual, y);
     x.fillText('賣飛', COLX.missed, y);
-    x.fillText('MFE', COLX.mfe, y);
+    x.fillText('倍數', COLX.mfe, y);
 
     y += 12;
     x.strokeStyle = 'rgba(232,236,244,.14)';
@@ -1641,25 +1589,14 @@ $('#st-key').value = localStorage.getItem('fomo:stkey') || '';
 $('#addresses').value = localStorage.getItem('fomo:addrs') || '';
 
 function bestRate() {
-  if ($('#st-key').value.trim()) return { perMin: 150, note: '（Solana Tracker 加速中）' };
-  if (PROXY_URL) return { perMin: 150, note: '（本站代付查詢額度）' };
-  if ($('#birdeye-key').value.trim()) return { perMin: 50, note: '（Birdeye 加速中，填 Solana Tracker key 還能再快 3 倍）' };
-  return { perMin: 25, note: '（填 Solana Tracker key 可以快 6 倍）' };
+  if ($('#st-key').value.trim() || PROXY_URL) return { perMin: 150 };
+  if ($('#birdeye-key').value.trim()) return { perMin: 50 };
+  return { perMin: 25 };
 }
-const ST_FREE_QUOTA = 10000;   // Solana Tracker 免費方案每月請求數
-
 function updateEta() {
   const n = clamp(parseInt($('#max-tokens').value, 10) || 0, 0, 50000);
-  const r = bestRate();
-  // 這是天花板不是預估：實際分析的是你真的買過的幣，通常遠少於這個數字
-  let t = '依買入成本由大到小排序。這是「上限」不是預估，實際只會分析你真的買過的幣。'
-    + '真的跑滿 ' + n.toLocaleString() + ' 隻要 ' + etaText(n, r.perMin) + r.note
-    + '，中途按「停止」會保留已經算完的部分。';
-  if ($('#st-key').value.trim() && n > ST_FREE_QUOTA * 0.9) {
-    t += ' 一隻幣算一次請求，Solana Tracker 免費方案每月 '
-      + ST_FREE_QUOTA.toLocaleString() + ' 次，真跑滿會直接用光。';
-  }
-  $('#eta-hint').textContent = t;
+  $('#eta-hint').textContent = '上限；實際只算你買過的幣。跑滿 '
+    + n.toLocaleString() + ' 隻約 ' + etaText(n, bestRate().perMin) + '。';
 }
 // ---------- 可分享的查詢網址 ----------
 // ?addr=A,B 直接帶入地址；有代理或已存 key 時自動開跑
@@ -1776,7 +1713,7 @@ $('#run').addEventListener('click', async () => {
       $('#cooldown').hidden = false;
       $('#key-zone').hidden = false;
       $('#proxy-note').hidden = true;
-      $('#error').textContent = '⚠ 查詢用量過大，暫時冷卻中。可以在上方填入你自己的免費 API key 繼續查詢。';
+      $('#error').textContent = '⚠ 查詢用量過大，暫時冷卻中。';
       $('#error').hidden = false;
     } else if (e.message !== '__ABORT__') {
       const mp = $('#manual-panel'); if (mp) mp.open = true;

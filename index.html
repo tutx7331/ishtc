@@ -33,36 +33,30 @@
   <summary class="manual-summary">進階查詢 · 自備 API key · 掃描設定</summary>
   <section class="panel" id="input-panel">
     <label class="field">
-      <span class="label">Solana 地址<small>一行一個，可同時分析多個地址</small></span>
+      <span class="label">Solana 地址<small>一行一個，可查多個</small></span>
       <textarea id="addresses" rows="4" spellcheck="false"
         placeholder="7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU&#10;9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"></textarea>
     </label>
 
     <div class="cooldown" id="cooldown" hidden>
-      ⚠ <b>查詢用量過大，暫時冷卻中</b> —— 本站代付的共用額度這個月用完了。
-      你可以在下方填入自己的免費 API key 繼續查詢（申請約 30 秒），或等下個月額度重置。
+      ⚠ <b>查詢用量過大，暫時冷卻中</b> —— 可在下方填入自己的免費 API key 繼續查詢。
     </div>
 
     <p class="hint" id="proxy-note" hidden>
-      本站已代付查詢額度，<b>直接貼地址查詢即可，不用申請任何 API key</b>。
-      查詢的地址與統計結果會被記錄用於排行榜。
+      本站已代付查詢額度，貼上地址即可查詢。查詢紀錄將用於排行榜。
     </p>
 
     <div id="key-zone">
     <label class="field">
       <span class="label">Helius API Key<span class="opt">交易紀錄</span>
-        <small>免費申請 → <a href="https://dashboard.helius.dev" target="_blank" rel="noopener">dashboard.helius.dev</a>（每月 100 萬 credits）。
-        整條 Endpoint URL 直接貼進來也可以。<b>負責抓「你買過哪些幣」</b>，
-        它是從錢包的原始餘額變化推算，任何程式搬動代幣都跑不掉，覆蓋率最完整。</small>
+        <small>免費申請 → <a href="https://dashboard.helius.dev" target="_blank" rel="noopener">dashboard.helius.dev</a>。負責交易紀錄，覆蓋最完整。</small>
       </span>
       <input id="helius-key" type="password" spellcheck="false" autocomplete="off" placeholder="Helius API key，或整條 https://mainnet.helius-rpc.com/?api-key=…">
     </label>
 
     <label class="field">
       <span class="label">Solana Tracker API Key<span class="opt">最高價</span>
-        <small>免費申請 → <a href="https://www.solanatracker.io/data-api" target="_blank" rel="noopener">solanatracker.io/data-api</a>（10,000 次/月、3 req/秒）。
-        <b>負責算「買入後最高漲到哪」</b>，直接回傳區間最高價與當下真實市值，
-        比另外兩家快 3–6 倍。沒填會退回免金鑰的 GeckoTerminal，慢很多。</small>
+        <small>免費申請 → <a href="https://www.solanatracker.io/data-api" target="_blank" rel="noopener">solanatracker.io/data-api</a>。負責最高價，最快最準。</small>
       </span>
       <input id="st-key" type="password" spellcheck="false" autocomplete="off" placeholder="貼上你的 Solana Tracker API key">
     </label>
@@ -72,16 +66,10 @@
       <div class="alt-body">
         <label class="field">
           <span class="label">Birdeye API Key<span class="opt">選填</span>
-            <small>免費申請 → <a href="https://bds.birdeye.so" target="_blank" rel="noopener">bds.birdeye.so</a>，
-            註冊後在左側選單的 <b>Security</b> 分頁按 Generate Key（不在 Packages 那頁）。
-            Solana Tracker 查不到時的備援，比免金鑰的 GeckoTerminal 快一倍。</small>
+            <small>免費申請 → <a href="https://bds.birdeye.so" target="_blank" rel="noopener">bds.birdeye.so</a>（Security 分頁產生 key）。最高價備援。</small>
           </span>
           <input id="birdeye-key" type="password" spellcheck="false" autocomplete="off" placeholder="留空即可，不影響使用">
         </label>
-        <p class="hint" style="margin:0">
-          兩把主 key 各司其職，建議都填。只填 Solana Tracker 也能跑，
-          但它的成交索引只涵蓋整合過的 DEX，走冷門路由或 launchpad 的交易會漏掉。
-        </p>
       </div>
     </details>
 
@@ -92,15 +80,14 @@
       <div class="adv-grid">
         <label>分析幣種上限
           <input id="max-tokens" type="number" value="30000" min="5" max="50000" step="100">
-          <small id="eta-hint">依買入成本由大到小排序</small>
+          <small id="eta-hint"></small>
         </label>
         <label>最小買入成本 (USD)
           <input id="min-cost" type="number" value="0.5" min="0" step="0.1">
-          <small>過濾掉空投與塵埃。調太低會把測試單也算進分母，稀釋金狗率</small>
+          <small>過濾空投與塵埃</small>
         </label>
         <label>掃描交易上限 / 每個地址
           <input id="max-tx" type="number" value="300000" min="100" max="1000000" step="10000">
-          <small>同樣是上限。每 100 筆算一次請求，通常只佔幾十次額度</small>
         </label>
         <label class="chk">
           <input id="use-cache" type="checkbox" checked>
@@ -127,7 +114,7 @@
   <!-- ===== 狗房 ===== -->
   <section class="panel" id="dog-room-panel" hidden>
     <h2>你的操盤室</h2>
-    <p class="hint" id="dog-room-hint">每一隻幣是一條狗 —— 亮金戴皇冠的是大金狗、金色是小金狗。點狗可以看是哪一隻幣。</p>
+    <p class="hint" id="dog-room-hint">金色是金狗，戴皇冠的是大金狗。點狗可以看是哪一隻幣。</p>
     <canvas id="dog-room"></canvas>
   </section>
 
@@ -140,21 +127,19 @@
 
     <div class="panel">
       <h2>金狗品味</h2>
-      <p class="hint">真金狗要<b>漲幅</b>與<b>市值</b>同時過關。分母是你買過的每一隻幣。</p>
+      <p class="hint">漲幅與市值都過關才算金狗，分母是你買過的所有幣。</p>
       <div id="dog-taste"></div>
     </div>
 
     <div class="panel">
       <h2>漲幅命中率</h2>
-      <p class="hint">你買進之後，該幣曾經漲到你成本的幾倍。只看最高點，不管你有沒有賣，也不看市值。</p>
+      <p class="hint">買入後曾漲到成本的幾倍，不看市值。</p>
       <div id="golden"></div>
     </div>
 
     <div class="panel">
       <h2>賣飛排行榜</h2>
-      <p class="hint">如果每一隻都精準賣在最高點，跟你實際拿到的錢差多少。
-        點欄位標題可以排序，再點一次換升冪降冪。<br>
-        <b>賣飛</b>＝賣掉之後它還在漲；<b>雲霄飛車</b>＝沒賣、漲上去又跌回來。兩者相加就是錯過總額。</p>
+      <p class="hint">點欄位標題可排序。<b>賣飛</b>＝賣了它還在漲；<b>雲霄飛車</b>＝沒賣又跌回來。</p>
       <div class="table-scroll">
         <table id="tokens-table">
           <thead></thead>
@@ -193,23 +178,22 @@
             <span class="up-label">背景圖</span>
             <label class="up-btn">選擇圖片<input id="bg-file" type="file" accept="image/*" hidden></label>
             <button class="up-clear" id="bg-clear" hidden>移除</button>
-            <small>會鋪滿整張並自動壓暗，確保文字讀得到</small>
+            <small>自動鋪滿並壓暗</small>
           </div>
           <div class="upload">
             <span class="up-label">Logo</span>
             <label class="up-btn">選擇圖片<input id="logo-file" type="file" accept="image/*" hidden></label>
             <button class="up-clear" id="logo-clear" hidden>移除</button>
-            <small>放右下角，最長邊 120px</small>
+            <small>放右下角</small>
           </div>
           <div class="upload">
             <span class="up-label">署名</span>
             <input id="handle" type="text" maxlength="24" placeholder="@yourhandle">
-            <small>留空就不顯示</small>
+            <small>留空不顯示</small>
           </div>
           <div class="upload">
             <span class="up-label">背景暗度</span>
             <input id="dim" type="range" min="0" max="90" value="62">
-            <small>只有放了背景圖才有作用</small>
           </div>
         </div>
       </div>
@@ -221,7 +205,7 @@
     </div>
 
     <div class="panel caveats">
-      <h2>數據怎麼算的 / 哪裡會不準</h2>
+      <h2>資料說明</h2>
       <ul id="caveats-list"></ul>
     </div>
 
@@ -230,24 +214,19 @@
   <section class="panel intro" id="intro">
     <h2>這工具在算什麼</h2>
     <ul>
-      <li><b>MFE（最大有利波動）</b>：你第一次買進之後，這隻幣曾經漲到的最高價，除以你的平均買入成本。這是「你最多能吃到幾 %」的上限。</li>
-      <li><b>神之手價值</b>：假設你買進的每一顆都精準賣在歷史最高點，總共會拿到多少錢。</li>
-      <li><b>錯過總額</b>：神之手價值 減掉 實際拿到。可以完整拆成兩種痛 ——
-        <b>賣飛</b>（賣掉之後它還在漲）與 <b>雲霄飛車</b>（沒賣，漲上去又跌回來）。</li>
-      <li><b>神化率</b>：實際 ÷ 神之手。100% 代表你是神，5% 代表你跟大家一樣。</li>
-      <li><b>大金狗</b>：MFE ≥ 100x <u>且</u> 該幣最高市值 ≥ $10M。<b>小金狗</b>：MFE ≥ 10x <u>且</u> 最高市值 ≥ $1M。</li>
+      <li><b>最高倍數</b>：買入後曾漲到的最高價 ÷ 你的買入均價。</li>
+      <li><b>神之手價值</b>：每一隻都賣在最高點能拿到的錢。</li>
+      <li><b>錯過總額</b> ＝ 神之手 − 實際拿到 ＝ <b>賣飛</b> ＋ <b>雲霄飛車</b>。</li>
+      <li><b>神化率</b>：實際 ÷ 神之手。100% 是神，5% 是正常人。</li>
+      <li><b>大金狗</b>：≥ 100x 且最高市值 ≥ $10M；<b>小金狗</b>：≥ 10x 且 ≥ $1M。</li>
     </ul>
-    <p class="hint">自備 API key 時，全程在你的瀏覽器裡跑，地址與 key 只會直接送往資料源
-    （Helius / Solana Tracker / DexScreener / GeckoTerminal / Birdeye / Binance / Coinbase）。
-    使用本站代付額度查詢時，查詢會經過本站的代理伺服器，<b>查過的地址與統計結果會被記錄用於排行榜</b>。
-    分享卡的背景圖與 logo 一律只在本機處理，不會上傳。</p>
+    <p class="hint">自備 key 時全程在你的瀏覽器執行；用本站額度時查詢經過本站代理，紀錄用於排行榜。圖片僅在本機處理。</p>
   </section>
 
 </main>
 
 <footer class="wrap">
-  <p>資料來源：Helius（交易紀錄）、DexScreener（池子與現價）、Solana Tracker／Birdeye／GeckoTerminal（買入後最高價）。<br>
-  這不是投資建議，只是一份帳單。</p>
+  <p>Helius · Solana Tracker · DexScreener · GeckoTerminal · Birdeye　—　這不是投資建議，只是一份帳單。</p>
 </footer>
 
 <script src="app.js"></script>
