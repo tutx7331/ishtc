@@ -94,23 +94,29 @@ button:disabled{opacity:.4;cursor:not-allowed}
   background:repeating-linear-gradient(115deg,transparent 0 9px,rgba(125,134,151,.14) 9px 10px);
   animation:drift 1.6s linear infinite;
 }
+/* overflow:hidden 是關鍵 —— 沒有它，掃掠高光會跑出已填滿的範圍，
+   跑到還沒完成的灰色區段上 */
 .bar-fill{
-  position:relative;height:100%;width:0;
+  position:relative;height:100%;width:0;overflow:hidden;
   background:linear-gradient(90deg,var(--accent-2),var(--accent));
-  box-shadow:0 0 14px rgba(20,241,149,.55);
   transition:width .35s cubic-bezier(.4,0,.2,1);
 }
 /* 前緣的亮頭 */
 .bar-fill::before{
   content:"";position:absolute;right:0;top:0;bottom:0;width:3px;
-  background:#fff;box-shadow:0 0 10px 2px rgba(255,255,255,.75);
-  animation:pulse 1s ease-in-out infinite;
+  background:#fff;animation:pulse 1s ease-in-out infinite;z-index:1;
 }
-/* 沿著已完成區段來回掃的高光 */
+/* 只在已完成區段內來回掃的高光，被上面的 overflow 裁掉溢出部分 */
 .bar-fill::after{
   content:"";position:absolute;inset:0;
   background:linear-gradient(90deg,transparent 20%,rgba(255,255,255,.6) 50%,transparent 80%);
   animation:sweep 1.4s cubic-bezier(.5,0,.5,1) infinite;
+}
+/* 外光暈改掛在外層，才不會被 .bar-fill 的 overflow 裁掉 */
+.bar-glow{
+  position:absolute;left:0;top:0;bottom:0;width:0;pointer-events:none;
+  box-shadow:0 0 14px rgba(20,241,149,.55);
+  transition:width .35s cubic-bezier(.4,0,.2,1);
 }
 @keyframes sweep{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
 @keyframes drift{to{background-position:20px 0}}

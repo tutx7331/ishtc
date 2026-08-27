@@ -56,6 +56,14 @@ function fmtX(x) {
 }
 
 function fmtPct(x) { return (isFinite(x) ? (x * 100).toFixed(1) : '—') + '%'; }
+
+/** GeckoTerminal 無金鑰限速 25/min，n 隻幣要多久 */
+function etaText(n) {
+  const secs = Math.round((n * 60) / 25);
+  if (secs >= 3600) return '約 ' + (secs / 3600).toFixed(1) + ' 小時';
+  if (secs >= 60) return '約 ' + Math.ceil(secs / 60) + ' 分';
+  return '約 ' + secs + ' 秒';
+}
 function shortAddr(a) { return a.slice(0, 4) + '…' + a.slice(-4); }
 function isSolAddress(s) { return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(s); }
 
@@ -357,7 +365,7 @@ async function fetchPeak(pool, sinceTs) {
 // ---------- 6. 統計 ----------
 const TIERS = [2, 5, 10, 50, 100];
 
-// 選狗品味：只有「漲幅夠大」且「市值真的做起來」才算數。
+// 金狗品味：只有「漲幅夠大」且「市值真的做起來」才算數。
 // 光是 100x 但市值只到 20 萬，那是插針，不是金狗。
 const BIG_DOG   = { x: 100, mcap: 10e6 };
 const SMALL_DOG = { x: 10,  mcap: 1e6 };
@@ -411,9 +419,9 @@ async function run() {
   const addrs = Array.from(new Set(
     $('#addresses').value.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean)));
   const key = normalizeKey($('#helius-key').value);
-  const maxTokens = clamp(parseInt($('#max-tokens').value, 10) || 80, 5, 500);
+  const maxTokens = clamp(parseInt($('#max-tokens').value, 10) || 300, 5, 5000);
   const minCost = Math.max(0, parseFloat($('#min-cost').value) || 0);
-  const maxTx = clamp(parseInt($('#max-tx').value, 10) || 3000, 100, 20000);
+  const maxTx = clamp(parseInt($('#max-tx').value, 10) || 30000, 100, 200000);
 
   if (!addrs.length) throw new Error('請至少輸入一個 Solana 地址。');
   const bad = addrs.filter((a) => !isSolAddress(a));
@@ -425,6 +433,7 @@ async function run() {
 
   const setProg = (pct, txt) => {
     $('#bar-fill').style.width = pct + '%';
+    $('#bar-glow').style.width = pct + '%';
     $('#prog-text').textContent = txt;
   };
 
@@ -472,20 +481,20 @@ async function run() {
     if (meta && meta.pool) withPool.push(p); else noPool.push(p.mint);
   }
 
+  let aborted = false;
   for (let i = 0; i < withPool.length; i++) {
+    if (abortFlag) { aborted = true; break; }
     const p = withPool[i];
     const meta = info.get(p.mint);
-    const left = withPool.length - i;
-    const secs = Math.round((left * 60) / 25);
-    const eta = secs > 60 ? '約 ' + Math.ceil(secs / 60) + ' 分' : '約 ' + secs + ' 秒';
     setProg(40 + (i / withPool.length) * 58,
-      '算最高價 ' + (i + 1) + '/' + withPool.length + '（' + meta.symbol + '）… 剩 ' + eta);
+      '算最高價 ' + (i + 1) + '/' + withPool.length + '（' + meta.symbol + '）… 剩 ' + etaText(withPool.length - i));
 
     let peak = null;
     try {
       peak = await fetchPeak(meta.pool, p.firstBuyTs);
     } catch (e) {
-      if (e.message === '__ABORT__') throw e;
+      // 中途停止時保留已經算完的部分，不要整份丟掉
+      if (e.message === '__ABORT__') { aborted = true; break; }
     }
 
     const peakP = (peak && peak.peak) || Math.max(meta.price, p.avgBuy);
@@ -505,6 +514,8 @@ async function run() {
     row.peakMcap = peakMcapOf(row);
     rows.push(row);
   }
+
+  if (!rows.length) throw new Error('還沒算完任何一隻就停止了，沒有結果可以顯示。');
 
   // 7.6 各地址拆分
   const perAddr = [];
@@ -542,6 +553,7 @@ async function run() {
       txCount: allTxs.length, totalFound: totalFound, truncated: truncated,
       noPool: noPool, minCost: minCost, skippedMulti: built.skippedMulti,
       noPeak: rows.filter((r) => !r.hasPeak).length,
+      aborted: aborted, planned: withPool.length,
     },
   };
 }
@@ -579,7 +591,7 @@ function render(d) {
     '<div class="stat"><div class="k">' + r[0] + '</div><div class="v ' + r[3] + '">'
     + r[1] + '</div><div class="n">' + r[2] + '</div></div>').join('');
 
-  // 選狗品味：漲幅 × 市值雙門檻
+  // 金狗品味：漲幅 × 市值雙門檻
   const taste = s.bigRate >= 0.05 ? ['你抓得到大狗。', 'good']
     : s.smallRate >= 0.15 ? ['小狗抓得不錯，大狗還差一步。', 'warn']
     : s.smallRate > 0 ? ['偶爾中，但多半是插針。', 'warn']
@@ -644,7 +656,12 @@ function render(d) {
   }
 
   const m = d.meta;
-  const cav = [
+  const cav = [];
+  if (m.aborted) {
+    cav.push('<b>這份報告是中途停止的</b>：預計要算 ' + m.planned + ' 隻，實際只算完 '
+      + d.rows.length + ' 隻。下面所有比率的分母都只是這 ' + d.rows.length + ' 隻，不是你買過的全部。');
+  }
+  cav.push(
     '掃描了 ' + m.txCount.toLocaleString() + ' 筆交易，辨識出 ' + m.totalFound
       + ' 隻成本 ≥ $' + m.minCost + ' 的幣'
       + (m.truncated ? '，本次只分析成本前 ' + d.rows.length + ' 隻（另有 ' + m.truncated
@@ -653,8 +670,10 @@ function render(d) {
     '標了 <b>*</b> 的幣代表 K 線沒有完整覆蓋到你第一次買入的時間，最高價只算了有資料的區間。',
     '<b>最高市值是推算的</b>：用目前的市值 ÷ 目前價格反推流通量，再乘上歷史最高價。假設流通量沒變過，遇到增發或大額燒毀會失真。',
     '買入成本以「該筆交易錢包淨減少的 SOL / USDC / USDT」估算，SOL 以當日收盤價換算美元，跟實際成交價會有小幅誤差。',
-    '「實際拿到」＝ 已賣出所得 ＋ 目前持倉市值。<b>轉出到沒填進來的地址不算賣出</b>，所以如果你還有其他錢包，記得一起貼上。',
-  ];
+    '「實際拿到」＝ 已賣出所得 ＋ 目前持倉市值。<b>轉出到沒填進來的地址不算賣出</b>，所以如果你還有其他錢包，記得一起貼上。');
+  if (m.minCost < 1) {
+    cav.push('最小買入成本設在 $' + m.minCost + '，測試單與零星小額也會被算成一隻幣進到分母，金狗率會被稀釋。想看真實選幣品味可以調到 $5–$20 再跑一次。');
+  }
   if (m.noPool.length) cav.push(m.noPool.length + ' 隻幣在 DexScreener 查不到池子（多半已完全歸零或下架），未列入報告。');
   if (m.noPeak) cav.push(m.noPeak + ' 隻幣抓不到歷史 K 線，最高價以現價與買入均價中較高者代替。');
   if (m.skippedMulti) cav.push(m.skippedMulti + ' 筆交易同時牽涉多隻代幣，只採計變動量最大的那隻。');
@@ -778,6 +797,14 @@ function download(name, blob) {
 // ---------- 11. 綁定 ----------
 $('#helius-key').value = localStorage.getItem('fomo:key') || '';
 $('#addresses').value = localStorage.getItem('fomo:addrs') || '';
+
+function updateEta() {
+  const n = clamp(parseInt($('#max-tokens').value, 10) || 0, 0, 5000);
+  $('#eta-hint').textContent = '依買入成本由大到小排序。全部沒快取的話最多要跑 '
+    + etaText(n) + '，中途按「停止」會保留已經算完的部分。';
+}
+$('#max-tokens').addEventListener('input', updateEta);
+updateEta();
 
 $('#run').addEventListener('click', async () => {
   $('#error').hidden = true;

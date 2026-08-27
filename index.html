@@ -35,19 +35,20 @@
       <input id="helius-key" type="password" spellcheck="false" autocomplete="off" placeholder="Helius API key，或整條 https://mainnet.helius-rpc.com/?api-key=…">
     </label>
 
-    <details class="advanced">
+    <details class="advanced" open>
       <summary>進階設定</summary>
       <div class="adv-grid">
         <label>分析幣種上限
-          <input id="max-tokens" type="number" value="80" min="5" max="500" step="5">
-          <small>依買入成本由大到小排序，越多越慢</small>
+          <input id="max-tokens" type="number" value="300" min="5" max="5000" step="10">
+          <small id="eta-hint">依買入成本由大到小排序</small>
         </label>
         <label>最小買入成本 (USD)
-          <input id="min-cost" type="number" value="10" min="0" step="1">
-          <small>過濾掉空投與塵埃</small>
+          <input id="min-cost" type="number" value="0.1" min="0" step="0.1">
+          <small>過濾掉空投與塵埃。調太低會把測試單也算進分母，稀釋金狗率</small>
         </label>
         <label>掃描交易上限 / 每個地址
-          <input id="max-tx" type="number" value="3000" min="100" max="20000" step="100">
+          <input id="max-tx" type="number" value="30000" min="100" max="200000" step="1000">
+          <small>Helius 額度便宜，這格放大不太花時間</small>
         </label>
         <label class="chk">
           <input id="use-cache" type="checkbox" checked>
@@ -63,7 +64,7 @@
     </div>
 
     <div id="progress" hidden>
-      <div class="bar"><div class="bar-fill" id="bar-fill"></div></div>
+      <div class="bar"><div class="bar-glow" id="bar-glow"></div><div class="bar-fill" id="bar-fill"></div></div>
       <p class="prog-text" id="prog-text"></p>
     </div>
 
@@ -78,7 +79,7 @@
     <div class="stat-grid" id="stat-grid"></div>
 
     <div class="panel">
-      <h2>選狗品味</h2>
+      <h2>金狗品味</h2>
       <p class="hint">光是漲幅大不算數 —— 100x 但市值只到二十萬，那是插針。
         真金狗要<b>漲幅</b>與<b>市值</b>同時過關。分母是你買過的每一隻幣。</p>
       <div id="dog-taste"></div>
