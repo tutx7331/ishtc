@@ -659,9 +659,9 @@ async function run() {
   stKey = $('#st-key').value.trim();
   localStorage.setItem('fomo:bekey', birdeyeKey);
   localStorage.setItem('fomo:stkey', stKey);
-  const maxTokens = clamp(parseInt($('#max-tokens').value, 10) || 300, 5, 5000);
+  const maxTokens = clamp(parseInt($('#max-tokens').value, 10) || 30000, 5, 50000);
   const minCost = Math.max(0, parseFloat($('#min-cost').value) || 0);
-  const maxTx = clamp(parseInt($('#max-tx').value, 10) || 30000, 100, 200000);
+  const maxTx = clamp(parseInt($('#max-tx').value, 10) || 300000, 100, 1000000);
 
   if (!addrs.length) throw new Error('請至少輸入一個 Solana 地址。');
   const bad = addrs.filter((a) => !isSolAddress(a));
@@ -1273,11 +1273,20 @@ function bestRate() {
   if ($('#birdeye-key').value.trim()) return { perMin: 50, note: '（Birdeye 加速中，填 Solana Tracker key 還能再快 3 倍）' };
   return { perMin: 25, note: '（填 Solana Tracker key 可以快 6 倍）' };
 }
+const ST_FREE_QUOTA = 10000;   // Solana Tracker 免費方案每月請求數
+
 function updateEta() {
-  const n = clamp(parseInt($('#max-tokens').value, 10) || 0, 0, 5000);
+  const n = clamp(parseInt($('#max-tokens').value, 10) || 0, 0, 50000);
   const r = bestRate();
-  $('#eta-hint').textContent = '依買入成本由大到小排序。全部沒快取的話最多要跑 '
-    + etaText(n, r.perMin) + r.note + '，中途按「停止」會保留已經算完的部分。';
+  // 這是天花板不是預估：實際分析的是你真的買過的幣，通常遠少於這個數字
+  let t = '依買入成本由大到小排序。這是「上限」不是預估，實際只會分析你真的買過的幣。'
+    + '真的跑滿 ' + n.toLocaleString() + ' 隻要 ' + etaText(n, r.perMin) + r.note
+    + '，中途按「停止」會保留已經算完的部分。';
+  if ($('#st-key').value.trim() && n > ST_FREE_QUOTA * 0.9) {
+    t += ' 一隻幣算一次請求，Solana Tracker 免費方案每月 '
+      + ST_FREE_QUOTA.toLocaleString() + ' 次，真跑滿會直接用光。';
+  }
+  $('#eta-hint').textContent = t;
 }
 $('#max-tokens').addEventListener('input', updateEta);
 $('#birdeye-key').addEventListener('input', updateEta);
