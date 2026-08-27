@@ -394,3 +394,153 @@
   resize();
   mkMonitors();
 })();
+
+/* ---------- FOMO Hero 背景 ----------
+ * 上升的 K 線柱（低透明度）+ 飄浮的倍數（偶爾出現金色巨倍）
+ * + 底部不時跑過的像素狗。輸入框由 CSS 的暗角罩保護可讀性。
+ */
+(function () {
+  'use strict';
+  const cv = typeof document !== 'undefined' && document.getElementById('hero-bg');
+  if (!cv) return;
+  const hero = document.getElementById('hero');
+  const ctx = cv.getContext('2d');
+  const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  let W = 0, H = 0, raf = 0, last = 0, inView = true;
+  const candles = [];   // {x, y, h, w, up, alpha, vy}
+  const floats = [];    // {x, y, text, gold, alpha, vy, size}
+  const runners = [];   // {x, dir, tier, phase, speed, scale}
+  let spawnT = 0, dogT = 2;
+
+  function resize() {
+    const r = hero.getBoundingClientRect();
+    W = Math.max(320, Math.round(r.width));
+    H = Math.max(240, Math.round(r.height));
+    cv.width = W; cv.height = H;
+    ctx.imageSmoothingEnabled = false;
+  }
+
+  function spawnCandle() {
+    const colW = 60;
+    const col = Math.floor(Math.random() * Math.floor(W / colW));
+    candles.push({
+      x: col * colW + 10 + Math.random() * 18,
+      y: H + 30, h: 14 + Math.random() * 46, w: 7,
+      up: Math.random() < 0.62,
+      alpha: 0.05 + Math.random() * 0.12,
+      vy: 12 + Math.random() * 22,
+    });
+  }
+  function spawnFloat() {
+    // 多半是小倍數；偶爾一顆金色巨倍飄過，這才是 FOMO 的味道
+    const jackpot = Math.random() < 0.12;
+    const v = jackpot ? Math.round(100 + Math.random() * 9900)
+      : Math.round(2 + Math.random() * 48);
+    floats.push({
+      x: 30 + Math.random() * (W - 90),
+      y: H * (0.25 + Math.random() * 0.6),
+      text: '+' + v + 'x', gold: jackpot,
+      alpha: 0, life: 0, vy: 14 + Math.random() * 12,
+      size: jackpot ? 22 + Math.random() * 14 : 12 + Math.random() * 6,
+    });
+  }
+  function spawnDog() {
+    const r = Math.random();
+    const tier = r < 0.06 ? 'big' : r < 0.22 ? 'gold' : 'norm';
+    const dir = Math.random() < 0.5 ? 1 : -1;
+    runners.push({
+      x: dir > 0 ? -40 : W + 40, dir: dir, tier: tier,
+      phase: Math.random() * 10, speed: 70 + Math.random() * 60,
+      scale: 2 + Math.random() * 1.4,
+      y: H - 24 - Math.random() * 36,
+    });
+  }
+
+  function frame(t) {
+    raf = 0;
+    const dt = Math.min(0.05, (t - last) / 1000 || 0.016);
+    last = t;
+
+    spawnT -= dt;
+    if (spawnT <= 0) { spawnCandle(); if (Math.random() < 0.5) spawnFloat(); spawnT = 0.22; }
+    dogT -= dt;
+    if (dogT <= 0) { spawnDog(); dogT = 2.5 + Math.random() * 4; }
+
+    ctx.clearRect(0, 0, W, H);
+
+    // K 線柱
+    for (let i = candles.length - 1; i >= 0; i--) {
+      const c = candles[i];
+      c.y -= c.vy * dt;
+      if (c.y + c.h < -20) { candles.splice(i, 1); continue; }
+      ctx.fillStyle = c.up ? 'rgba(20,241,149,' + c.alpha + ')' : 'rgba(255,77,109,' + c.alpha + ')';
+      ctx.fillRect(c.x, c.y, c.w, c.h);
+      ctx.fillRect(c.x + c.w / 2 - 1, c.y - 8, 2, c.h + 16);   // 影線
+    }
+    // 倍數
+    ctx.textAlign = 'left';
+    for (let i = floats.length - 1; i >= 0; i--) {
+      const f = floats[i];
+      f.life += dt;
+      f.y -= f.vy * dt;
+      f.alpha = Math.min(1, f.life * 1.2) * Math.max(0, 1 - f.life / 5);
+      if (f.life > 5) { floats.splice(i, 1); continue; }
+      ctx.font = '700 ' + Math.round(f.size) + 'px ui-monospace,Menlo,Consolas,monospace';
+      ctx.fillStyle = f.gold
+        ? 'rgba(255,211,77,' + (f.alpha * 0.85) + ')'
+        : 'rgba(20,241,149,' + (f.alpha * 0.4) + ')';
+      if (f.gold) { ctx.shadowColor = 'rgba(255,211,77,.8)'; ctx.shadowBlur = 12; }
+      ctx.fillText(f.text, f.x, f.y);
+      ctx.shadowBlur = 0;
+    }
+    // 底部跑過的狗
+    const stampFn = window.DogRoom && window.DogRoom.stamp;
+    for (let i = runners.length - 1; i >= 0; i--) {
+      const d = runners[i];
+      d.x += d.dir * d.speed * dt;
+      d.phase += dt;
+      if ((d.dir > 0 && d.x > W + 50) || (d.dir < 0 && d.x < -50)) { runners.splice(i, 1); continue; }
+      if (stampFn) {
+        ctx.globalAlpha = 0.9;
+        stampFn(ctx, d.x, d.y, d.scale, d.tier, d.dir, d.phase, true);
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    if (!reduced && inView && !document.hidden) raf = requestAnimationFrame(frame);
+  }
+  function kick() { if (!raf && !reduced) { last = performance.now(); raf = requestAnimationFrame(frame); } }
+
+  // 靜態模式：畫一張定格（幾根 K 線柱 + 一隻金狗）
+  function staticFrame() {
+    resize();
+    for (let i = 0; i < 26; i++) { spawnCandle(); candles[candles.length - 1].y = Math.random() * H; }
+    for (let i = 0; i < 5; i++) { spawnFloat(); floats[floats.length - 1].life = 1; floats[floats.length - 1].alpha = 0.6; }
+    spawnDog(); runners[0].x = W * 0.7;
+    last = performance.now();
+    const t = last;
+    raf = 1; frame(t); raf = 0;   // 畫一幀後由 frame 內部條件停住
+  }
+
+  window.addEventListener('resize', function () { resize(); if (reduced) staticFrame(); });
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) kick(); });
+  if (typeof IntersectionObserver === 'function') {
+    new IntersectionObserver(function (es) {
+      inView = !!(es[0] && es[0].isIntersecting);
+      if (inView) kick();
+    }).observe(cv);
+  }
+
+  // 同步畫一幀（截圖與測試用；面板隱藏時 rAF 不會跑）
+  window.HeroBG = { tick: function (steps) {
+    resize();
+    for (let i = 0; i < (steps || 1); i++) {
+      spawnT = 0; dogT = Math.min(dogT, 0);
+      raf = 1; frame(performance.now() + i * 100); raf = 0;
+    }
+  } };
+
+  resize();
+  reduced ? staticFrame() : kick();
+})();

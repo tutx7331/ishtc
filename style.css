@@ -12,6 +12,56 @@ body{background:var(--bg);color:var(--fg);font:15px/1.65 var(--sans);-webkit-fon
 a{color:var(--accent);text-underline-offset:3px}
 b{color:var(--fg);font-weight:650}
 
+/* ---------- FOMO Hero ---------- */
+#hero{
+  position:relative;min-height:88svh;display:flex;align-items:center;justify-content:center;
+  overflow:hidden;border-bottom:1px solid var(--line);
+  transition:min-height .5s ease;
+}
+#hero-bg{position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated}
+.hero-vignette{
+  position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse 70% 60% at 50% 44%, rgba(10,11,14,.82) 0%, rgba(10,11,14,.42) 55%, rgba(10,11,14,.05) 100%);
+}
+.hero-inner{position:relative;z-index:2;text-align:center;padding:48px 20px;max-width:720px;width:100%}
+.hero-title{
+  margin:0;font:800 clamp(56px,12vw,104px)/1 var(--mono);letter-spacing:-.02em;
+  color:var(--fg);text-shadow:0 0 28px rgba(20,241,149,.35),0 0 80px rgba(153,69,255,.25);
+}
+.hero-tag{margin:10px 0 0;font:700 12px var(--mono);letter-spacing:.34em;color:var(--muted)}
+.hero-ask{margin:26px 0 18px;font:750 clamp(20px,4vw,30px)/1.4 var(--sans);color:var(--fg)}
+#hero-form{display:flex;gap:10px;max-width:640px;margin:0 auto}
+#hero-addr{
+  flex:1;min-width:0;background:rgba(10,11,14,.85);border:1px solid var(--line-2);
+  color:var(--fg);padding:16px 18px;font:14px var(--mono);
+}
+#hero-addr:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 0 24px rgba(20,241,149,.25)}
+#hero-run{padding:16px 26px;font-size:14px;white-space:nowrap;box-shadow:0 0 22px rgba(20,241,149,.35)}
+.hero-note{margin:16px 0 0;font:12px var(--mono);letter-spacing:.14em;color:var(--dim)}
+/* 查詢開始後 hero 收斂成頁首 */
+#hero.compact{min-height:0}
+#hero.compact .hero-inner{padding:26px 20px}
+#hero.compact .hero-ask,#hero.compact .hero-note{display:none}
+#hero.compact .hero-title{font-size:clamp(30px,6vw,44px);text-shadow:0 0 16px rgba(20,241,149,.3)}
+#hero.compact .hero-tag{letter-spacing:.22em;font-size:10px}
+#hero.compact #hero-form{max-width:560px}
+#hero.compact #hero-addr,#hero.compact #hero-run{padding:11px 16px}
+@media (max-width:560px){
+  #hero{min-height:78svh}
+  #hero-form{flex-direction:column}
+  #hero-run{width:100%}
+}
+
+/* ---------- 進階查詢摺疊區 ---------- */
+#manual-panel{margin-bottom:16px}
+.manual-summary{
+  cursor:pointer;color:var(--dim);font:700 11px var(--mono);
+  letter-spacing:.12em;text-transform:uppercase;padding:12px 4px;list-style:none;
+}
+.manual-summary::before{content:"▸ "}
+#manual-panel[open] .manual-summary::before{content:"▾ "}
+.manual-summary:hover{color:var(--fg)}
+
 /* ---------- 標頭 ---------- */
 .topbar{padding:52px 0 30px;border-bottom:1px solid var(--line)}
 .topbar h1{

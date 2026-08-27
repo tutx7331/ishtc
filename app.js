@@ -1675,9 +1675,26 @@ function initFromUrl() {
     const good = raw.filter(isSolAddress).slice(0, 10);
     if (!good.length) return false;
     $('#addresses').value = good.join('\n');
+    $('#hero-addr').value = good.join(' ');
     return !!(PROXY_URL || (localStorage.getItem('fomo:key') || localStorage.getItem('fomo:stkey')));
   } catch (e) { return false; }
 }
+
+// ---------- 全屏 hero ----------
+function heroCompact() {
+  const h = $('#hero');
+  if (h && h.classList) h.classList.add('compact');
+}
+(function wireHero() {
+  const form = $('#hero-form');
+  if (!form || !form.addEventListener) return;
+  form.addEventListener('submit', (ev) => {
+    if (ev && ev.preventDefault) ev.preventDefault();
+    const v = ($('#hero-addr').value || '').trim();
+    if (v) $('#addresses').value = v;   // 空的話沿用進階區已填的
+    $('#run').click();
+  });
+})();
 
 $('#max-tokens').addEventListener('input', updateEta);
 $('#birdeye-key').addEventListener('input', updateEta);
@@ -1726,6 +1743,7 @@ $('#run').addEventListener('click', async () => {
   $('#error').hidden = true;
   $('#results').hidden = true;
   $('#progress').hidden = false;
+  heroCompact();                       // 全屏 hero 收斂成頁首
   if (dogRoom()) dogRoom().reset();   // 狗房清場，等狗跑進來
   $('#run').disabled = true;
   $('#cancel').hidden = false;
@@ -1753,13 +1771,15 @@ $('#run').addEventListener('click', async () => {
     }
   } catch (e) {
     if (e.cooldown) {
-      // 共用額度用完：亮出冷卻橫幅 + 開放自填 key 的欄位
+      // 共用額度用完：亮出冷卻橫幅 + 展開進階區 + 開放自填 key 的欄位
+      const mp = $('#manual-panel'); if (mp) mp.open = true;
       $('#cooldown').hidden = false;
       $('#key-zone').hidden = false;
       $('#proxy-note').hidden = true;
       $('#error').textContent = '⚠ 查詢用量過大，暫時冷卻中。可以在上方填入你自己的免費 API key 繼續查詢。';
       $('#error').hidden = false;
     } else if (e.message !== '__ABORT__') {
+      const mp = $('#manual-panel'); if (mp) mp.open = true;
       $('#error').textContent = '⚠ ' + e.message;
       $('#error').hidden = false;
       $('#intro').hidden = false;

@@ -10,16 +10,27 @@
 </head>
 <body>
 
-<header class="topbar">
-  <div class="wrap">
-    <h1>ISHTC</h1>
-    <p class="sub">I Should Hold The Coin —— 輸入 Solana 地址，看看你這輩子錯過了多少錢</p>
+<section id="hero">
+  <canvas id="hero-bg"></canvas>
+  <div class="hero-vignette"></div>
+  <div class="hero-inner">
+    <h1 class="hero-title">ISHTC</h1>
+    <p class="hero-tag">I SHOULD HOLD THE COIN</p>
+    <p class="hero-ask">你這輩子賣飛了多少錢？</p>
+    <form id="hero-form" autocomplete="off">
+      <input id="hero-addr" type="text" spellcheck="false" autocomplete="off"
+        placeholder="貼上 Solana 地址（可多個，用空格分隔）">
+      <button id="hero-run" class="primary" type="submit">算給我看</button>
+    </form>
+    <p class="hero-note">免註冊 · 免 API key · 貼上就查</p>
   </div>
-</header>
+</section>
 
 <main class="wrap">
 
-  <!-- ===== 輸入區 ===== -->
+  <!-- ===== 進階查詢區（預設收合，hero 是主要入口）===== -->
+  <details id="manual-panel">
+  <summary class="manual-summary">進階查詢 · 自備 API key · 掃描設定</summary>
   <section class="panel" id="input-panel">
     <label class="field">
       <span class="label">Solana 地址<small>一行一個，可同時分析多個地址</small></span>
@@ -111,6 +122,7 @@
 
     <p class="err" id="error" hidden></p>
   </section>
+  </details>
 
   <!-- ===== 狗房 ===== -->
   <section class="panel" id="dog-room-panel" hidden>
