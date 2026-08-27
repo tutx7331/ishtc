@@ -1,0 +1,479 @@
+# Solana Tracker
+
+## Docs
+
+- [Solana Tracker Docs](https://docs.solanatracker.io/index.md): Solana Tracker docs — Data API with 70+ endpoints, Datastream WebSockets, the Raptor DEX aggregator, Yellowstone gRPC, and dedicated Solana RPC nodes.
+- [Quick Start](https://docs.solanatracker.io/quickstart.md): Get up and running with the Solana Tracker Data API in a few minutes — sign up, grab an API key, and make your first token, wallet, and price requests.
+- [Pricing & Limits](https://docs.solanatracker.io/pricing.md): Plans, rate limits, and pricing for the Solana Tracker Data API, Datastream, Solana RPC, Yellowstone gRPC, dedicated nodes, and free products.
+- [Glossary](https://docs.solanatracker.io/glossary.md): Plain-language definitions for Solana Tracker terms — wallet tags, sniper, bundler, KOL, PnL, datastream rooms, slippage, priority fees, and more.
+- [AI Integration](https://docs.solanatracker.io/ai.md): Use Solana Tracker documentation with AI assistants like Cursor, ChatGPT, and Claude — copy markdown, paste prompts, and connect via MCP and llms.txt.
+- [Changelog](https://docs.solanatracker.io/changelog.md): Product updates, new endpoints, and release notes for the Solana Tracker Data API, Datastream WebSockets, Raptor swap API, and Solana RPC.
+- [Guides](https://docs.solanatracker.io/guides/index.md): Step-by-step tutorials for the Solana Tracker API — token research, risk checks, live WebSocket streaming, wallet analytics, PnL, and swap execution.
+- [Token Discovery](https://docs.solanatracker.io/guides/token-discovery.md): Find new launches, trending tokens, Pump.fun graduations, and top-performing tokens on Solana with the Solana Tracker Data API discovery endpoints.
+- [Search filter options](https://docs.solanatracker.io/guides/search-filter-options.md): Reference list of valid `market` and `launchpad` filter values for the Solana token search endpoint — every supported DEX and launchpad name.
+- [Search: Coin Communities](https://docs.solanatracker.io/guides/search-coin-communities.md): Filter and sort Solana token search results by Coin Communities live chat activity — message counts, last message time, and engagement signals.
+- [Token Research](https://docs.solanatracker.io/guides/token-research.md): Look up any Solana token's stats, holders, trades, pool events, and market activity in one place with the Solana Tracker Data API.
+- [Get All Holders for a Solana Token](https://docs.solanatracker.io/guides/token-holders.md): Fetch the complete holder list for any Solana token — top wallets, whale concentration, and full paginated exports for risk checks and holder dashboards.
+- [Price & Charts](https://docs.solanatracker.io/guides/price-and-charts.md): Fetch live Solana token prices, historical OHLCV candles, price at timestamp, and multi-token price snapshots with the Solana Tracker Data API.
+- [Lighthouse Market Overview](https://docs.solanatracker.io/guides/lighthouse.md): Compare Solana DEXes, launchpads, and market families with rolling transaction, wallet, volume, token creation, and migration stats.
+- [Pump.fun & Bonding Curves](https://docs.solanatracker.io/guides/pumpfun.md): Track, analyze, and trade Pump.fun tokens across their lifecycle — discover launches, monitor bonding curves, watch graduations, and swap on PumpSwap.
+- [Pump.fun Program ID, IDL & Buy/Sell Instructions](https://docs.solanatracker.io/guides/pumpfun-program.md): Official Pump.fun Solana program ID 6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P, Anchor IDL, and buy/sell/create instruction discriminators for web3.js and Rust.
+- [Pump.fun AMM (PumpSwap) Program ID, IDL & Buy/Sell](https://docs.solanatracker.io/guides/pumpfun-amm.md): Official Pump.fun AMM / PumpSwap Solana program ID pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA, Anchor IDL, and buy/sell instruction discriminators for web3.js and Rust.
+- [Sniper & Bundler Detection](https://docs.solanatracker.io/guides/sniper-detection.md): Find early Solana token buyers, detect bundled launches, identify insiders, and flag suspicious wallets with the Solana Tracker Data API.
+- [KOL Tracking](https://docs.solanatracker.io/guides/kol-tracking.md): Track Solana KOL wallet performance, rank influencers by PnL and win rate, and build copy-trading feeds with the Solana Tracker Data API.
+- [Whale & KOL Trade Tracking](https://docs.solanatracker.io/guides/whale-kol.md): Build whale watches, KOL trackers, trading alerts, and copy-trading signals with the Solana Tracker Whale & KOL REST API and Datastream rooms.
+- [Token Safety & Rugcheck](https://docs.solanatracker.io/guides/token-safety.md): Check token safety scores, detect freeze and mint authority, flag bundlers and insiders, and build a rug screener using the Solana Tracker Data API.
+- [Wallet Tracking](https://docs.solanatracker.io/guides/wallet-tracking.md): Track any Solana wallet's token holdings, trade history, portfolio chart, and overall performance with the Solana Tracker Data API wallet endpoints.
+- [PnL V2 Overview](https://docs.solanatracker.io/guides/pnl-v2/overview.md): How Solana Tracker PnL V2 works — endpoint groups, key concepts, pagination, identity tags, excluded assets, and live wallet PnL updates.
+- [Wallet Analysis](https://docs.solanatracker.io/guides/pnl-v2/wallet-analysis.md): Get any Solana wallet's PnL summary, open positions, daily history, risk exposure, portfolio chart, and standout trades with the PnL V2 wallet endpoints.
+- [Solana Wallet Tags](https://docs.solanatracker.io/guides/pnl-v2/wallet-tags.md): Supported PnL V2 wallet identity tags for Solana wallets, including KOLs, bots, arbitrage, hackers, exchanges, developers, pools, and platform tags.
+- [PnL V2: SNS Primary Domain](https://docs.solanatracker.io/guides/pnl-v2/sns-identity.md): How PnL V2 enriches wallet identity with each wallet's primary .sol domain via Ridge, including the sns tag and identity.sns field.
+- [Token Intelligence](https://docs.solanatracker.io/guides/pnl-v2/token-intelligence.md): See who traded a Solana token, who is still holding, and who got in first — surface top traders, first buyers, and current positions with PnL V2.
+- [Leaderboards](https://docs.solanatracker.io/guides/pnl-v2/leaderboards.md): Rank Solana KOLs and top traders by PnL, win rate, ROI, or trade count — query leaderboards by period, date, or token with the Solana Tracker PnL V2 API.
+- [Batch Operations](https://docs.solanatracker.io/guides/pnl-v2/batch-operations.md): Fetch PnL summaries and token positions for hundreds of Solana wallets or tokens in a single batch request — ideal for portfolio dashboards and screeners.
+- [Datastream Protocol](https://docs.solanatracker.io/guides/datastream-protocol.md): Connect, authenticate, join/leave rooms, and handle JSON ping/pong heartbeats on the Solana Tracker Datastream WebSocket.
+- [Live Prices & Charts](https://docs.solanatracker.io/guides/datastream-prices.md): Stream live token prices and OHLCV candles over the Solana Tracker Datastream WebSocket — build real-time charts, tickers, and price alerts.
+- [Token Discovery Streams](https://docs.solanatracker.io/guides/datastream-tokens.md): Stream new Solana token launches, Pump.fun graduations, trending tokens, and live market events over the Datastream WebSocket in real time.
+- [Safety Streams](https://docs.solanatracker.io/guides/datastream-safety.md): Stream live token safety signals — sniper buys, bundled launches, insider trades, developer holdings, and holder count changes — over WebSocket.
+- [Live Token Holder Updates (WebSocket)](https://docs.solanatracker.io/guides/live-holder-updates.md): Stream live holder count changes and top 10 wallet concentration for any Solana token over WebSocket — perfect for rug screeners and live dashboards.
+- [Stream Live Trades & Transactions](https://docs.solanatracker.io/guides/live-transactions.md): Subscribe to real-time swap transactions for any Solana token over WebSocket — build live trade feeds, sniper detection, whale alerts, and copy-trading.
+- [PnL V2 Datastream](https://docs.solanatracker.io/guides/datastream-pnl.md): Subscribe to live profit and loss updates for Solana wallets over WebSocket — track realized PnL, position changes, and trade activity in real time.
+- [Prediction Markets Datastream](https://docs.solanatracker.io/guides/datastream-prediction-markets.md): Subscribe to live Kalshi and Polymarket trades, prices, quotes, orderbooks, and volume over the Solana Tracker Datastream WebSocket.
+- [Solana RPC: Address Lookup Tables](https://docs.solanatracker.io/guides/solana-rpc-lookup-tables.md): Use Ridge custom RPC methods to find Solana address lookup tables by authority, account, mint, or account set, and choose LUTs that reduce transaction size.
+- [Solana RPC: SNS Domains](https://docs.solanatracker.io/guides/solana-rpc-sns-domains.md): Resolve Solana Name Service .sol domains with Ridge custom RPC methods for primary domains, batch wallet identity, all owned domains, and forward resolution.
+- [Prediction Markets](https://docs.solanatracker.io/guides/prediction-markets.md): Get started with the beta Kalshi and Polymarket API — auth, exchanges, market IDs, historical trades and candlesticks, and wallet analytics.
+- [Swapping Tokens](https://docs.solanatracker.io/guides/swap-api.md): Get quotes, build swap transactions, stream live quotes, and send signed swaps on Solana with the Raptor DEX aggregator and Solana Tracker Swap API.
+- [Token Search](https://docs.solanatracker.io/data-api/search/token-search.md): Searches for tokens by symbol, name, or address with various filtering and sorting options
+- [Get Token Information](https://docs.solanatracker.io/data-api/tokens/get-token-information.md): Retrieves comprehensive information about a specific token, including pools, events, and risk. `risk.bundlers` may be omitted even when sniper/insider data is present; call `GET /tokens/{token}/bundlers` for the full bundler wallet list.
+- [Get Token by Pool Address](https://docs.solanatracker.io/data-api/tokens/get-token-by-pool-address.md): Retrieves token information by searching with a pool address
+- [Get Token Holders (Top 100)](https://docs.solanatracker.io/data-api/tokens/get-token-holders-top-100.md): Gets the top 100 holders for a specific token and the total holder count. Optional enrichment adds wallet identity (`?enrich=identity`) and/or PnL (`?enrich=walletPnl`). Use `?enrich=identity,walletPnl`, `?enrich=all`, or `?enrich=*` for both. When enrichment is requested, the response includes an `…
+- [Get All Token Holders (Paginated)](https://docs.solanatracker.io/data-api/tokens/get-all-token-holders-paginated.md): Gets token holders with cursor-based pagination support. Returns holders sorted by amount in descending order.
+- [Get Top 20 Token Holders](https://docs.solanatracker.io/data-api/tokens/get-top-20-token-holders.md): Gets the top 20 holders for a token
+- [Get All-Time High Price](https://docs.solanatracker.io/data-api/tokens/get-all-time-high-price.md): Retrieves the all-time high price of a token (since the data API started recording)
+- [Get Token Bundlers](https://docs.solanatracker.io/data-api/tokens/get-token-bundlers.md): Retrieves bundler information for a specific token, including top 500 bundler wallets and statistics
+- [Get Tokens by Deployer](https://docs.solanatracker.io/data-api/tokens/get-tokens-by-deployer.md): Retrieves all tokens created by a specific wallet with pagination support
+- [Get Latest Tokens](https://docs.solanatracker.io/data-api/tokens/get-latest-tokens.md): Retrieves the latest 100 tokens
+- [Get Multiple Tokens](https://docs.solanatracker.io/data-api/tokens/get-multiple-tokens.md): Accepts an array of token addresses in the request body (up to 20 per request)
+- [Get Trending Tokens](https://docs.solanatracker.io/data-api/tokens/get-trending-tokens.md): Gets the top 100 trending tokens based on transaction volume in the specified timeframe (default: past hour) Response body is a **top-level JSON array** of token rows (not wrapped in `{ "items": [...] }`).
+- [Get Trending Tokens by Timeframe](https://docs.solanatracker.io/data-api/tokens/get-trending-tokens-by-timeframe.md): Gets the top 100 trending tokens based on transaction volume in the specified timeframe Response body is a **top-level JSON array** of token rows (not wrapped in `{ "items": [...] }`).
+- [Get Tokens by Volume](https://docs.solanatracker.io/data-api/tokens/get-tokens-by-volume.md): Retrieves the top 100 tokens sorted by highest volume within the default timeframe Response body is a **top-level JSON array** of token rows (not wrapped in `{ "items": [...] }`).
+- [Get Tokens by Volume with Timeframe](https://docs.solanatracker.io/data-api/tokens/get-tokens-by-volume-with-timeframe.md): Retrieves the top 100 tokens sorted by highest volume within the specified timeframe Response body is a **top-level JSON array** of token rows (not wrapped in `{ "items": [...] }`).
+- [Get Top Performing Tokens](https://docs.solanatracker.io/data-api/tokens/get-top-performing-tokens.md): Retrieves the top performing tokens launched today within the specified timeframe
+- [Get Token Overview](https://docs.solanatracker.io/data-api/tokens/get-token-overview.md): Gets an overview of latest, graduating, and graduated tokens (Axiom Pulse / Photon Memescope style)
+- [Get Graduating Tokens](https://docs.solanatracker.io/data-api/tokens/get-graduating-tokens.md): Overview of all graduating launchpad tokens (Pump.fun, letsbonk.fun, jupiter studio etc)
+- [Get Graduated Tokens](https://docs.solanatracker.io/data-api/tokens/get-graduated-tokens.md): Overview of all graduated launchpad tokens (Pump.fun, letsbonk.fun, jupiter studio etc)
+- [Get Token Price](https://docs.solanatracker.io/data-api/price/get-token-price.md): Gets price information for a single token
+- [Get Historic Price Information](https://docs.solanatracker.io/data-api/price/get-historic-price-information.md): Gets historic price information for a single token
+- [Get Price at Specific Timestamp](https://docs.solanatracker.io/data-api/price/get-price-at-specific-timestamp.md): Gets specific historic price information for a token at a given timestamp
+- [Get lowest and highest price in time range](https://docs.solanatracker.io/data-api/price/get-lowest-and-highest-price-in-time-range.md): Gets the lowest and highest price in a time range
+- [Get Multiple Token Prices](https://docs.solanatracker.io/data-api/price/get-multiple-token-prices.md): Gets price information for multiple tokens (up to 100)
+- [Post Multiple Token Prices](https://docs.solanatracker.io/data-api/price/post-multiple-token-prices.md): Similar to GET /price/multi, but accepts token addresses in the JSON body. Pass `priceChanges: true` to include the `priceChanges` object on each token.
+- [Get Wallet Tokens](https://docs.solanatracker.io/data-api/wallet/get-wallet-tokens.md): Gets all tokens in a wallet with current value in USD
+- [Get Basic Wallet Information](https://docs.solanatracker.io/data-api/wallet/get-basic-wallet-information.md): Gets all tokens in a wallet with current value in USD (lightweight, non-cached option)
+- [Get Wallet Tokens with Pagination](https://docs.solanatracker.io/data-api/wallet/get-wallet-tokens-with-pagination.md): Retrieves wallet tokens using pagination with a limit of 250 tokens per request
+- [Get Wallet Trades](https://docs.solanatracker.io/data-api/wallet/get-wallet-trades.md): Gets the latest trades of a wallet
+- [Get Wallet Portfolio Chart](https://docs.solanatracker.io/data-api/wallet/get-wallet-portfolio-chart.md): Legacy **portfolio-value** chart (historical wallet USD value series with period PnL percentages). This is **not** equivalent to PnL V2 trade/performance charts.
+- [Get Token Trades](https://docs.solanatracker.io/data-api/trades/get-token-trades.md): Gets the latest trades for a token across all pools
+- [Get Pool-Specific Trades](https://docs.solanatracker.io/data-api/trades/get-pool-specific-trades.md): Gets the latest trades for a specific token and pool pair
+- [Get User-Specific Pool Trades](https://docs.solanatracker.io/data-api/trades/get-user-specific-pool-trades.md): Gets the latest trades for a specific token, pool, and wallet address
+- [Get User-Specific Token Trades](https://docs.solanatracker.io/data-api/trades/get-user-specific-token-trades.md): Gets the latest trades for a specific token and wallet address
+- [Get OHLCV Data for a token](https://docs.solanatracker.io/data-api/chart/get-ohlcv-data-for-a-token.md): Gets OHLCV (Open, High, Low, Close, Volume) data for charts
+- [Get OHLCV Data for a token/pool pair](https://docs.solanatracker.io/data-api/chart/get-ohlcv-data-for-a-tokenpool-pair.md): Gets OHLCV (Open, High, Low, Close, Volume) data for charts for a specific pool
+- [Get Holders Chart Data](https://docs.solanatracker.io/data-api/chart/get-holders-chart-data.md): Gets token holder count data over time. Returns up to 1000 of the most recent data points
+- [Get Insiders Chart Data](https://docs.solanatracker.io/data-api/chart/get-insiders-chart-data.md): Gets insider holding percentage data over time. Returns up to 1000 of the most recent data points
+- [Get Snipers Chart Data](https://docs.solanatracker.io/data-api/chart/get-snipers-chart-data.md): Gets sniper holding percentage data over time. Returns up to 1000 of the most recent data points
+- [Get Bundlers Chart Data](https://docs.solanatracker.io/data-api/chart/get-bundlers-chart-data.md): Gets bundler holding percentage data over time. Returns up to 1000 of the most recent data points
+- [Deprecated: Get Wallet PnL](https://docs.solanatracker.io/data-api/pnl/deprecated:-get-wallet-pnl.md): Deprecated. Use PnL V2 instead: `GET /v2/pnl/wallets/{wallet}` for wallet summaries and `GET /v2/pnl/wallets/{wallet}/positions` for token positions.
+- [Deprecated: Get First Token Buyers](https://docs.solanatracker.io/data-api/pnl/deprecated:-get-first-token-buyers.md): Deprecated. Use PnL V2 instead: `GET /v2/pnl/tokens/{token}/first-buyers` for chronological first buyers with token PnL, wallet PnL, identity, and holding state.
+- [Deprecated: Get Token-Specific PnL](https://docs.solanatracker.io/data-api/pnl/deprecated:-get-token-specific-pnl.md): Deprecated. Use PnL V2 instead: `GET /v2/pnl/wallets/{wallet}/tokens/{token}`.
+- [Deprecated: Get Top Traders (All Tokens)](https://docs.solanatracker.io/data-api/top-traders/deprecated:-get-top-traders-all-tokens.md): Deprecated. For current Solana trader rankings, use `GET /v2/pnl/leaderboard/top`.
+- [Deprecated: Get Top Traders (All Tokens) with Pagination](https://docs.solanatracker.io/data-api/top-traders/deprecated:-get-top-traders-all-tokens-with-pagination.md): Deprecated. For current Solana trader rankings with cursor pagination, use `GET /v2/pnl/leaderboard/top`.
+- [Deprecated: Get Top Traders for Specific Token](https://docs.solanatracker.io/data-api/top-traders/deprecated:-get-top-traders-for-specific-token.md): Deprecated. Use PnL V2 instead: `GET /v2/pnl/tokens/{token}/traders` for token trader rankings with sorting and filters.
+- [Get Token Stats](https://docs.solanatracker.io/data-api/stats/get-token-stats.md): Gets detailed stats for a token over various time intervals
+- [Get Token-Pool Stats](https://docs.solanatracker.io/data-api/stats/get-token-pool-stats.md): Gets detailed stats for a token-pool pair over various time intervals
+- [Get Token Events](https://docs.solanatracker.io/data-api/events/get-token-events.md): Gets raw event data for live processing. Returns binary data that needs to be decoded
+- [Get Pool Events](https://docs.solanatracker.io/data-api/events/get-pool-events.md): Gets raw event data for a specific token and pool. Returns binary data that needs to be decoded
+- [Get API Credits](https://docs.solanatracker.io/data-api/credits/get-api-credits.md): Gets the remaining API credits for your API key
+- [Get Subscription Information](https://docs.solanatracker.io/data-api/credits/get-subscription-information.md): Gets current subscription information including credits, plan, and billing details
+- [Latest high-volume (whale) spot trades](https://docs.solanatracker.io/data-api/whale-trades/latest-high-volume-whale-spot-trades.md): Returns the newest spot DEX trades with absolute USD volume at or above `minVolume`. When the trader is a KOL, `identity` is included.
+- [Latest KOL spot trades](https://docs.solanatracker.io/data-api/kol-trades/latest-kol-spot-trades.md): Returns the newest spot DEX trades from wallets on the shared KOL roster with absolute USD volume at or above `minVolume`. Each trade includes `identity` when available.
+- [Latest KOL spot trades for one token](https://docs.solanatracker.io/data-api/kol-trades/latest-kol-spot-trades-for-one-token.md): Returns the newest KOL spot trades for a single mint with absolute USD volume at or above `minVolume`. Supports `hideArb` to keep only legs involving that mint.
+- [Solana memecoin market stats](https://docs.solanatracker.io/data-api/lighthouse/solana-memecoin-market-stats.md): Returns rolling stats for Solana memecoin markets such as `all`, `pumpfun`, `raydium-all`, and `meteora-curve:bags`. Includes DEXs, launchpads, and discovered launchpad markets.
+- [Get KOL Leaderboard](https://docs.solanatracker.io/data-api/pnl-v2/leaderboard/get-kol-leaderboard.md): Ranks tracked KOL wallets by all-time performance. Use it to compare lifetime realized and unrealized PnL, ROI, trade count, and recency across known wallets.
+- [Get KOL Leaderboard for a Period](https://docs.solanatracker.io/data-api/pnl-v2/leaderboard/get-kol-leaderboard-for-a-period.md): Ranks tracked KOL wallets inside a defined window. Use `period` for rolling windows like `7d` or `30d`, or `start` and `end` for explicit dates.
+- [Get KOL Calendar](https://docs.solanatracker.io/data-api/pnl-v2/leaderboard/get-kol-calendar.md): Returns one row per day for a given month with aggregate KOL realized PnL, volume, trade counts, and active wallet count. Useful for calendar and heatmap views.
+- [Get KOL Daily Breakdown](https://docs.solanatracker.io/data-api/pnl-v2/leaderboard/get-kol-daily-breakdown.md): Returns per-KOL performance for a single trading day, including realized PnL, volume, trade counts, and cumulative totals as of that date.
+- [Solana Traders Leaderboard](https://docs.solanatracker.io/data-api/pnl-v2/leaderboard/solana-traders-leaderboard.md): Ranks Solana trading wallets by recent PnL performance over supported windows (`1`, `7`, `30`, or `90` days). Use filters to remove low-signal wallets, arbitrage wallets, and one-off winners.
+- [Get Token Traders](https://docs.solanatracker.io/data-api/pnl-v2/token/get-token-traders.md): Returns wallets that traded the token, along with full position state: realized and unrealized PnL, remaining size, trade counts, and timing. Legacy fields (`wallet`, `pnl`, `position`, `buyUsd`, `sellUsd`, `counts`, `roi`, `timing.firstTrade`, `timing.lastTrade`) are unchanged. Additive fields (`in…
+- [Get Token First Buyers](https://docs.solanatracker.io/data-api/pnl-v2/token/get-token-first-buyers.md): Returns the same trader dataset as `/traders`, but only in chronological earliest-first order. Omit `sort` or use `sort=first_trade`, and use `direction=asc`. For ROI, PnL, position size, latest trade, or descending order, use `/v2/pnl/tokens/{token}/traders`.
+- [Get Token Batch Positions](https://docs.solanatracker.io/data-api/pnl-v2/token/get-token-batch-positions.md): Returns positions for multiple wallets on one token mint in a single request. Wallets with no matching position are returned in `notFound`. Max 200 wallets.
+- [Get Wallet PnL Calendar](https://docs.solanatracker.io/data-api/pnl-v2/wallet/get-wallet-pnl-calendar.md): Returns daily wallet snapshots with cumulative PnL plus per-day realized PnL, volume, buy and sell counts, and averages. Use `period` for quick windows or `start` and `end` for exact ranges. Pass `?currency=sol` or `?currency=eur` to convert monetary fields at read time using historical daily refere…
+- [Get Wallet Performance](https://docs.solanatracker.io/data-api/pnl-v2/wallet/get-wallet-performance.md): Returns rolling performance stats for a wallet, including realized PnL, volume, streaks, drawdown, best day, worst day, and the underlying daily breakdown. Trade counts (`totals.trades` and per-day `trades`) reflect daily activity within the window (`day_buys + day_sells`), not cumulative lifetime t…
+- [Get Wallet Token Position](https://docs.solanatracker.io/data-api/pnl-v2/wallet/get-wallet-token-position.md): Returns the full position for one wallet-token pair, wrapped with the wallet address, resolved identity, and the applied `pnlMode`.
+- [Get Wallet Highlights](https://docs.solanatracker.io/data-api/pnl-v2/wallet/get-wallet-highlights.md): Returns the wallet's standout positions, such as biggest winner, biggest loser, largest current bag, fastest flip, longest hold, and most traded token.
+- [Get Wallet Risk](https://docs.solanatracker.io/data-api/pnl-v2/wallet/get-wallet-risk.md): Returns risk metrics for current holdings, including portfolio concentration, realized versus unrealized mix, open exposure, and the largest live positions.
+- [Get Wallet Positions](https://docs.solanatracker.io/data-api/pnl-v2/wallet/get-wallet-positions.md): Returns paginated token positions for a wallet. Each list item exposes the same trade-activity fields as `/v2/pnl/wallets/:wallet/tokens/:token` (`volume`, `counts`, `timing`, and related PnL fields). Supports sorting plus filters for holding state, PnL, ROI, invested capital, market, liquidity, mar…
+- [Get Wallet Chart](https://docs.solanatracker.io/data-api/pnl-v2/wallet/get-wallet-chart.md): Returns daily time-series points for charting wallet PnL, volume, and activity. Supports backward pagination with `time_from` and `time_to` and includes a computed performance summary.
+- [Get Wallet Summary](https://docs.solanatracker.io/data-api/pnl-v2/wallet/get-wallet-summary.md): Returns the top-level trading summary for a wallet: total PnL, win rate, averages, counts, ROI buckets, platform tags, and `summary.timing.avgHoldTimeSecs`. Use `/positions` when you need per-token detail. Pass `?currency=sol` or `?currency=eur` to convert monetary fields at read time using current…
+- [Get Wallet Batch Positions](https://docs.solanatracker.io/data-api/pnl-v2/wallet/get-wallet-batch-positions.md): Returns positions for one wallet across multiple token mints in a single request. Tokens with no matching position are returned in `notFound`. Max 100 tokens.
+- [Get Wallet Summaries Batch](https://docs.solanatracker.io/data-api/pnl-v2/batch/get-wallet-summaries-batch.md): Returns wallet-level PnL summaries, resolved identity, and wallet tags for up to 100 unique wallets. Missing/non-indexed wallets are returned in `notFound`; invalid addresses are returned in `invalid`; requests above the limit are truncated and include a `truncated` object.
+- [Get Position Batch Lookup](https://docs.solanatracker.io/data-api/pnl-v2/batch/get-position-batch-lookup.md): Returns positions for arbitrary wallet and token pairs in a single request. Submit `{ wallet, token }` objects; unmatched pairs come back in `notFound`. Max 200 pairs.
+- [List DCA programs](https://docs.solanatracker.io/data-api/dca/programs/list-dca-programs.md): Returns supported recurring (DCA) programs. Each entry includes `id`, `label`, and on-chain `programId`. Today only Jupiter is available (`id`: `jupiter`).
+- [Get wallet DCA orders](https://docs.solanatracker.io/data-api/dca/wallet/get-wallet-dca-orders.md): Returns all DCA orders for a wallet with a status summary.
+- [Get paginated wallet DCA orders](https://docs.solanatracker.io/data-api/dca/wallet/get-paginated-wallet-dca-orders.md): Paginated list of DCA orders for a wallet.
+- [Get DCA order by address](https://docs.solanatracker.io/data-api/dca/orders/get-dca-order-by-address.md): Returns a single DCA account by its pubkey.
+- [Get DCA orders for trading pair](https://docs.solanatracker.io/data-api/dca/orders/get-dca-orders-for-trading-pair.md): Orders for a specific input → output mint pair.
+- [Get token DCA flow overview](https://docs.solanatracker.io/data-api/dca/token/get-token-dca-flow-overview.md): Buy/sell flow overview for recurring orders involving this token. Results may be cached; may return 408 on timeout.
+- [Get DCA buyers for token](https://docs.solanatracker.io/data-api/dca/token/get-dca-buyers-for-token.md): DCA orders **buying** this token (token is the output mint). May return 408 on timeout.
+- [Get DCA sellers for token](https://docs.solanatracker.io/data-api/dca/token/get-dca-sellers-for-token.md): DCA orders **selling** this token (token is the input mint). May return 408 on timeout.
+- [Get top DCA users for token](https://docs.solanatracker.io/data-api/dca/token/get-top-dca-users-for-token.md): Top wallets by DCA activity for this token.
+- [Risk Score](https://docs.solanatracker.io/data-api/risk.md): How the Solana Tracker token risk score works — rug pull signals, freeze and mint authority checks, top holder concentration, and bundler detection.
+- [Latest tokens](https://docs.solanatracker.io/datastream/websockets/latesttokens.md): Subscribe to brand-new tokens and pools created on Solana over Datastream WebSocket to catch fresh launches from Pump.fun, Raydium, and more.
+- [Graduating](https://docs.solanatracker.io/datastream/websockets/graduating.md): Stream tokens approaching bonding curve completion over Datastream WebSocket to catch graduating tokens before they migrate to a Solana DEX.
+- [Graduated](https://docs.solanatracker.io/datastream/websockets/graduated.md): Stream tokens that just graduated from bonding curves over Datastream WebSocket to detect Pump.fun and other launchpad graduations as they happen.
+- [Price by pool](https://docs.solanatracker.io/datastream/websockets/pricebypool.md): Stream live price updates for a specific Solana DEX pool over Datastream WebSocket to power per-pool charts and pool-level trading alerts.
+- [Price aggregated](https://docs.solanatracker.io/datastream/websockets/priceaggregated.md): Stream aggregated price updates across all pools for a Solana token over Datastream WebSocket for unified, volume-weighted price feeds.
+- [Price by token](https://docs.solanatracker.io/datastream/websockets/pricebytoken.md): Stream live price updates for a Solana token from its primary (highest-liquidity) pool over Datastream WebSocket for fast single-token price feeds.
+- [Price all pools](https://docs.solanatracker.io/datastream/websockets/priceallpools.md): Stream price updates for a Solana token across every pool it trades in over Datastream WebSocket for full multi-pool live price coverage.
+- [Token transactions](https://docs.solanatracker.io/datastream/websockets/tokentransactions.md): Stream live swap transactions for any Solana token across every pool over Datastream WebSocket for real-time trade feeds and trading bot triggers.
+- [Pool transactions](https://docs.solanatracker.io/datastream/websockets/pooltransactions.md): Stream live swap transactions for a specific Solana token in a specific pool over Datastream WebSocket — ideal for per-pool trade feeds.
+- [Pool wallet transactions](https://docs.solanatracker.io/datastream/websockets/poolwallettransactions.md): Stream live swap transactions for a specific wallet in a specific Solana pool over Datastream WebSocket to track wallet-level pool activity.
+- [Whale trades](https://docs.solanatracker.io/datastream/websockets/whaletrades.md): Cumulative high-volume spot trade rooms. A trade is published to every room whose tier it meets. Example: a $12,000 trade is sent to `transaction:whale:1000`, `:2500`, `:5000`, and `:10000`. Volumes below $1,000 are excluded.
+- [Kol trades](https://docs.solanatracker.io/datastream/websockets/koltrades.md): All spot trades from wallets on the shared KOL roster, regardless of USD volume. One trade object per swap. Includes `identity` when available.
+- [Kol trades by volume](https://docs.solanatracker.io/datastream/websockets/koltradesbyvolume.md): Cumulative high-volume KOL trade rooms. Same thresholds and fan-out as `transaction:whale:{volume}`. Volumes below $1,000 are excluded from these volume rooms (they still appear on `transaction:kol`).
+- [All Events](https://docs.solanatracker.io/datastream/websockets/all-events.md): All Jupiter DCA events on one subscription. Transaction events include `eventName`; position updates include `order` and `writeVersion` (no `eventName`).
+- [Order Opened](https://docs.solanatracker.io/datastream/websockets/order-opened.md): New DCA opened (`openDca` or `openDcaV2`).
+- [Order Filled](https://docs.solanatracker.io/datastream/websockets/order-filled.md): DCA cycle fill.
+- [Order Closed](https://docs.solanatracker.io/datastream/websockets/order-closed.md): DCA closed.
+- [Deposit](https://docs.solanatracker.io/datastream/websockets/deposit.md): Deposit to DCA.
+- [Withdraw](https://docs.solanatracker.io/datastream/websockets/withdraw.md): Withdraw from DCA.
+- [Fee Collected](https://docs.solanatracker.io/datastream/websockets/fee-collected.md): Fee collected on DCA.
+- [Position Updates](https://docs.solanatracker.io/datastream/websockets/position-updates.md): Account snapshot on position change (no `signature` or `eventName`). Throttled per DCA account.
+- [Buyers by Token](https://docs.solanatracker.io/datastream/websockets/buyers-by-token.md): DCAs buying this token (output mint). Use for token terminal buyers tab.
+- [Sellers by Token](https://docs.solanatracker.io/datastream/websockets/sellers-by-token.md): DCAs selling this token (input mint). Use for token terminal sellers tab.
+- [By Wallet](https://docs.solanatracker.io/datastream/websockets/by-wallet.md): Any DCA event for a wallet owner.
+- [By Account](https://docs.solanatracker.io/datastream/websockets/by-account.md): Any DCA event for a specific DCA account address.
+- [Pool updates](https://docs.solanatracker.io/datastream/websockets/poolupdates.md): Subscribe to Solana DEX pool updates (price, liquidity, reserves) over Datastream WebSocket for live state changes on a specific pool address.
+- [Token changes](https://docs.solanatracker.io/datastream/websockets/tokenchanges.md): Subscribe to every pool change for a Solana token over Datastream WebSocket to capture price, liquidity, and stats updates across all its pools.
+- [Token primary](https://docs.solanatracker.io/datastream/websockets/tokenprimary.md): Stream updates from a Solana token's primary (highest-liquidity) pool over Datastream WebSocket for the canonical price and volume feed.
+- [Holders](https://docs.solanatracker.io/datastream/websockets/holders.md): Subscribe to Solana token holder count changes over Datastream WebSocket to track holder growth, churn, and distribution shifts in real time.
+- [Curve percentage](https://docs.solanatracker.io/datastream/websockets/curvepercentage.md): Subscribe to Solana bonding curve percentage alerts on Datastream WebSocket and trigger actions when tokens hit specific curve thresholds.
+- [Metadata](https://docs.solanatracker.io/datastream/websockets/metadata.md): Stream Solana token metadata updates (name, symbol, image, socials) over Datastream WebSocket to keep token info current as projects update.
+- [Wallet transactions](https://docs.solanatracker.io/datastream/websockets/wallettransactions.md): Stream live swap transactions for a Solana wallet over Datastream WebSocket to power copy trading, wallet tracking, and on-chain trade feeds.
+- [Wallet balance](https://docs.solanatracker.io/datastream/websockets/walletbalance.md): Subscribe to Solana wallet SOL balance changes over Datastream WebSocket for live wallet tracking, alerting, and portfolio monitoring dashboards.
+- [Wallet token balance](https://docs.solanatracker.io/datastream/websockets/wallettokenbalance.md): Subscribe to a specific token balance change for a Solana wallet over Datastream WebSocket for granular per-token holding alerts and updates.
+- [Token statistics](https://docs.solanatracker.io/datastream/websockets/tokenstatistics.md): Subscribe to multi-timeframe token statistics (price, volume, txns, holders) over Datastream WebSocket for live Solana token analytics dashboards.
+- [Pool statistics](https://docs.solanatracker.io/datastream/websockets/poolstatistics.md): Subscribe to multi-timeframe pool statistics (price, volume, txns, buyers) over Datastream WebSocket for live Solana DEX pool analytics.
+- [Token statistics total](https://docs.solanatracker.io/datastream/websockets/tokenstatisticstotal.md): Subscribe to total all-time token statistics over Datastream WebSocket to track cumulative volume, txns, holders, and traders for any Solana token.
+- [Pool statistics total](https://docs.solanatracker.io/datastream/websockets/poolstatisticstotal.md): Subscribe to total all-time pool statistics over Datastream WebSocket to track cumulative volume, txn counts, and traders for any Solana pool.
+- [Token volume](https://docs.solanatracker.io/datastream/websockets/tokenvolume.md): Subscribe to live Solana token volume updates over Datastream WebSocket to power real-time volume charts, trending boards, and momentum signals.
+- [Pool volume](https://docs.solanatracker.io/datastream/websockets/poolvolume.md): Subscribe to live pool volume updates for any Solana DEX pool over Datastream WebSocket to power real-time volume charts and trading dashboards.
+- [Fee tracking](https://docs.solanatracker.io/datastream/websockets/feetracking.md): Stream global Solana token fee tracking over Datastream WebSocket to monitor trading fee accruals and revenue events live across pools.
+- [Sniper tracking](https://docs.solanatracker.io/datastream/websockets/snipertracking.md): Stream sniper wallet balance and percentage changes for a Solana token over Datastream WebSocket to monitor early buyers and snipe activity live.
+- [Insider tracking](https://docs.solanatracker.io/datastream/websockets/insidertracking.md): Stream Solana insider wallet balance and percentage changes for a token over Datastream WebSocket to detect dev and team holding shifts live.
+- [Developer holdings](https://docs.solanatracker.io/datastream/websockets/developerholdings.md): Subscribe to Solana token developer wallet holdings changes over Datastream WebSocket to detect dev sells, transfers, and balance shifts in real time.
+- [Top10 holders](https://docs.solanatracker.io/datastream/websockets/top10holders.md): Stream top-10 holder percentage changes for a Solana token over Datastream WebSocket to monitor concentration risk and whale activity in real time.
+- [Bundlers](https://docs.solanatracker.io/datastream/websockets/bundlers.md): Stream bundler wallet activity for a Solana token over Datastream WebSocket to detect coordinated trading and bundle buys in real time.
+- [Token position](https://docs.solanatracker.io/datastream/websockets/tokenposition.md): Stream real-time PnL updates for a single token position in a Solana wallet over Datastream WebSocket via tradeUpdate and balanceUpdate events.
+- [Wallet positions](https://docs.solanatracker.io/datastream/websockets/walletpositions.md): Stream real-time PnL updates for every token a Solana wallet holds over Datastream WebSocket via tradeUpdate and balanceUpdate events per token.
+- [Wallet summary](https://docs.solanatracker.io/datastream/websockets/walletsummary.md): Stream aggregated wallet-level PnL totals — counts, averages, open positions, ROI, and timing — for a Solana wallet over Datastream WebSocket live.
+- [All events](https://docs.solanatracker.io/datastream/websockets/allevents.md): Every non-market-state realtime event (trades, crypto_price, lifecycle/resolution). Does not include high-frequency prices/quotes/orderbook/volume.
+- [All trades](https://docs.solanatracker.io/datastream/websockets/alltrades.md): Full trade tape across Kalshi and Polymarket. Recommended hub feed.
+- [Significant trades](https://docs.solanatracker.io/datastream/websockets/significanttrades.md): Executed trades with notionalUsd (price × quantity) ≥ 25. Hub sidebars / large-print feeds.
+- [Exchange trades](https://docs.solanatracker.io/datastream/websockets/exchangetrades.md): Trade tape for one exchange (pm:kalshi:trades or pm:polymarket:trades).
+- [Market trades](https://docs.solanatracker.io/datastream/websockets/markettrades.md): Single-market trade tape. Polymarket marketId must be the CLOB token id.
+- [Event trades](https://docs.solanatracker.io/datastream/websockets/eventtrades.md): Trades for all markets under one event (requires eventId/eventTicker on the trade payload).
+- [Market prices](https://docs.solanatracker.io/datastream/websockets/marketprices.md): Live top-of-book mid (+ displayPrice). Market-scoped only — there is no pm:prices firehose.
+- [Market quotes](https://docs.solanatracker.io/datastream/websockets/marketquotes.md): Streaming size-aware VWAP quote ladder (Polymarket). REST: GET /v1/markets/{id}/quote.
+- [Market orderbook](https://docs.solanatracker.io/datastream/websockets/marketorderbook.md): Full orderbook snapshots for one market/token. Market-scoped only.
+- [Event volume](https://docs.solanatracker.io/datastream/websockets/eventvolume.md): Live cumulative USD volume for an event (crypto 5m windows use the event slug).
+- [Market volume](https://docs.solanatracker.io/datastream/websockets/marketvolume.md): Live cumulative USD volume for one outcome token/market.
+- [Single market lifecycle](https://docs.solanatracker.io/datastream/websockets/singlemarketlifecycle.md): Kalshi market lifecycle updates (opened/closed/suspended) for one ticker.
+- [Single market resolution](https://docs.solanatracker.io/datastream/websockets/singlemarketresolution.md): Kalshi resolution updates for one ticker.
+- [Market lifecycle](https://docs.solanatracker.io/datastream/websockets/marketlifecycle.md): Broad Kalshi lifecycle channel (opened/closed/suspended).
+- [Resolution](https://docs.solanatracker.io/datastream/websockets/resolution.md): Broad Kalshi resolution channel.
+- [Exchange lifecycle](https://docs.solanatracker.io/datastream/websockets/exchangelifecycle.md): Lifecycle channel scoped to one exchange (typically kalshi).
+- [Exchange resolution](https://docs.solanatracker.io/datastream/websockets/exchangeresolution.md): Resolution channel scoped to one exchange (typically kalshi).
+- [Crypto underlying](https://docs.solanatracker.io/datastream/websockets/cryptounderlying.md): Live Chainlink underlying USD ticks for crypto up/down charts (btc, eth, …). Isolated from probability price rooms.
+- [Crypto underlying prices](https://docs.solanatracker.io/datastream/websockets/cryptounderlyingprices.md): Same Chainlink ticks as pm:crypto:{asset}, explicitly scoped to the prices channel.
+- [Event type feed](https://docs.solanatracker.io/datastream/websockets/eventtypefeed.md): Events of one type across exchanges (trade, crypto_price, market_opened, resolved, …). Does not receive market-state prices/quotes/orderbook/volume.
+- [Exchange event type feed](https://docs.solanatracker.io/datastream/websockets/exchangeeventtypefeed.md): One event type scoped to one exchange.
+- [Exchange feed](https://docs.solanatracker.io/datastream/websockets/exchangefeed.md): Non-market-state events for one exchange (trades, crypto_price, lifecycle). Not a prices firehose.
+- [Market feed](https://docs.solanatracker.io/datastream/websockets/marketfeed.md): Non-state updates for one market (trades/lifecycle). Does not receive prices/quotes/orderbook/volume — join the :{channel} rooms for those.
+- [Event feed](https://docs.solanatracker.io/datastream/websockets/eventfeed.md): Non-state updates for an event (typically trades). Volume uses the :volume suffix room only.
+- [Category feed](https://docs.solanatracker.io/datastream/websockets/categoryfeed.md): Trades (and other non-state events) when the payload includes category/categorySlug (enriched feeds).
+- [Series feed](https://docs.solanatracker.io/datastream/websockets/seriesfeed.md): Published only when the payload includes seriesId/seriesTicker (common on Kalshi trades).
+- [Status feed](https://docs.solanatracker.io/datastream/websockets/statusfeed.md): Lifecycle feed when payload includes status (active, closed, settled, suspended, resolved).
+- [Sport feed](https://docs.solanatracker.io/datastream/websockets/sportfeed.md): Published only when the payload includes sport/sportSlug. Not used for prices/orderbook/volume.
+- [Prediction Markets Overview](https://docs.solanatracker.io/prediction-markets/overview.md): Beta unified API for Kalshi and Polymarket — markets, events, full historical trades and candlesticks, orderbooks, crypto windows, wallet analytics, and live Datastream rooms.
+- [Wallet activity feed (Polymarket)](https://docs.solanatracker.io/prediction-markets/accounts/wallet-activity-feed-polymarket.md)
+- [Closed or resolved positions (Polymarket)](https://docs.solanatracker.io/prediction-markets/accounts/closed-or-resolved-positions-polymarket.md)
+- [Canonical wallet overview (Polymarket)](https://docs.solanatracker.io/prediction-markets/accounts/canonical-wallet-overview-polymarket.md): Returns lifecycle-aware positions and counts, authoritative marks and settlement values, FIFO PnL, portfolio value, and recent trades enriched with the same canonical market metadata as /v1/markets/batch.
+- [Wallet PnL summary (Polymarket, FIFO)](https://docs.solanatracker.io/prediction-markets/accounts/wallet-pnl-summary-polymarket-fifo.md)
+- [Fast authoritative wallet PnL chart](https://docs.solanatracker.io/prediction-markets/accounts/fast-authoritative-wallet-pnl-chart.md): Reads precomputed hourly authoritative PnL snapshots. Daily, weekly, and monthly points are last-value rollups and never scan raw fills.
+- [Wallet PnL by event (Polymarket, FIFO)](https://docs.solanatracker.io/prediction-markets/accounts/wallet-pnl-by-event-polymarket-fifo.md)
+- [Open positions (Polymarket)](https://docs.solanatracker.io/prediction-markets/accounts/open-positions-polymarket.md)
+- [Wallet trade history (Polymarket)](https://docs.solanatracker.io/prediction-markets/accounts/wallet-trade-history-polymarket.md)
+- [Portfolio value (Polymarket)](https://docs.solanatracker.io/prediction-markets/accounts/portfolio-value-polymarket.md)
+- [Search Polymarket traders](https://docs.solanatracker.io/prediction-markets/accounts/search-polymarket-traders.md): Search Polymarket traders by wallet address, address prefix, @username, display name, or X handle. Joins leaderboard stats when available. Kalshi has no public wallet identities. Cursor is an opaque keyset token.
+- [Browse hub bootstrap](https://docs.solanatracker.io/prediction-markets/meta/browse-hub-bootstrap.md): Single call for above-the-fold browse data: platform stats, exchange status, categories, trending markets, and recent trades.
+- [List market categories](https://docs.solanatracker.io/prediction-markets/meta/list-market-categories.md)
+- [Live market snapshots](https://docs.solanatracker.io/prediction-markets/meta/live-market-snapshots.md)
+- [Event/sports milestones](https://docs.solanatracker.io/prediction-markets/meta/eventsports-milestones.md)
+- [List market series (Kalshi)](https://docs.solanatracker.io/prediction-markets/meta/list-market-series-kalshi.md)
+- [List Polymarket sports categories](https://docs.solanatracker.io/prediction-markets/meta/list-polymarket-sports-categories.md)
+- [List crypto up/down series events](https://docs.solanatracker.io/prediction-markets/crypto/list-crypto-updown-series-events.md): Lists recurring Polymarket Chainlink up/down windows for an asset/interval series (e.g. BTC 5m). Each event includes `cryptoUpDown` metadata. Proxies Gamma `series_slug` ordering by window start.
+- [Crypto window open/close oracle price](https://docs.solanatracker.io/prediction-markets/crypto/crypto-window-openclose-oracle-price.md): Proxies Polymarket Chainlink openPrice/closePrice for a crypto up/down window (Price to Beat + Final Price).
+- [Underlying crypto price chart series](https://docs.solanatracker.io/prediction-markets/crypto/underlying-crypto-price-chart-series.md): Returns Chainlink-derived price points for the window chart (timestamp ms + value).
+- [Top traders across crypto events](https://docs.solanatracker.io/prediction-markets/crypto/top-traders-across-crypto-events.md): Ranks Polymarket wallets by estimated mark-to-market P&L across all indexed BTC, ETH, SOL, XRP, DOGE, BNB, and HYPE Up/Down events. Intended for wallet discovery and copy-trading research.
+- [Crypto up/down page bundle](https://docs.solanatracker.io/prediction-markets/crypto/crypto-updown-page-bundle.md): For Polymarket Chainlink up/down events (e.g. btc-updown-5m-*), returns Price to Beat, final/live price, underlying chart history, phase, and sibling series windows for the interval strip.
+- [List grouped events](https://docs.solanatracker.io/prediction-markets/events/list-grouped-events.md): Returns Kalshi events and Polymarket Gamma events. Use marketKind=combo to discover combo-builder events. Event detail exposes typed comboGroups with sections, periods, lines, selectable outcomes, prices, and CLOB token IDs.
+- [Batch fetch events by id](https://docs.solanatracker.io/prediction-markets/events/batch-fetch-events-by-id.md)
+- [Get grouped event with nested markets](https://docs.solanatracker.io/prediction-markets/events/get-grouped-event-with-nested-markets.md): Returns a single event with nested markets. Polymarket combo-enabled sports events include comboEnabled=true and typed comboGroups containing the exact market lines and selectable outcomes needed by a combo-builder UI.
+- [Multi-series OHLCV for grouped Polymarket event](https://docs.solanatracker.io/prediction-markets/events/multi-series-ohlcv-for-grouped-polymarket-event.md): Returns one candle series per market in a grouped Polymarket event (e.g. each World Cup country option). Each series includes groupItemTitle, market title, and OHLCV bars normalized to Yes-token prices.
+- [Top holders for an event](https://docs.solanatracker.io/prediction-markets/events/top-holders-for-an-event.md): Largest open positions across every outcome token in the event (including crypto up/down windows). Aggregates net tokens from the Polymarket asset trader rollup.
+- [Top traders for an event](https://docs.solanatracker.io/prediction-markets/events/top-traders-for-an-event.md): Ranks Polymarket wallets by mark-to-market total P&L across every outcome token in the event. Works for regular events and crypto up/down windows.
+- [Top wallets by FIFO PnL on an event](https://docs.solanatracker.io/prediction-markets/leaderboard/top-wallets-by-fifo-pnl-on-an-event.md)
+- [Top wallets by FIFO PnL](https://docs.solanatracker.io/prediction-markets/leaderboard/top-wallets-by-fifo-pnl.md)
+- [Top Polymarket traders by cumulative volume](https://docs.solanatracker.io/prediction-markets/leaderboard/top-polymarket-traders-by-cumulative-volume.md): Global wallet ranking backed by a refreshable serving snapshot. Includes public Polymarket username, cumulative volume, and FIFO PnL fields.
+- [Exchange trading schedule](https://docs.solanatracker.io/prediction-markets/exchange/exchange-trading-schedule.md)
+- [Exchange connectivity status](https://docs.solanatracker.io/prediction-markets/exchange/exchange-connectivity-status.md)
+- [List markets](https://docs.solanatracker.io/prediction-markets/markets/list-markets.md)
+- [Batch fetch markets by id](https://docs.solanatracker.io/prediction-markets/markets/batch-fetch-markets-by-id.md)
+- [Batch fetch markets by id (POST body)](https://docs.solanatracker.io/prediction-markets/markets/batch-fetch-markets-by-id-post-body.md): Same behavior as GET /v1/markets/batch, with ids in the JSON body (preferred for long id lists). Always returns { results, notFound }.
+- [Batch fetch orderbooks](https://docs.solanatracker.io/prediction-markets/markets/batch-fetch-orderbooks.md)
+- [Batch fetch candlesticks](https://docs.solanatracker.io/prediction-markets/markets/batch-fetch-candlesticks.md)
+- [Newest markets](https://docs.solanatracker.io/prediction-markets/markets/newest-markets.md)
+- [Search markets](https://docs.solanatracker.io/prediction-markets/markets/search-markets.md): Indexed relevance-ranked search across both exchanges. Default sort is relevance (exact id/ticker/slug, prefix, all-token substring, fuzzy n-gram, then 24h volume). Cursor is an opaque keyset token (breaking change vs numeric offsets).
+- [Get market by slug](https://docs.solanatracker.io/prediction-markets/markets/get-market-by-slug.md)
+- [Bundled market snapshot by slug](https://docs.solanatracker.io/prediction-markets/markets/bundled-market-snapshot-by-slug.md): Returns market plus optional sections. Default include is lean: price,midpoint. Pass include=all or an explicit list for the full bundle. Sets X-Cache header.
+- [Trending markets by 24h volume and trade count](https://docs.solanatracker.io/prediction-markets/markets/trending-markets-by-24h-volume-and-trade-count.md)
+- [Get market by ticker or condition id](https://docs.solanatracker.io/prediction-markets/markets/get-market-by-ticker-or-condition-id.md)
+- [OHLCV candlesticks](https://docs.solanatracker.io/prediction-markets/markets/ohlcv-candlesticks.md)
+- [Top holders (Polymarket only)](https://docs.solanatracker.io/prediction-markets/markets/top-holders-polymarket-only.md)
+- [Midpoint price](https://docs.solanatracker.io/prediction-markets/markets/midpoint-price.md)
+- [Open interest and holder stats](https://docs.solanatracker.io/prediction-markets/markets/open-interest-and-holder-stats.md)
+- [Orderbook snapshot](https://docs.solanatracker.io/prediction-markets/markets/orderbook-snapshot.md)
+- [Current price snapshot](https://docs.solanatracker.io/prediction-markets/markets/current-price-snapshot.md)
+- [Size-aware VWAP quote (walk the book)](https://docs.solanatracker.io/prediction-markets/markets/size-aware-vwap-quote-walk-the-book.md): Walks the live orderbook for a stake size. Buy walks asks; sell walks bids. Use for TradePanel fill estimates. Top-of-book chance remains on `/price` and WS `…:prices`.
+- [Related markets on other exchange](https://docs.solanatracker.io/prediction-markets/markets/related-markets-on-other-exchange.md)
+- [Bundled market snapshot](https://docs.solanatracker.io/prediction-markets/markets/bundled-market-snapshot.md): Returns market plus optional sections. Default include is lean: price,midpoint. Pass include=all or an explicit list for the full bundle. Sets X-Cache header. Path {ticker} accepts Kalshi ticker or Polymarket condition_id (CLOB token ids for some book endpoints).
+- [Bid-ask spread](https://docs.solanatracker.io/prediction-markets/markets/bid-ask-spread.md)
+- [Top traders on a market by total P&L](https://docs.solanatracker.io/prediction-markets/markets/top-traders-on-a-market-by-total-p&l.md): Polymarket returns a fast paginated trader leaderboard (`PaginatedMarketTraders`) sorted by market-specific `totalPnlUsd` descending, with persisted public usernames when available. Kalshi returns aggregate `MarketTradeSummary` instead.
+- [Market trade history](https://docs.solanatracker.io/prediction-markets/markets/market-trade-history.md)
+- [Unified typeahead search (markets + events)](https://docs.solanatracker.io/prediction-markets/markets/unified-typeahead-search-markets-+-events.md): Indexed relevance-ranked search across Kalshi and Polymarket markets and events, plus Polymarket traders. Prefer this for search UIs. Cursor pagination is not used here (typeahead). Trader identity is Polymarket-only.
+- [Global trade feed](https://docs.solanatracker.io/prediction-markets/trades/global-trade-feed.md)
+- [Combined platform statistics](https://docs.solanatracker.io/prediction-markets/stats/combined-platform-statistics.md)
+- [Per-exchange statistics](https://docs.solanatracker.io/prediction-markets/stats/per-exchange-statistics.md)
+- [Raptor Swap API Overview](https://docs.solanatracker.io/raptor/overview.md): Use Solana Tracker's hosted Raptor Swap API for Solana quotes and swap transactions — no client to run. Self-host the binary only if you need it.
+- [Get swap quote](https://docs.solanatracker.io/raptor/http/get-swap-quote.md): Get the best swap quote across all supported DEXes with optimal routing
+- [Build swap transaction](https://docs.solanatracker.io/raptor/http/build-swap-transaction.md): Build a complete swap transaction from a quote
+- [Build swap instructions](https://docs.solanatracker.io/raptor/http/build-swap-instructions.md): Build swap instructions without transaction wrapper
+- [Quote and swap in one request](https://docs.solanatracker.io/raptor/http/quote-and-swap-in-one-request.md): Get quote and build transaction in single request
+- [Send a signed transaction](https://docs.solanatracker.io/raptor/http/send-a-signed-transaction.md): Send a signed transaction through the Raptor sender. The sender retries in the background and tracks confirmation status.
+- [Get transaction status](https://docs.solanatracker.io/raptor/http/get-transaction-status.md): Get the current status and details of a tracked transaction
+- [/stream](https://docs.solanatracker.io/raptor/websocket/websockets/stream.md): Connect to `wss://raptor-beta.solanatracker.io/stream`. Subscribe with `{ type: "subscribe", inputMint, outputMint, amount, ... }`, unsubscribe with `{ type: "unsubscribe", id }`, heartbeat with `{ type: "ping" }` → `{ type: "pong" }`. Receives `quote`, `subscribed`, `unsubscribed`, `error`.
+- [/stream/swap](https://docs.solanatracker.io/raptor/websocket/websockets/streamswap.md): Connect to `wss://raptor-beta.solanatracker.io/stream/swap`. Same subscribe/unsubscribe/ping protocol as `/stream`, but each update includes a ready-to-sign `swapTransaction`. Use `txVersion`: `V0` or `LEGACY` (uppercase).
+- [Transactions](https://docs.solanatracker.io/raptor/transactions.md): Send signed Solana transactions through Raptor's Yellowstone Jet TPU endpoint and track confirmation status, latency, and parsed swap events.
+- [Account subscribe](https://docs.solanatracker.io/solana-rpc/websockets/accountsubscribe.md)
+- [Account unsubscribe](https://docs.solanatracker.io/solana-rpc/websockets/accountunsubscribe.md)
+- [Block subscribe](https://docs.solanatracker.io/solana-rpc/websockets/blocksubscribe.md)
+- [Block unsubscribe](https://docs.solanatracker.io/solana-rpc/websockets/blockunsubscribe.md)
+- [Logs subscribe](https://docs.solanatracker.io/solana-rpc/websockets/logssubscribe.md)
+- [Logs unsubscribe](https://docs.solanatracker.io/solana-rpc/websockets/logsunsubscribe.md)
+- [Program subscribe](https://docs.solanatracker.io/solana-rpc/websockets/programsubscribe.md)
+- [Program unsubscribe](https://docs.solanatracker.io/solana-rpc/websockets/programunsubscribe.md)
+- [Signature subscribe](https://docs.solanatracker.io/solana-rpc/websockets/signaturesubscribe.md)
+- [Signature unsubscribe](https://docs.solanatracker.io/solana-rpc/websockets/signatureunsubscribe.md)
+- [Slot subscribe](https://docs.solanatracker.io/solana-rpc/websockets/slotsubscribe.md)
+- [Slot unsubscribe](https://docs.solanatracker.io/solana-rpc/websockets/slotunsubscribe.md)
+- [Slots updates subscribe](https://docs.solanatracker.io/solana-rpc/websockets/slotsupdatessubscribe.md)
+- [Slots updates unsubscribe](https://docs.solanatracker.io/solana-rpc/websockets/slotsupdatesunsubscribe.md)
+- [Root subscribe](https://docs.solanatracker.io/solana-rpc/websockets/rootsubscribe.md)
+- [Root unsubscribe](https://docs.solanatracker.io/solana-rpc/websockets/rootunsubscribe.md)
+- [Vote subscribe](https://docs.solanatracker.io/solana-rpc/websockets/votesubscribe.md)
+- [Vote unsubscribe](https://docs.solanatracker.io/solana-rpc/websockets/voteunsubscribe.md)
+- [Shred subscribe](https://docs.solanatracker.io/solana-rpc/websockets/shredsubscribe.md)
+- [Shred unsubscribe](https://docs.solanatracker.io/solana-rpc/websockets/shredunsubscribe.md)
+- [getProgramAccountsV2](https://docs.solanatracker.io/solana-rpc/http/getprogramaccountsv2.md): Returns all accounts owned by the provided program Pubkey with enhanced pagination support. This V2 method provides efficient querying with cursor-based pagination, filtering capabilities, and incremental updates for large result sets.
+- [getTokenAccountsByOwnerV2](https://docs.solanatracker.io/solana-rpc/http/gettokenaccountsbyownerv2.md): Returns all SPL Token accounts owned by the provided wallet address with enhanced pagination support. This V2 method provides efficient querying with cursor-based pagination, filtering by mint or program ID, and incremental updates for portfolio tracking.
+- [getTokenAccountsByOwners](https://docs.solanatracker.io/solana-rpc/http/gettokenaccountsbyowners.md): Returns token account balances for multiple wallets for a specific mint. Efficiently queries up to 250 wallets in a single request. Returns all token accounts per owner (if they have multiple) or zero balance if no account exists.
+- [getPriorityFeeEstimate](https://docs.solanatracker.io/solana-rpc/http/getpriorityfeeestimate.md): Provides fee recommendations based on historical data, considering both global and local fee markets. Available on all Shared RPC plans and Dedicated Nodes.
+- [getLookupTablesByAuthority](https://docs.solanatracker.io/solana-rpc/http/getlookuptablesbyauthority.md): Returns address lookup tables owned by a wallet authority. Supports pagination and optional filtering to mint addresses only or deactivated tables.
+- [getLookupTablesByAccount](https://docs.solanatracker.io/solana-rpc/http/getlookuptablesbyaccount.md): Find address lookup tables that contain a given account. Returns match metadata including address index and estimated bytes saved for transaction compression.
+- [getLookupTablesByMint](https://docs.solanatracker.io/solana-rpc/http/getlookuptablesbymint.md): Find address lookup tables that contain a given token mint. Alias of getLookupTablesByAccount — use the mint parameter instead of account. Response shape is identical.
+- [getLookupTablesByAccounts](https://docs.solanatracker.io/solana-rpc/http/getlookuptablesbyaccounts.md): Find address lookup tables containing all listed accounts. With bestSet: true, returns a greedy minimal LUT set optimized for transaction size reduction.
+- [getPrimaryDomain](https://docs.solanatracker.io/solana-rpc/http/getprimarydomain.md): Returns the primary .sol domain for a wallet (Solscan-style favourite domain). Resolves in a single RPC call instead of chaining getAccountInfo / getMultipleAccounts.
+- [getMultiplePrimaryDomains](https://docs.solanatracker.io/solana-rpc/http/getmultipleprimarydomains.md): Batch primary .sol domain resolution for up to 100 wallets. Results are returned in the same order as the input wallets.
+- [getAllDomains](https://docs.solanatracker.io/solana-rpc/http/getalldomains.md): Returns all .sol domain names owned by a wallet, including direct ownership and tokenized NFT domains.
+- [resolveSolDomain](https://docs.solanatracker.io/solana-rpc/http/resolvesoldomain.md): Forward resolution of a .sol domain name to its owner wallet and name registry account. Supports root domains (name.sol) and one-level subdomains (sub.parent.sol). Twitter/X handles (.twitter TLD) are not supported.
+- [getAccountInfo](https://docs.solanatracker.io/solana-rpc/http/getaccountinfo.md): Solana RPC getAccountInfo method — return all information associated with the account of a provided Pubkey, including lamports, owner, and account data.
+- [getBalance](https://docs.solanatracker.io/solana-rpc/http/getbalance.md): Returns the lamport balance of the account at the specified address. This method provides the native SOL balance for any Solana account.
+- [getMultipleAccounts](https://docs.solanatracker.io/solana-rpc/http/getmultipleaccounts.md): Runs the Solana RPC `getMultipleAccounts` method.
+- [getProgramAccounts](https://docs.solanatracker.io/solana-rpc/http/getprogramaccounts.md): Runs the Solana RPC `getProgramAccounts` method.
+- [getTokenAccountBalance](https://docs.solanatracker.io/solana-rpc/http/gettokenaccountbalance.md): Returns the token balance of an SPL Token account. This method provides detailed balance information including raw amount, decimals, and human-readable formatted values for any SPL Token account address.
+- [getTokenAccountsByDelegate](https://docs.solanatracker.io/solana-rpc/http/gettokenaccountsbydelegate.md): Returns all SPL Token accounts that have been delegated to a specific address. This method allows you to find token accounts where spending or management authority has been granted to a delegate, useful for tracking authorized token operations and delegated permissions.
+- [getTokenAccountsByOwner](https://docs.solanatracker.io/solana-rpc/http/gettokenaccountsbyowner.md): Returns all SPL Token accounts owned by the specified wallet address. This method allows you to retrieve a complete list of token holdings for any Solana wallet, useful for portfolio tracking and token balance queries.
+- [getTokenLargestAccounts](https://docs.solanatracker.io/solana-rpc/http/gettokenlargestaccounts.md): Returns the 20 largest token accounts for a specific SPL Token mint. This method is useful for analyzing token distribution, identifying major holders, and understanding token concentration patterns.
+- [getTokenSupply](https://docs.solanatracker.io/solana-rpc/http/gettokensupply.md): Returns the total supply of an SPL Token type
+- [getBlock](https://docs.solanatracker.io/solana-rpc/http/getblock.md): Runs the Solana RPC `getBlock` method.
+- [getBlockHeight](https://docs.solanatracker.io/solana-rpc/http/getblockheight.md): Runs the Solana RPC `getBlockHeight` method.
+- [getBlockProduction](https://docs.solanatracker.io/solana-rpc/http/getblockproduction.md): Runs the Solana RPC `getBlockProduction` method.
+- [getBlockCommitment](https://docs.solanatracker.io/solana-rpc/http/getblockcommitment.md): Runs the Solana RPC `getBlockCommitment` method.
+- [getBlocks](https://docs.solanatracker.io/solana-rpc/http/getblocks.md): Runs the Solana RPC `getBlocks` method.
+- [getBlocksWithLimit](https://docs.solanatracker.io/solana-rpc/http/getblockswithlimit.md): Runs the Solana RPC `getBlocksWithLimit` method.
+- [getBlockTime](https://docs.solanatracker.io/solana-rpc/http/getblocktime.md): Runs the Solana RPC `getBlockTime` method.
+- [getFirstAvailableBlock](https://docs.solanatracker.io/solana-rpc/http/getfirstavailableblock.md): Runs the Solana RPC `getFirstAvailableBlock` method.
+- [getLatestBlockhash](https://docs.solanatracker.io/solana-rpc/http/getlatestblockhash.md): Runs the Solana RPC `getLatestBlockhash` method.
+- [isBlockhashValid](https://docs.solanatracker.io/solana-rpc/http/isblockhashvalid.md): Runs the Solana RPC `isBlockhashValid` method.
+- [getSignatureStatuses](https://docs.solanatracker.io/solana-rpc/http/getsignaturestatuses.md): Runs the Solana RPC `getSignatureStatuses` method.
+- [getSignaturesForAddress](https://docs.solanatracker.io/solana-rpc/http/getsignaturesforaddress.md): Runs the Solana RPC `getSignaturesForAddress` method.
+- [getTransaction](https://docs.solanatracker.io/solana-rpc/http/gettransaction.md): Runs the Solana RPC `getTransaction` method.
+- [getTransactionCount](https://docs.solanatracker.io/solana-rpc/http/gettransactioncount.md): Runs the Solana RPC `getTransactionCount` method.
+- [sendTransaction](https://docs.solanatracker.io/solana-rpc/http/sendtransaction.md): Runs the Solana RPC `sendTransaction` method.
+- [simulateTransaction](https://docs.solanatracker.io/solana-rpc/http/simulatetransaction.md): Runs the Solana RPC `simulateTransaction` method.
+- [getFeeForMessage](https://docs.solanatracker.io/solana-rpc/http/getfeeformessage.md): Runs the Solana RPC `getFeeForMessage` method.
+- [getRecentPrioritizationFees](https://docs.solanatracker.io/solana-rpc/http/getrecentprioritizationfees.md): Runs the Solana RPC `getRecentPrioritizationFees` method.
+- [getClusterNodes](https://docs.solanatracker.io/solana-rpc/http/getclusternodes.md): Runs the Solana RPC `getClusterNodes` method.
+- [getEpochInfo](https://docs.solanatracker.io/solana-rpc/http/getepochinfo.md): Runs the Solana RPC `getEpochInfo` method.
+- [getEpochSchedule](https://docs.solanatracker.io/solana-rpc/http/getepochschedule.md): Runs the Solana RPC `getEpochSchedule` method.
+- [getGenesisHash](https://docs.solanatracker.io/solana-rpc/http/getgenesishash.md): Runs the Solana RPC `getGenesisHash` method.
+- [getHealth](https://docs.solanatracker.io/solana-rpc/http/gethealth.md): Runs the Solana RPC `getHealth` method.
+- [getHighestSnapshotSlot](https://docs.solanatracker.io/solana-rpc/http/gethighestsnapshotslot.md): Runs the Solana RPC `getHighestSnapshotSlot` method.
+- [getIdentity](https://docs.solanatracker.io/solana-rpc/http/getidentity.md): Runs the Solana RPC `getIdentity` method.
+- [getInflationGovernor](https://docs.solanatracker.io/solana-rpc/http/getinflationgovernor.md): Runs the Solana RPC `getInflationGovernor` method.
+- [getInflationRate](https://docs.solanatracker.io/solana-rpc/http/getinflationrate.md): Runs the Solana RPC `getInflationRate` method.
+- [getInflationReward](https://docs.solanatracker.io/solana-rpc/http/getinflationreward.md): Runs the Solana RPC `getInflationReward` method.
+- [getLargestAccounts](https://docs.solanatracker.io/solana-rpc/http/getlargestaccounts.md): Runs the Solana RPC `getLargestAccounts` method.
+- [getLeaderSchedule](https://docs.solanatracker.io/solana-rpc/http/getleaderschedule.md): Runs the Solana RPC `getLeaderSchedule` method.
+- [getMaxRetransmitSlot](https://docs.solanatracker.io/solana-rpc/http/getmaxretransmitslot.md): Runs the Solana RPC `getMaxRetransmitSlot` method.
+- [getMaxShredInsertSlot](https://docs.solanatracker.io/solana-rpc/http/getmaxshredinsertslot.md): Runs the Solana RPC `getMaxShredInsertSlot` method.
+- [getMinimumBalanceForRentExemption](https://docs.solanatracker.io/solana-rpc/http/getminimumbalanceforrentexemption.md): Runs the Solana RPC `getMinimumBalanceForRentExemption` method.
+- [getRecentPerformanceSamples](https://docs.solanatracker.io/solana-rpc/http/getrecentperformancesamples.md): Runs the Solana RPC `getRecentPerformanceSamples` method.
+- [getSlot](https://docs.solanatracker.io/solana-rpc/http/getslot.md): Runs the Solana RPC `getSlot` method.
+- [getSlotLeader](https://docs.solanatracker.io/solana-rpc/http/getslotleader.md): Runs the Solana RPC `getSlotLeader` method.
+- [getSlotLeaders](https://docs.solanatracker.io/solana-rpc/http/getslotleaders.md): Runs the Solana RPC `getSlotLeaders` method.
+- [getSupply](https://docs.solanatracker.io/solana-rpc/http/getsupply.md): Runs the Solana RPC `getSupply` method.
+- [getVersion](https://docs.solanatracker.io/solana-rpc/http/getversion.md): Returns the Solana node software version (`solana-core`) and optional feature-set identifier.
+- [minimumLedgerSlot](https://docs.solanatracker.io/solana-rpc/http/minimumledgerslot.md): Runs the Solana RPC `minimumLedgerSlot` method.
+- [getStakeMinimumDelegation](https://docs.solanatracker.io/solana-rpc/http/getstakeminimumdelegation.md): Runs the Solana RPC `getStakeMinimumDelegation` method.
+- [getVoteAccounts](https://docs.solanatracker.io/solana-rpc/http/getvoteaccounts.md): Runs the Solana RPC `getVoteAccounts` method.
+- [requestAirdrop](https://docs.solanatracker.io/solana-rpc/http/requestairdrop.md): Runs the Solana RPC `requestAirdrop` method.
+- [Credits and Rate Limits](https://docs.solanatracker.io/solana-rpc/credits-and-rate-limits.md): Credit costs, monthly quotas, and rate limits for Solana Tracker dedicated RPC plans — including per-method weights and concurrent request limits.
+- [Yellowstone gRPC](https://docs.solanatracker.io/yellowstone-grpc/index.md): High-performance real-time Solana data streaming via Yellowstone gRPC — stream slots, blocks, transactions, accounts, and entries with low latency.
+- [Quickstart Guide](https://docs.solanatracker.io/yellowstone-grpc/quickstart.md): Get started with Yellowstone gRPC streaming in minutes — install a client, authenticate, and subscribe to live Solana slots, blocks, and transactions.
+- [Authentication & Setup](https://docs.solanatracker.io/yellowstone-grpc/authentication.md): Get your Solana Tracker Yellowstone gRPC credentials, configure your client with x-token authentication, and connect to the streaming endpoint.
+- [Account Monitoring](https://docs.solanatracker.io/yellowstone-grpc/account-monitoring.md): Watch Solana accounts in real time with Yellowstone gRPC — track balances, token holders, program accounts, and account data changes instantly.
+- [Transaction Monitoring](https://docs.solanatracker.io/yellowstone-grpc/transaction-monitoring.md): Watch Solana transactions in real time with Yellowstone gRPC — track swaps, transfers, program interactions, and signature events instantly.
+- [Slot & Block Monitoring](https://docs.solanatracker.io/yellowstone-grpc/slot-block-monitoring.md): Watch Solana slots and blocks in real time with Yellowstone gRPC — track network health, block production, transaction volume, and commitment status.
+- [Entry Monitoring](https://docs.solanatracker.io/yellowstone-grpc/entry-monitoring.md): Subscribe to Solana entry updates over Yellowstone gRPC — the smallest building blocks that contain transaction batches inside each block.
+- [Pump.fun Buy/Sell Detection](https://docs.solanatracker.io/yellowstone-grpc/examples/pumpfun-transactions.md): Detect and parse Pump.fun buy and sell transactions in real time over Yellowstone gRPC — decode swap instructions, amounts, and trader wallets.
+- [Pump.fun Account Streaming](https://docs.solanatracker.io/yellowstone-grpc/examples/pumpfun-accounts.md): Stream and parse Pump.fun bonding curve account updates in real time over Yellowstone gRPC — decode account data and track token state changes.
+- [Best Practices](https://docs.solanatracker.io/yellowstone-grpc/best-practices.md): Production tips for Yellowstone gRPC on Solana — filter subscriptions, handle reconnects, manage backpressure, and tune commitment levels for low latency.
+
+## OpenAPI Specs
+
+- [whale-kol](https://docs.solanatracker.io/data-api/whale-kol.json)
+- [lighthouse](https://docs.solanatracker.io/data-api/lighthouse.json)
+- [openapi](https://docs.solanatracker.io/data-api/openapi.json)
+- [getversion](https://docs.solanatracker.io/openapi/rpc-http/getversion.json)
+- [simulatetransaction](https://docs.solanatracker.io/openapi/rpc-http/simulatetransaction.json)
+- [sendtransaction](https://docs.solanatracker.io/openapi/rpc-http/sendtransaction.json)
+- [resolvesoldomain](https://docs.solanatracker.io/openapi/rpc-http/resolvesoldomain.json)
+- [requestairdrop](https://docs.solanatracker.io/openapi/rpc-http/requestairdrop.json)
+- [minimumledgerslot](https://docs.solanatracker.io/openapi/rpc-http/minimumledgerslot.json)
+- [isblockhashvalid](https://docs.solanatracker.io/openapi/rpc-http/isblockhashvalid.json)
+- [getvoteaccounts](https://docs.solanatracker.io/openapi/rpc-http/getvoteaccounts.json)
+- [gettransactioncount](https://docs.solanatracker.io/openapi/rpc-http/gettransactioncount.json)
+- [gettransaction](https://docs.solanatracker.io/openapi/rpc-http/gettransaction.json)
+- [gettokensupply](https://docs.solanatracker.io/openapi/rpc-http/gettokensupply.json)
+- [gettokenlargestaccounts](https://docs.solanatracker.io/openapi/rpc-http/gettokenlargestaccounts.json)
+- [gettokenaccountsbyownerv2](https://docs.solanatracker.io/openapi/rpc-http/gettokenaccountsbyownerv2.json)
+- [gettokenaccountsbyowners](https://docs.solanatracker.io/openapi/rpc-http/gettokenaccountsbyowners.json)
+- [gettokenaccountsbyowner](https://docs.solanatracker.io/openapi/rpc-http/gettokenaccountsbyowner.json)
+- [gettokenaccountsbydelegate](https://docs.solanatracker.io/openapi/rpc-http/gettokenaccountsbydelegate.json)
+- [gettokenaccountbalance](https://docs.solanatracker.io/openapi/rpc-http/gettokenaccountbalance.json)
+- [getsupply](https://docs.solanatracker.io/openapi/rpc-http/getsupply.json)
+- [getstakeminimumdelegation](https://docs.solanatracker.io/openapi/rpc-http/getstakeminimumdelegation.json)
+- [getslotleaders](https://docs.solanatracker.io/openapi/rpc-http/getslotleaders.json)
+- [getslotleader](https://docs.solanatracker.io/openapi/rpc-http/getslotleader.json)
+- [getslot](https://docs.solanatracker.io/openapi/rpc-http/getslot.json)
+- [getsignaturestatuses](https://docs.solanatracker.io/openapi/rpc-http/getsignaturestatuses.json)
+- [getsignaturesforaddress](https://docs.solanatracker.io/openapi/rpc-http/getsignaturesforaddress.json)
+- [getrecentprioritizationfees](https://docs.solanatracker.io/openapi/rpc-http/getrecentprioritizationfees.json)
+- [getrecentperformancesamples](https://docs.solanatracker.io/openapi/rpc-http/getrecentperformancesamples.json)
+- [getprogramaccountsv2](https://docs.solanatracker.io/openapi/rpc-http/getprogramaccountsv2.json)
+- [getprogramaccounts](https://docs.solanatracker.io/openapi/rpc-http/getprogramaccounts.json)
+- [getpriorityfeeestimate](https://docs.solanatracker.io/openapi/rpc-http/getpriorityfeeestimate.json)
+- [getprimarydomain](https://docs.solanatracker.io/openapi/rpc-http/getprimarydomain.json)
+- [getmultipleprimarydomains](https://docs.solanatracker.io/openapi/rpc-http/getmultipleprimarydomains.json)
+- [getmultipleaccounts](https://docs.solanatracker.io/openapi/rpc-http/getmultipleaccounts.json)
+- [getminimumbalanceforrentexemption](https://docs.solanatracker.io/openapi/rpc-http/getminimumbalanceforrentexemption.json)
+- [getmaxshredinsertslot](https://docs.solanatracker.io/openapi/rpc-http/getmaxshredinsertslot.json)
+- [getmaxretransmitslot](https://docs.solanatracker.io/openapi/rpc-http/getmaxretransmitslot.json)
+- [getlookuptablesbymint](https://docs.solanatracker.io/openapi/rpc-http/getlookuptablesbymint.json)
+- [getlookuptablesbyauthority](https://docs.solanatracker.io/openapi/rpc-http/getlookuptablesbyauthority.json)
+- [getlookuptablesbyaccounts](https://docs.solanatracker.io/openapi/rpc-http/getlookuptablesbyaccounts.json)
+- [getlookuptablesbyaccount](https://docs.solanatracker.io/openapi/rpc-http/getlookuptablesbyaccount.json)
+- [getleaderschedule](https://docs.solanatracker.io/openapi/rpc-http/getleaderschedule.json)
+- [getlatestblockhash](https://docs.solanatracker.io/openapi/rpc-http/getlatestblockhash.json)
+- [getlargestaccounts](https://docs.solanatracker.io/openapi/rpc-http/getlargestaccounts.json)
+- [getinflationreward](https://docs.solanatracker.io/openapi/rpc-http/getinflationreward.json)
+- [getinflationrate](https://docs.solanatracker.io/openapi/rpc-http/getinflationrate.json)
+- [getinflationgovernor](https://docs.solanatracker.io/openapi/rpc-http/getinflationgovernor.json)
+- [getidentity](https://docs.solanatracker.io/openapi/rpc-http/getidentity.json)
+- [gethighestsnapshotslot](https://docs.solanatracker.io/openapi/rpc-http/gethighestsnapshotslot.json)
+- [gethealth](https://docs.solanatracker.io/openapi/rpc-http/gethealth.json)
+- [getgenesishash](https://docs.solanatracker.io/openapi/rpc-http/getgenesishash.json)
+- [getfirstavailableblock](https://docs.solanatracker.io/openapi/rpc-http/getfirstavailableblock.json)
+- [getfeeformessage](https://docs.solanatracker.io/openapi/rpc-http/getfeeformessage.json)
+- [getepochschedule](https://docs.solanatracker.io/openapi/rpc-http/getepochschedule.json)
+- [getepochinfo](https://docs.solanatracker.io/openapi/rpc-http/getepochinfo.json)
+- [getclusternodes](https://docs.solanatracker.io/openapi/rpc-http/getclusternodes.json)
+- [getblocktime](https://docs.solanatracker.io/openapi/rpc-http/getblocktime.json)
+- [getblockswithlimit](https://docs.solanatracker.io/openapi/rpc-http/getblockswithlimit.json)
+- [getblocks](https://docs.solanatracker.io/openapi/rpc-http/getblocks.json)
+- [getblockproduction](https://docs.solanatracker.io/openapi/rpc-http/getblockproduction.json)
+- [getblockheight](https://docs.solanatracker.io/openapi/rpc-http/getblockheight.json)
+- [getblockcommitment](https://docs.solanatracker.io/openapi/rpc-http/getblockcommitment.json)
+- [getblock](https://docs.solanatracker.io/openapi/rpc-http/getblock.json)
+- [getbalance](https://docs.solanatracker.io/openapi/rpc-http/getbalance.json)
+- [getalldomains](https://docs.solanatracker.io/openapi/rpc-http/getalldomains.json)
+- [getaccountinfo](https://docs.solanatracker.io/openapi/rpc-http/getaccountinfo.json)
+
+## AsyncAPI Specs
+
+- [wallet](https://docs.solanatracker.io/datastream/wallet.json)
+- [transactions](https://docs.solanatracker.io/datastream/transactions.json)
+- [tokens](https://docs.solanatracker.io/datastream/tokens.json)
+- [statistics](https://docs.solanatracker.io/datastream/statistics.json)
+- [safety](https://docs.solanatracker.io/datastream/safety.json)
+- [prices](https://docs.solanatracker.io/datastream/prices.json)
+- [pool-token-updates](https://docs.solanatracker.io/datastream/pool-token-updates.json)
+- [pnl](https://docs.solanatracker.io/datastream/pnl.json)
+- [pm-volume](https://docs.solanatracker.io/datastream/pm-volume.json)
+- [pm-trades](https://docs.solanatracker.io/datastream/pm-trades.json)
+- [pm-prices](https://docs.solanatracker.io/datastream/pm-prices.json)
+- [pm-lifecycle](https://docs.solanatracker.io/datastream/pm-lifecycle.json)
+- [pm-filters](https://docs.solanatracker.io/datastream/pm-filters.json)
+- [pm-crypto](https://docs.solanatracker.io/datastream/pm-crypto.json)
+- [dca](https://docs.solanatracker.io/datastream/dca.json)
+- [whale-kol](https://docs.solanatracker.io/datastream/whale-kol.json)
+- [asyncapi](https://docs.solanatracker.io/datastream/asyncapi.json)
+- [volume](https://docs.solanatracker.io/prediction-markets/volume.json)
+- [trades](https://docs.solanatracker.io/prediction-markets/trades.json)
+- [lifecycle](https://docs.solanatracker.io/prediction-markets/lifecycle.json)
+- [filters](https://docs.solanatracker.io/prediction-markets/filters.json)
+- [crypto](https://docs.solanatracker.io/prediction-markets/crypto.json)
+- [shredstream](https://docs.solanatracker.io/solana-rpc/websocket/shredstream.json)
+
+## Optional
+
+- [API Status](https://status.solanatracker.io)
+- [SDK](https://www.npmjs.com/package/@solana-tracker/data-api)
+- [Discord](https://discord.gg/JH2e9rR9fc)
+- [Changelog](https://docs.solanatracker.io/changelog)
+- [Data API](https://www.solanatracker.io/data-api)
+- [Solana RPC](https://www.solanatracker.io/solana-rpc)
+- [Yellowstone gRPC](https://www.solanatracker.io/yellowstone-grpc)
+- [Dedicated Nodes](https://www.solanatracker.io/dedicated-nodes)

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>賣飛計算機 — Solana 錢包 FOMO 報告</title>
+<title>ISHTC — I Should Hold The Coin</title>
 <meta name="description" content="輸入 Solana 地址，算出你買過的每一隻 memecoin 買入後最多能吃幾倍、金狗機率，以及「如果都不賣」你到底錯過多少錢。">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📉</text></svg>">
 <link rel="stylesheet" href="style.css">
@@ -12,8 +12,8 @@
 
 <header class="topbar">
   <div class="wrap">
-    <h1>賣飛計算機</h1>
-    <p class="sub">輸入 Solana 地址，看看你這輩子錯過了多少錢</p>
+    <h1>ISHTC</h1>
+    <p class="sub">I Should Hold The Coin —— 輸入 Solana 地址，看看你這輩子錯過了多少錢</p>
   </div>
 </header>
 
@@ -36,7 +36,16 @@
     </label>
 
     <label class="field">
-      <span class="label">Birdeye API Key<span class="opt">選填</span>
+      <span class="label">Solana Tracker API Key<span class="opt">選填 · 最推薦</span>
+        <small>免費申請 → <a href="https://www.solanatracker.io/data-api" target="_blank" rel="noopener">solanatracker.io/data-api</a>（10,000 次/月、3 req/秒）。
+        它有「取區間最高價」的專用端點，<b>直接回傳你買入之後的最高價與當下真實市值</b>，
+        比另外兩家快 3–6 倍，市值也不用推算。</small>
+      </span>
+      <input id="st-key" type="password" spellcheck="false" autocomplete="off" placeholder="留空即可，不影響使用">
+    </label>
+
+    <label class="field">
+      <span class="label">Birdeye API Key<span class="opt">選填 · 備援</span>
         <small>免費申請 → <a href="https://bds.birdeye.so" target="_blank" rel="noopener">bds.birdeye.so</a>
         註冊後在左側選單的 <b>Security</b> 分頁按 Generate Key（不在 Packages 那頁）。
         填了會用 Birdeye 抓最高價：它是<b>按代幣查、涵蓋所有池子</b>，補得到 pump.fun 遷移前那段行情，速度也快一倍。

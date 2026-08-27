@@ -1,4 +1,5 @@
-/* 賣飛計算機 — Solana wallet MFE / FOMO report
+/* ISHTC — I Should Hold The Coin
+ * Solana wallet MFE / FOMO report
  * 純前端。Helius(BYOK) 抓交易、DexScreener 抓池子與現價、GeckoTerminal 抓歷史 K 線。
  */
 'use strict';
@@ -19,6 +20,7 @@ const EXCLUDE = new Set([
 const GT = 'https://api.geckoterminal.com/api/v2';
 const DS = 'https://api.dexscreener.com';
 const BE = 'https://public-api.birdeye.so';
+const ST = 'https://data.solanatracker.io';
 const DEAD_LIQ = 1000;   // 流動性低於這個數字視為這隻幣已經沒人玩了
 const CACHE_PREFIX = 'fomo:gt:';
 const CACHE_TTL = 6 * 3600 * 1000;
@@ -98,9 +100,11 @@ class Limiter {
 const gtLimit = new Limiter(25);   // GeckoTerminal 無 key 上限 30/min，留餘裕
 const dsLimit = new Limiter(240);  // DexScreener token 端點 300/min
 const beLimit = new Limiter(50);   // Birdeye 免費方案 1 rps，留餘裕
+const stLimit = new Limiter(150);  // Solana Tracker 免費方案 3 rps，留餘裕
 
 let abortFlag = false;
 let birdeyeKey = '';   // 選填。有填就用 Birdeye 抓最高價，涵蓋範圍與速度都比較好
+let stKey = '';        // 選填。Solana Tracker，直接回傳區間最高價與當下市值，最快也最準
 let beQuota = null;    // Birdeye 回傳的剩餘額度，從 response header 讀來的
 
 function quotaText() {
@@ -382,6 +386,29 @@ function pickGranularity(ageDays) {
   return { tf: 'day', agg: 1 };                       // ≈ 2.7 年
 }
 
+/**
+ * Solana Tracker：直接問「這段時間內的最高價」，不用自己撈 K 線再取 max。
+ * 回傳還附上最高點當下的市值，比用 fdv ÷ 現價 反推流通量準得多。
+ */
+async function fetchPeakSolanaTracker(mint, sinceTs) {
+  const now = Math.floor(Date.now() / 1000);
+  const key = 'st:' + mint + ':' + Math.floor(sinceTs / 3600);
+  let hit = cacheGet(key);
+  if (!hit) {
+    const j = await getJSON(ST + '/price/history/range?token=' + mint
+      + '&time_from=' + Math.floor(sinceTs) + '&time_to=' + now,
+      { limiter: stLimit, headers: { 'x-api-key': stKey } });
+    const h = j && j.price && j.price.highest;
+    if (!h || !(h.price > 0)) return null;
+    hit = [h.price, h.time || 0, h.marketcap || 0];
+    cacheSet(key, hit);
+  }
+  return {
+    peak: hit[0], peakTs: hit[1], peakMcap: hit[2] || NaN,
+    partial: false, src: 'solanatracker',
+  };
+}
+
 /** Birdeye 是「按代幣地址」查，涵蓋所有池子，含 pump.fun bonding curve 那段 */
 const BE_TF = { 'hour:1': '1H', 'hour:4': '4H', 'day:1': '1D' };
 
@@ -436,6 +463,16 @@ async function fetchPeak(pool, sinceTs) {
 
 /** 有 Birdeye key 就優先用它，失敗再退回 GeckoTerminal */
 async function fetchPeakBest(mint, pool, sinceTs) {
+  if (stKey) {
+    try {
+      const r = await fetchPeakSolanaTracker(mint, sinceTs);
+      if (r) return r;
+    } catch (e) {
+      if (e.message === '__ABORT__') throw e;
+      if (e.status === 401) throw new Error('Solana Tracker API key 無效。清空該欄位就會改用其他來源。');
+      // 額度用完或查不到就往下一個來源退
+    }
+  }
   if (birdeyeKey) {
     try {
       const r = await fetchPeakBirdeye(mint, sinceTs);
@@ -516,7 +553,9 @@ async function run() {
     $('#addresses').value.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean)));
   const key = normalizeKey($('#helius-key').value);
   birdeyeKey = $('#birdeye-key').value.trim();
+  stKey = $('#st-key').value.trim();
   localStorage.setItem('fomo:bekey', birdeyeKey);
+  localStorage.setItem('fomo:stkey', stKey);
   const maxTokens = clamp(parseInt($('#max-tokens').value, 10) || 300, 5, 5000);
   const minCost = Math.max(0, parseFloat($('#min-cost').value) || 0);
   const maxTx = clamp(parseInt($('#max-tx').value, 10) || 30000, 100, 200000);
@@ -586,7 +625,7 @@ async function run() {
     const meta = info.get(p.mint);
     setProg(40 + (i / withPool.length) * 58,
       '算最高價 ' + (i + 1) + '/' + withPool.length + '（' + meta.symbol + '）… 剩 '
-      + etaText(withPool.length - i, birdeyeKey ? 50 : 25) + quotaText());
+      + etaText(withPool.length - i, stKey ? 150 : birdeyeKey ? 50 : 25) + quotaText());
 
     let peak = null;
     try {
@@ -613,7 +652,9 @@ async function run() {
     row.actualUSD = row.proceedsUSD + row.holdingUSD;
     row.missedUSD = Math.max(0, row.idealUSD - row.actualUSD);
     row.daysToPeak = (peak && peak.peakTs) ? (peak.peakTs - p.firstBuyTs) / 86400 : NaN;
-    row.peakMcap = peakMcapOf(row);
+    // Solana Tracker 直接給最高點當下的市值，比反推流通量準
+    row.peakMcap = (peak && peak.peakMcap > 0) ? peak.peakMcap : peakMcapOf(row);
+    row.mcapExact = !!(peak && peak.peakMcap > 0);
     rows.push(row);
   }
 
@@ -658,6 +699,8 @@ async function run() {
       aborted: aborted, planned: withPool.length,
       touched: built.touched, lostToMulti: built.lostToMulti,
       neverBought: built.neverBought, belowMinCost: built.belowMinCost,
+      stRows: rows.filter((r) => r.peakSrc === 'solanatracker').length,
+      exactMcap: rows.filter((r) => r.mcapExact).length,
       beRows: rows.filter((r) => r.peakSrc === 'birdeye').length,
       gtRows: rows.filter((r) => r.peakSrc === 'gecko').length,
       beQuotaLeft: beQuota && isFinite(beQuota.remaining) ? beQuota.remaining : 0,
@@ -877,13 +920,24 @@ function render(d) {
   cav.push('<b>跟 GMGN 之類的工具對不起來是正常的</b>：那些工具通常把「碰過的幣」全部算進去，'
     + '包含空投與別人轉進來的垃圾幣；這裡只算<b>你真的花錢買過</b>的。'
     + '想放寬就把進階設定的「最小買入成本」調低。',
-    '<b>最高價取自目前流動性最深的那個池子</b>。pump.fun 這類先在 bonding curve 交易、之後才遷移的幣，遷移前的價格不在這個池子裡，MFE 可能被低估。',
+    (m.stRows === d.rows.length
+      ? '最高價全部來自 Solana Tracker，直接取你第一次買入之後的區間最高價，涵蓋所有池子含 pump.fun 遷移前。'
+      : '<b>沒有 Solana Tracker / Birdeye key 時，最高價取自目前流動性最深的那個池子</b>。pump.fun 這類先在 bonding curve 交易、之後才遷移的幣，遷移前的價格不在這個池子裡，MFE 可能被低估。'),
     '標了 <b>*</b> 的幣代表 K 線沒有完整覆蓋到你第一次買入的時間，最高價只算了有資料的區間。',
-    '<b>最高市值是推算的</b>：用目前的市值 ÷ 目前價格反推流通量，再乘上歷史最高價。假設流通量沒變過，遇到增發或大額燒毀會失真。',
+    (m.exactMcap === d.rows.length
+      ? '最高市值是<b>最高點當下的真實市值</b>，由 Solana Tracker 直接提供，不是推算的。'
+      : m.exactMcap
+        ? m.exactMcap + ' 隻的最高市值是真實值（Solana Tracker 提供），其餘是用目前市值 ÷ 目前價格反推流通量再乘上最高價推算的，遇到增發或大額燒毀會失真。'
+        : '<b>最高市值是推算的</b>：用目前的市值 ÷ 目前價格反推流通量，再乘上歷史最高價。假設流通量沒變過，遇到增發或大額燒毀會失真。'),
     '買入成本以「該筆交易錢包淨減少的 SOL / USDC / USDT」估算，SOL 以當日收盤價換算美元，跟實際成交價會有小幅誤差。',
     '「實際拿到」＝ 已賣出所得 ＋ 目前持倉市值。<b>轉出到沒填進來的地址不算賣出</b>，所以如果你還有其他錢包，記得一起貼上。');
   if (m.minCost < 1) {
     cav.push('最小買入成本設在 $' + m.minCost + '，測試單與零星小額也會被算成一隻幣進到分母，金狗率會被稀釋。想看真實選幣品味可以調到 $5–$20 再跑一次。');
+  }
+  if (m.stRows) {
+    cav.push('這次有 <b>' + m.stRows + ' 隻</b>的最高價來自 Solana Tracker（直接回傳區間最高價，最快也最準）'
+      + ((m.beRows || m.gtRows) ? '，其餘退回 ' + (m.beRows ? m.beRows + ' 隻 Birdeye' : '')
+          + (m.beRows && m.gtRows ? '、' : '') + (m.gtRows ? m.gtRows + ' 隻 GeckoTerminal' : '') : '') + '。');
   }
   if (m.beRows) {
     cav.push('這次有 <b>' + m.beRows + ' 隻</b>的最高價來自 Birdeye（按代幣查、涵蓋所有池子，含 pump.fun 遷移前）'
@@ -952,9 +1006,9 @@ function drawCard(d) {
   x.fillRect(PAD, y - 22, 5, 30);
   x.font = cardFont(700, 24, true);
   x.fillStyle = '#e8ecf4';
-  x.fillText('賣飛計算機', PAD + 20, y);
+  x.fillText('ISHTC', PAD + 20, y);
   x.fillStyle = '#565f70';
-  x.fillText('SOLANA', PAD + 20 + x.measureText('賣飛計算機').width + 18, y);
+  x.fillText('I SHOULD HOLD THE COIN', PAD + 20 + x.measureText('ISHTC').width + 18, y);
 
   x.textAlign = 'right';
   x.font = cardFont(600, 22, true);
@@ -1089,18 +1143,23 @@ function download(name, blob) {
 // ---------- 11. 綁定 ----------
 $('#helius-key').value = localStorage.getItem('fomo:key') || '';
 $('#birdeye-key').value = localStorage.getItem('fomo:bekey') || '';
+$('#st-key').value = localStorage.getItem('fomo:stkey') || '';
 $('#addresses').value = localStorage.getItem('fomo:addrs') || '';
 
+function bestRate() {
+  if ($('#st-key').value.trim()) return { perMin: 150, note: '（Solana Tracker 加速中）' };
+  if ($('#birdeye-key').value.trim()) return { perMin: 50, note: '（Birdeye 加速中，填 Solana Tracker key 還能再快 3 倍）' };
+  return { perMin: 25, note: '（填 Solana Tracker key 可以快 6 倍）' };
+}
 function updateEta() {
   const n = clamp(parseInt($('#max-tokens').value, 10) || 0, 0, 5000);
-  const hasBe = !!$('#birdeye-key').value.trim();
+  const r = bestRate();
   $('#eta-hint').textContent = '依買入成本由大到小排序。全部沒快取的話最多要跑 '
-    + etaText(n, hasBe ? 50 : 25)
-    + (hasBe ? '（Birdeye 加速中）' : '（填 Birdeye key 可以快一倍）')
-    + '，中途按「停止」會保留已經算完的部分。';
+    + etaText(n, r.perMin) + r.note + '，中途按「停止」會保留已經算完的部分。';
 }
 $('#max-tokens').addEventListener('input', updateEta);
 $('#birdeye-key').addEventListener('input', updateEta);
+$('#st-key').addEventListener('input', updateEta);
 updateEta();
 
 // ---------- 分享圖的圖片上傳 ----------

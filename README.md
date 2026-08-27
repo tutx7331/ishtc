@@ -1,4 +1,4 @@
-# 賣飛計算機 (SOL FOMO Calculator)
+# ISHTC — I Should Hold The Coin
 
 輸入一個或多個 Solana 地址，算出你買過的每一隻 memecoin **買進之後最多能吃到幾倍（MFE）**，
 以及那句所有人都不敢問的話：**如果我都不賣，我現在會有多少錢？**
@@ -77,15 +77,21 @@ repo 裡沒有任何金鑰，也不會送到任何第三方伺服器。
 |---|---|---|
 | 錢包交易紀錄 | [Helius](https://helius.dev) Enhanced Transactions | ✅ 免費方案 |
 | 池子位址、現價、代幣符號 | [DexScreener](https://docs.dexscreener.com/api/reference) | ❌ |
-| 歷史 K 線（算最高價） | [GeckoTerminal](https://www.geckoterminal.com/dex-api) | ❌ |
-| 歷史 K 線（更完整、更快，選填） | [Birdeye](https://bds.birdeye.so) | ✅ 免費方案 |
+| 買入後最高價（**最推薦**，選填） | [Solana Tracker](https://www.solanatracker.io/data-api) `/price/history/range` | ✅ 免費方案 |
+| 買入後最高價（備援，選填） | [Birdeye](https://bds.birdeye.so) OHLCV | ✅ 免費方案 |
+| 買入後最高價（沒填 key 時的預設） | [GeckoTerminal](https://www.geckoterminal.com/dex-api) OHLCV | ❌ |
 
 最高價那一步是一隻幣一次呼叫，所以速度由限速決定：
 
-| | 限速 | 300 隻 | 1000 隻 |
-|---|---|---|---|
-| GeckoTerminal（無金鑰） | 30/min | 約 12 分 | 約 40 分 |
-| Birdeye（免費方案） | 60/min | 約 6 分 | 約 20 分 |
+| | 限速 | 300 隻 | 1000 隻 | 每月額度 |
+|---|---|---|---|---|
+| GeckoTerminal（無金鑰） | 30/min | 約 12 分 | 約 40 分 | 無限 |
+| Birdeye（免費） | 60/min | 約 6 分 | 約 20 分 | 30K CU |
+| **Solana Tracker（免費）** | **180/min** | **約 2 分** | **約 7 分** | 10K 次 |
+
+Solana Tracker 快的原因不只是限速：它有 `/price/history/range` 端點，
+**直接回傳「這段時間內的最高價與當下市值」**，不用抓 1000 根 K 線再自己取最大值。
+順帶連最高市值都是真實值，不需要用 `fdv ÷ 現價` 反推流通量。
 
 程式內建節流器與 6 小時本機快取，輸入框下方會即時顯示預估耗時。
 **中途按「停止」會保留已經算完的部分**，報告開頭會標明分母只有這幾隻。
