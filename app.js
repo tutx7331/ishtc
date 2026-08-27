@@ -913,6 +913,10 @@ async function run() {
     }
 
     let peakP = (peak && peak.peak) || Math.max(meta.price, p.avgBuy);
+    // 你賣掉的價格是市場真的成交過的，最高價不可能比它低
+    if (p.soldAmt > 0 && p.proceedsUSD > 0) {
+      peakP = Math.max(peakP, p.proceedsUSD / p.soldAmt);
+    }
     // 明顯的錯誤報價（例如穩定幣被報成 $999）在這裡擋掉
     const fixed = sanePeak(peakP, peak && peak.peakMcap, meta.price, meta.mcap);
     const peakFixed = fixed !== null;
@@ -928,11 +932,13 @@ async function run() {
       addrs: ownersOf.get(p.mint) || [],
       addrLabel: (ownersOf.get(p.mint) || []).map(shortAddr).join(' '),
       mfeX: p.avgBuy > 0 ? peakP / p.avgBuy : NaN,
-      idealUSD: p.boughtAmt * peakP,
+      idealUSD: p.boughtAmt * peakP,   // 下面會再與實際結果取大值
       holdAmt: holdAmt,
       holdingUSD: holdAmt * (meta.price || 0),
     });
     row.actualUSD = row.proceedsUSD + row.holdingUSD;
+    // 「每一隻都賣在最高點」不可能比你實際拿到的還少
+    row.idealUSD = Math.max(row.idealUSD, row.actualUSD);
     row.missedUSD = Math.max(0, row.idealUSD - row.actualUSD);
     row.daysToPeak = (peak && peak.peakTs) ? (peak.peakTs - p.firstBuyTs) / 86400 : NaN;
     // Solana Tracker 直接給最高點當下的市值，比反推流通量準
@@ -990,6 +996,7 @@ async function run() {
       touched: built.touched, lostToMulti: built.lostToMulti,
       neverBought: built.neverBought, belowMinCost: built.belowMinCost,
       peakFixed: rows.filter((r) => r.peakFixed).length,
+      underwater: rows.filter((r) => isFinite(r.mfeX) && r.mfeX < 1).length,
       stRows: rows.filter((r) => r.peakSrc === 'solanatracker').length,
       exactMcap: rows.filter((r) => r.mcapExact).length,
       beRows: rows.filter((r) => r.peakSrc === 'birdeye').length,
@@ -1250,6 +1257,11 @@ function render(d) {
     cav.push('那 ' + m.noPool.length + ' 隻查不到池子的幣多半已經完全死透，<b>正是你賠最慘的那些</b>。'
       + '填一把 Solana Tracker 或 Birdeye key 就能把它們算進來 —— 這兩家是按代幣地址查，不需要池子。'
       + '少了它們，分母會偏小、金狗率會虛高。');
+  }
+  if (m.underwater) {
+    cav.push('<b>' + m.underwater + ' 隻的 MFE 小於 1x</b>，代表買進之後市場再也沒回到你的成本。'
+      + '這通常是滑價與手續費造成的 —— 均價是「總成本 ÷ 拿到的顆數」含滑價，'
+      + '最高價則是 K 線的市場價，買 memecoin 差個幾 % 很正常。');
   }
   if (m.peakFixed) {
     cav.push('<b>' + m.peakFixed + ' 隻</b>的最高價被判定為錯誤報價並修正過：'
