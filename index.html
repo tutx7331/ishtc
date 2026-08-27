@@ -76,7 +76,7 @@
 
     </div><!-- /key-zone -->
 
-    <details class="advanced" open>
+    <details class="advanced">
       <summary>進階設定</summary>
       <div class="adv-grid">
         <label>分析幣種上限
@@ -110,6 +110,13 @@
     </div>
 
     <p class="err" id="error" hidden></p>
+  </section>
+
+  <!-- ===== 狗房 ===== -->
+  <section class="panel" id="dog-room-panel" hidden>
+    <h2>你的操盤室</h2>
+    <p class="hint" id="dog-room-hint">每一隻幣是一條狗 —— 亮金戴皇冠的是大金狗、金色是小金狗。點狗可以看是哪一隻幣。</p>
+    <canvas id="dog-room"></canvas>
   </section>
 
   <!-- ===== 結果區 ===== -->
@@ -196,6 +203,7 @@
       </div>
       <div class="actions">
         <button id="download-card" class="primary">下載分享圖</button>
+        <button id="copy-link" class="ghost">複製查詢連結</button>
         <button id="download-csv" class="ghost">下載 CSV</button>
       </div>
     </div>
@@ -231,5 +239,6 @@
 </footer>
 
 <script src="app.js"></script>
+<script src="dogs.js"></script>
 </body>
 </html>

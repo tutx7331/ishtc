@@ -32,6 +32,12 @@ const EXCLUDE = new Set([
 // 站長部署 worker/ 之後把網址填進 DEFAULT_PROXY，訪客就不用自備 API key。
 // 留空 = 純 BYOK 模式（現在的行為）。也可用 localStorage 的 fomo:proxy 覆寫（測試用）。
 const DEFAULT_PROXY = 'https://ishtc-proxy.ishouldholdthecoin.workers.dev';
+
+/** 狗房模組（dogs.js）。測試環境沒有 window，一律經過這個取用 */
+function dogRoom() {
+  try { return (typeof window !== 'undefined' && window.DogRoom) || null; }
+  catch (e) { return null; }
+}
 // localStorage 的 fomo:proxy 可覆寫；設成 'off' 可強制關閉代理（站長測 BYOK 模式用）
 const PROXY_URL = (function () {
   try {
@@ -990,6 +996,10 @@ async function run() {
     row.peakMcap = (peak && peak.peakMcap > 0) ? peak.peakMcap : peakMcapOf(row);
     row.mcapExact = !!(peak && peak.peakMcap > 0);
     rows.push(row);
+    if (dogRoom()) {
+      dogRoom().addDog({ sym: row.symbol, mfeX: row.mfeX,
+        tier: isBigDog(row) ? 'big' : isSmallDog(row) ? 'gold' : 'norm' });
+    }
   }
 
   if (!rows.length) throw new Error('還沒算完任何一隻就停止了，沒有結果可以顯示。');
@@ -1208,19 +1218,20 @@ function render(d) {
     + fmtUSD(s.missed) + '</b>。' + grade[0] + '</p>'
     + (pain ? '<p>' + pain + consol + '</p>' : '');
 
+  const hero = '<div class="stat hero"><div class="k">錯過的錢</div>'
+    + '<div class="v bad">' + fmtUSD(s.missed) + '</div>'
+    + '<div class="n">賣飛（賣了它還在漲）' + fmtUSD(s.paperhand)
+    + '　·　雲霄飛車（沒賣又跌回來）' + fmtUSD(s.roundtrip) + '</div></div>';
   const stats = [
     ['總投入成本', fmtUSD(s.cost), d.meta.txCount.toLocaleString() + ' 筆交易掃描', ''],
     ['實際損益', (s.pnl >= 0 ? '+' : '') + fmtUSD(s.pnl), '已實現 + 現有持倉', s.pnl >= 0 ? 'good' : 'bad'],
     ['神之手總值', fmtUSD(s.ideal), '每隻都賣在最高點', ''],
-    ['錯過的錢', fmtUSD(s.missed), '賣飛 + 雲霄飛車', 'bad'],
-    ['賣飛', fmtUSD(s.paperhand), '賣掉之後它還在漲', 'bad'],
-    ['雲霄飛車', fmtUSD(s.roundtrip), '沒賣，漲上去又跌回來', 'bad'],
     ['神化率', fmtPct(eff), '實際 ÷ 神之手', grade[1]],
     ['大金狗捕獲率', fmtPct(s.bigRate), s.bigDogs + ' / ' + s.n + ' 隻　100x 且市值破 $10M', s.bigDogs ? 'good' : ''],
     ['小金狗捕獲率', fmtPct(s.smallRate), s.smallDogs + ' / ' + s.n + ' 隻　10x 且市值破 $1M', s.smallDogs ? 'good' : ''],
     ['平均到頂天數', isFinite(s.avgDaysToPeak) ? s.avgDaysToPeak.toFixed(1) + ' 天' : '—', '從你第一次買到最高點', ''],
   ];
-  $('#stat-grid').innerHTML = stats.map((r) =>
+  $('#stat-grid').innerHTML = hero + stats.map((r) =>
     '<div class="stat"><div class="k">' + r[0] + '</div><div class="v ' + r[3] + '">'
     + r[1] + '</div><div class="n">' + r[2] + '</div></div>').join('');
 
@@ -1354,6 +1365,10 @@ function render(d) {
   if (m.skippedMulti) cav.push(m.skippedMulti + ' 筆交易同時牽涉多隻代幣，只採計變動量最大的那隻。');
   $('#caveats-list').innerHTML = cav.map((c) => '<li>' + c + '</li>').join('');
 
+  if (dogRoom()) {
+    dogRoom().setAll(d.rows.map((r) => ({ sym: r.symbol, mfeX: r.mfeX,
+      tier: isBigDog(r) ? 'big' : isSmallDog(r) ? 'gold' : 'norm' })), d.rows.length);
+  }
   drawCard(d);
   $('#results').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
@@ -1428,6 +1443,10 @@ function drawCard(d) {
   x.font = cardFont(600, 22, true);
   x.fillStyle = '#565f70';
   x.fillText(s.n + ' TOKENS', W - PAD, y);
+  // 吉祥物：一隻大金狗坐在標題列上
+  if (dogRoom() && dogRoom().stamp) {
+    dogRoom().stamp(x, W - PAD - 190, y + 6, 3, s.bigDogs ? 'big' : 'gold', -1, 0.25, false);
+  }
 
   y += 34;
   x.strokeStyle = 'rgba(232,236,244,.14)';
@@ -1529,6 +1548,10 @@ function drawCard(d) {
     const ROW_H = 42;
     top5.forEach((r, i) => {
       const ry = y + 36 + i * ROW_H;
+      if (i > 0) {                                   // 列間細分隔線
+        x.strokeStyle = 'rgba(232,236,244,.07)';
+        x.beginPath(); x.moveTo(PAD, ry - 27); x.lineTo(W - PAD, ry - 27); x.stroke();
+      }
       x.textAlign = 'left';
       x.font = cardFont(700, 25, true);
       x.fillStyle = '#e8ecf4';
@@ -1638,6 +1661,24 @@ function updateEta() {
   }
   $('#eta-hint').textContent = t;
 }
+// ---------- 可分享的查詢網址 ----------
+// ?addr=A,B 直接帶入地址；有代理或已存 key 時自動開跑
+function shareUrlFor(addrs) {
+  try {
+    return location.origin + location.pathname + '?addr=' + addrs.join(',');
+  } catch (e) { return ''; }
+}
+function initFromUrl() {
+  try {
+    const q = new URLSearchParams(location.search);
+    const raw = (q.get('addr') || '').split(/[\s,]+/).filter(Boolean);
+    const good = raw.filter(isSolAddress).slice(0, 10);
+    if (!good.length) return false;
+    $('#addresses').value = good.join('\n');
+    return !!(PROXY_URL || (localStorage.getItem('fomo:key') || localStorage.getItem('fomo:stkey')));
+  } catch (e) { return false; }
+}
+
 $('#max-tokens').addEventListener('input', updateEta);
 $('#birdeye-key').addEventListener('input', updateEta);
 $('#st-key').addEventListener('input', updateEta);
@@ -1685,11 +1726,13 @@ $('#run').addEventListener('click', async () => {
   $('#error').hidden = true;
   $('#results').hidden = true;
   $('#progress').hidden = false;
+  if (dogRoom()) dogRoom().reset();   // 狗房清場，等狗跑進來
   $('#run').disabled = true;
   $('#cancel').hidden = false;
   try {
     const d = await run();
     render(d);
+    try { history.replaceState(null, '', shareUrlFor(d.addrs)); } catch (e2) {}
     if (PROXY_URL) {
       // 回報一筆查詢記錄給排行榜（fire-and-forget，失敗不影響使用者）
       try {
@@ -1741,6 +1784,23 @@ $('#download-card').addEventListener('click', () => {
   $('#share-canvas').toBlob((b) => download('sol-fomo.png', b), 'image/png');
 });
 
+$('#copy-link').addEventListener('click', () => {
+  const addrs = $('#addresses').value.split(/[\s,]+/).filter(isSolAddress);
+  if (!addrs.length) return;
+  const url = shareUrlFor(addrs);
+  const done = () => {
+    $('#copy-link').textContent = '已複製';
+    setTimeout(() => { $('#copy-link').textContent = '複製查詢連結'; }, 1500);
+  };
+  try { navigator.clipboard.writeText(url).then(done); }
+  catch (e) { try { prompt('複製這個連結：', url); } catch (e2) {} }
+});
+
 $('#download-csv').addEventListener('click', () => {
   if (LAST) download('sol-fomo.csv', new Blob([toCSV(LAST)], { type: 'text/csv;charset=utf-8' }));
 });
+
+// 網址帶 ?addr= 就自動填入；免 key 環境（代理/已存 key）直接開跑
+if (initFromUrl()) {
+  setTimeout(() => { $('#run').click(); }, 60);
+}
