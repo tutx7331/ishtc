@@ -1092,8 +1092,7 @@ function renderTable() {
   $('#tokens-table tbody').innerHTML = slice.map((r) => {
     const dog = isBigDog(r) ? '<span class="badge big">大金狗</span>'
       : isSmallDog(r) ? '<span class="badge gold">小金狗</span>' : '';
-    const wipe = isWipeout(r) ? '<span class="badge dead">全損</span>' : '';
-    const rug = isRugged(r) ? '<span class="badge rug">已死</span>' : '';
+
     const cells = C.slice(1).map((c) => {
       const v = r[c.key];
       if (!c.num) {
@@ -1112,7 +1111,7 @@ function renderTable() {
       return '<td class="' + cls + '">' + txt + '</td>';
     }).join('');
     return '<tr>'
-      + '<td><span class="sym">' + escapeHTML(r.symbol) + '</span>' + dog + wipe + rug + '<br>'
+      + '<td><span class="sym">' + escapeHTML(r.symbol) + '</span>' + dog + '<br>'
       + '<a class="mint" href="https://dexscreener.com/solana/' + r.mint
       + '" target="_blank" rel="noopener">' + shortAddr(r.mint) + '</a></td>'
       + cells + '</tr>';
