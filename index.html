@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>賣飛計算機 — Solana 錢包 FOMO 報告</title>
+<meta name="description" content="輸入 Solana 地址，算出你買過的每一隻 memecoin 買入後最多能吃幾倍、金狗機率，以及「如果都不賣」你到底錯過多少錢。">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📉</text></svg>">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap">
+    <h1>賣飛計算機</h1>
+    <p class="sub">輸入 Solana 地址，看看你這輩子錯過了多少錢</p>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- ===== 輸入區 ===== -->
+  <section class="panel" id="input-panel">
+    <label class="field">
+      <span class="label">Solana 地址<small>一行一個，可同時分析多個地址</small></span>
+      <textarea id="addresses" rows="4" spellcheck="false"
+        placeholder="7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU&#10;9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"></textarea>
+    </label>
+
+    <label class="field">
+      <span class="label">Helius API Key
+        <small>免費申請 → <a href="https://dashboard.helius.dev" target="_blank" rel="noopener">dashboard.helius.dev</a>，只存在你自己的瀏覽器</small>
+      </span>
+      <input id="helius-key" type="password" spellcheck="false" autocomplete="off" placeholder="貼上你的 Helius API key">
+    </label>
+
+    <details class="advanced">
+      <summary>進階設定</summary>
+      <div class="adv-grid">
+        <label>分析幣種上限
+          <input id="max-tokens" type="number" value="80" min="5" max="500" step="5">
+          <small>依買入成本由大到小排序，越多越慢</small>
+        </label>
+        <label>最小買入成本 (USD)
+          <input id="min-cost" type="number" value="10" min="0" step="1">
+          <small>過濾掉空投與塵埃</small>
+        </label>
+        <label>掃描交易上限 / 每個地址
+          <input id="max-tx" type="number" value="3000" min="100" max="20000" step="100">
+        </label>
+        <label class="chk">
+          <input id="use-cache" type="checkbox" checked>
+          <span>使用本機快取（K 線資料）</span>
+        </label>
+      </div>
+    </details>
+
+    <div class="actions">
+      <button id="run" class="primary">開始算帳</button>
+      <button id="cancel" class="ghost" hidden>停止</button>
+      <button id="clear-cache" class="ghost">清除快取</button>
+    </div>
+
+    <div id="progress" hidden>
+      <div class="bar"><div class="bar-fill" id="bar-fill"></div></div>
+      <p class="prog-text" id="prog-text"></p>
+    </div>
+
+    <p class="err" id="error" hidden></p>
+  </section>
+
+  <!-- ===== 結果區 ===== -->
+  <section id="results" hidden>
+
+    <div class="verdict" id="verdict"></div>
+
+    <div class="stat-grid" id="stat-grid"></div>
+
+    <div class="panel">
+      <h2>金狗命中率</h2>
+      <p class="hint">「金狗」= 你買進之後，該幣曾經漲到你成本的幾倍。只看最高點，不管你有沒有賣。</p>
+      <div id="golden"></div>
+    </div>
+
+    <div class="panel">
+      <h2>賣飛排行榜</h2>
+      <p class="hint">如果每一隻都精準賣在最高點，跟你實際拿到的錢差多少。</p>
+      <div class="table-scroll">
+        <table id="tokens-table">
+          <thead>
+            <tr>
+              <th>幣</th>
+              <th class="num">成本 USD</th>
+              <th class="num">均價</th>
+              <th class="num">買入後最高</th>
+              <th class="num">MFE</th>
+              <th class="num">神之手價值</th>
+              <th class="num">實際拿到</th>
+              <th class="num">賣飛金額</th>
+              <th class="num">到頂天數</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel" id="per-address-panel">
+      <h2>各地址表現</h2>
+      <div class="table-scroll">
+        <table id="addr-table">
+          <thead>
+            <tr>
+              <th>地址</th>
+              <th class="num">幣數</th>
+              <th class="num">總成本</th>
+              <th class="num">神之手價值</th>
+              <th class="num">實際</th>
+              <th class="num">出場效率</th>
+              <th class="num">10x 命中率</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>分享</h2>
+      <div id="share-wrap"><canvas id="share-canvas" width="1080" height="1350"></canvas></div>
+      <div class="actions">
+        <button id="download-card" class="primary">下載分享圖</button>
+        <button id="download-csv" class="ghost">下載 CSV</button>
+      </div>
+    </div>
+
+    <div class="panel caveats">
+      <h2>數據怎麼算的 / 哪裡會不準</h2>
+      <ul id="caveats-list"></ul>
+    </div>
+
+  </section>
+
+  <section class="panel intro" id="intro">
+    <h2>這工具在算什麼</h2>
+    <ul>
+      <li><b>MFE（最大有利波動）</b>：你第一次買進之後，這隻幣曾經漲到的最高價，除以你的平均買入成本。這是「你最多能吃到幾 %」的上限。</li>
+      <li><b>神之手價值</b>：假設你買進的每一顆都精準賣在歷史最高點，總共會拿到多少錢。</li>
+      <li><b>賣飛金額</b>：神之手價值 減掉 你實際賣掉拿到的錢 加上 現在還抱著的市值。這就是你錯過的數字。</li>
+      <li><b>出場效率</b>：實際 ÷ 神之手。100% 代表你是神，5% 代表你跟大家一樣。</li>
+    </ul>
+    <p class="hint">全程在你的瀏覽器裡跑，地址與 API key 不會送到任何第三方伺服器，只會直接打 Helius / DexScreener / GeckoTerminal。</p>
+  </section>
+
+</main>
+
+<footer class="wrap">
+  <p>資料來源：Helius（交易紀錄）、DexScreener（池子與現價）、GeckoTerminal（歷史 K 線）。<br>
+  這不是投資建議，只是一份帳單。</p>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
