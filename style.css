@@ -52,6 +52,8 @@ textarea:focus,input:focus{outline:none;border-color:var(--accent);box-shadow:in
 ::placeholder{color:var(--dim)}
 
 .advanced{margin:4px 0 18px;border-top:1px solid var(--line);padding-top:14px}
+.alt-body{margin-top:16px;padding-left:14px;border-left:1px solid var(--line-2)}
+.alt-body .field:last-child{margin-bottom:4px}
 .advanced summary{
   cursor:pointer;color:var(--muted);font-size:11px;font-family:var(--mono);
   letter-spacing:.12em;text-transform:uppercase;

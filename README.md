@@ -46,7 +46,20 @@ git clone https://github.com/<your-name>/sol-fomo.git
 
 ---
 
-## 需要一把免費的 Helius API Key
+## 只需要一把免費的 Solana Tracker API Key
+
+免費申請 → [solanatracker.io/data-api](https://www.solanatracker.io/data-api)（10,000 次/月、3 req/秒）。
+
+**填這一把就夠了**，兩半資料它都給：
+
+- `/wallet/{owner}/trades` — 每筆成交直接附**美元成交價**，不用從 SOL 差額推算、也不用查當日 SOL 匯率
+- `/price/history/range` — 直接回傳**指定區間的最高價與最高點當下的真實市值**
+
+沒有它也能跑，見下方替代方案。
+
+---
+
+## 替代方案：Helius + GeckoTerminal
 
 **錢包交易紀錄沒有任何一家是免費且免金鑰的**（Solscan、Birdeye、Solana Tracker 全都要 key），
 所以這裡採 BYOK：你用你自己的 key，key 只存在你自己瀏覽器的 `localStorage`，
@@ -75,9 +88,9 @@ repo 裡沒有任何金鑰，也不會送到任何第三方伺服器。
 
 | 用途 | 服務 | 要金鑰 |
 |---|---|---|
-| 錢包交易紀錄 | [Helius](https://helius.dev) Enhanced Transactions | ✅ 免費方案 |
+| 成交紀錄 + 買入後最高價（**一把搞定**） | [Solana Tracker](https://www.solanatracker.io/data-api) | ✅ 免費方案 |
+| 錢包交易紀錄（沒填 Solana Tracker 時的替代） | [Helius](https://helius.dev) Enhanced Transactions | ✅ 免費方案 |
 | 池子位址、現價、代幣符號 | [DexScreener](https://docs.dexscreener.com/api/reference) | ❌ |
-| 買入後最高價（**最推薦**，選填） | [Solana Tracker](https://www.solanatracker.io/data-api) `/price/history/range` | ✅ 免費方案 |
 | 買入後最高價（備援，選填） | [Birdeye](https://bds.birdeye.so) OHLCV | ✅ 免費方案 |
 | 買入後最高價（沒填 key 時的預設） | [GeckoTerminal](https://www.geckoterminal.com/dex-api) OHLCV | ❌ |
 

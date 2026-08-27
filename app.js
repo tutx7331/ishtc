@@ -212,6 +212,109 @@ async function fetchWalletTxs(address, key, maxTx, onTick) {
   return out;
 }
 
+// ---------- 1b. Solana Tracker：抓成交紀錄 ----------
+// 比 Helius 那條路好在每筆成交本身就附了美元價格，
+// 不用從 SOL 差額推算、也不用查當日 SOL 匯率。
+
+async function fetchWalletTradesST(address, maxTx, onTick) {
+  const out = [];
+  let cursor = '';
+  while (out.length < maxTx) {
+    if (abortFlag) throw new Error('__ABORT__');
+    const url = ST + '/wallet/' + address + '/trades'
+      + (cursor ? '?cursor=' + encodeURIComponent(cursor) : '');
+    let j;
+    try {
+      j = await getJSON(url, { limiter: stLimit, headers: { 'x-api-key': stKey } });
+    } catch (e) {
+      if (e.status === 401) throw new Error('Solana Tracker API key 無效或已停用。');
+      throw e;
+    }
+    const batch = (j && j.trades) || [];
+    if (!batch.length) break;
+    out.push.apply(out, batch);
+    onTick(out.length);
+    if (!j.hasNextPage || j.nextCursor === undefined || j.nextCursor === null) break;
+    const next = String(j.nextCursor);
+    if (next === cursor) break;   // 游標沒前進
+    cursor = next;
+  }
+  return out;
+}
+
+/**
+ * 把 Solana Tracker 的成交紀錄整理成跟 buildPositions 一樣的部位表。
+ * 判定規則：換出去的是報價幣就是買，換進來的是報價幣就是賣，
+ * 幣換幣則同時算成賣掉一隻、買進另一隻。
+ */
+function buildPositionsFromTrades(trades, minCost) {
+  const pos = new Map();
+  const touched = new Set();
+
+  const get = (mint, dec) => {
+    let p = pos.get(mint);
+    if (!p) {
+      p = { mint: mint, boughtAmt: 0, costUSD: 0, soldAmt: 0, proceedsUSD: 0,
+            netAmt: 0, firstBuyTs: 0, lastTs: 0, buys: 0, sells: 0, movedOut: 0,
+            decimals: dec || 0 };
+      pos.set(mint, p);
+    }
+    return p;
+  };
+
+  const sorted = trades.slice().sort((a, b) => (a.time || 0) - (b.time || 0));
+  for (const t of sorted) {
+    const from = t.from || {};
+    const to = t.to || {};
+    const ts = Math.floor((t.time || 0) / 1000);
+    const usd = Number(t.volume && t.volume.usd) || 0;
+    if (!from.address || !to.address) continue;
+
+    const fromQuote = EXCLUDE.has(from.address);
+    const toQuote = EXCLUDE.has(to.address);
+    if (fromQuote && toQuote) continue;          // SOL↔USDC 之類，與 memecoin 無關
+
+    if (!toQuote) {                              // 買進 to.address
+      touched.add(to.address);
+      const p = get(to.address, to.token && to.token.decimals);
+      const amt = Number(to.amount) || 0;
+      if (amt > 0 && usd > 0) {
+        p.boughtAmt += amt;
+        p.costUSD += usd;
+        p.netAmt += amt;
+        p.buys++;
+        if (!p.firstBuyTs) p.firstBuyTs = ts;
+        p.lastTs = Math.max(p.lastTs, ts);
+      }
+    }
+    if (!fromQuote) {                            // 賣出 from.address
+      touched.add(from.address);
+      const p = get(from.address, from.token && from.token.decimals);
+      const amt = Number(from.amount) || 0;
+      if (amt > 0 && usd > 0) {
+        p.soldAmt += amt;
+        p.proceedsUSD += usd;
+        p.netAmt -= amt;
+        p.sells++;
+        p.lastTs = Math.max(p.lastTs, ts);
+      }
+    }
+  }
+
+  let neverBought = 0;
+  let belowMinCost = 0;
+  for (const [m, p] of Array.from(pos)) {
+    if (p.boughtAmt <= 0) { neverBought++; pos.delete(m); }
+    else if (p.costUSD < minCost) { belowMinCost++; pos.delete(m); }
+    else p.avgBuy = p.costUSD / p.boughtAmt;
+  }
+  return {
+    pos: pos, skippedMulti: 0, trades: sorted.length,
+    touched: touched.size, lostToMulti: 0,
+    neverBought: neverBought, belowMinCost: belowMinCost,
+  };
+}
+
 // ---------- 2. 從交易推出買賣 ----------
 function walletDeltas(tx, walletSet, decimalsOut) {
   let sol = 0;
@@ -563,7 +666,11 @@ async function run() {
   if (!addrs.length) throw new Error('請至少輸入一個 Solana 地址。');
   const bad = addrs.filter((a) => !isSolAddress(a));
   if (bad.length) throw new Error('這些看起來不是 Solana 地址：\n' + bad.join('\n'));
-  if (!key) throw new Error('請填入 Helius API key（免費申請：dashboard.helius.dev）。');
+  if (!stKey && !key) {
+    throw new Error('至少要填一把 key。\n'
+      + '建議用 Solana Tracker（免費申請：solanatracker.io/data-api），一把就能跑完整份報告。\n'
+      + '或是用 Helius + 免金鑰的 GeckoTerminal 也可以。');
+  }
 
   localStorage.setItem('fomo:key', key);
   localStorage.setItem('fomo:addrs', addrs.join('\n'));
@@ -574,28 +681,40 @@ async function run() {
     $('#prog-text').textContent = txt;
   };
 
-  // 7.1 交易紀錄
+  // 7.1 交易紀錄。有 Solana Tracker key 就走它（成交價直接給，不用推算），否則走 Helius
+  const useST = !!stKey;
   const txsByAddr = new Map();
   for (let i = 0; i < addrs.length; i++) {
     const a = addrs[i];
     const base = 2 + (i / addrs.length) * 18;
-    setProg(base, '[' + (i + 1) + '/' + addrs.length + '] 抓 ' + shortAddr(a) + ' 的交易紀錄…');
-    const txs = await fetchWalletTxs(a, key, maxTx, (n) =>
-      setProg(base, '[' + (i + 1) + '/' + addrs.length + '] ' + shortAddr(a) + ' — 已抓 ' + n + ' 筆'));
+    const tick = (n) => setProg(base, '[' + (i + 1) + '/' + addrs.length + '] '
+      + shortAddr(a) + ' — 已抓 ' + n + (useST ? ' 筆成交' : ' 筆交易'));
+    setProg(base, '[' + (i + 1) + '/' + addrs.length + '] 抓 ' + shortAddr(a)
+      + (useST ? ' 的成交紀錄…' : ' 的交易紀錄…'));
+    const txs = useST
+      ? await fetchWalletTradesST(a, maxTx, tick)
+      : await fetchWalletTxs(a, key, maxTx, tick);
     txsByAddr.set(a, txs);
   }
   const dedup = new Map();
-  for (const txs of txsByAddr.values()) for (const t of txs) dedup.set(t.signature, t);
+  for (const txs of txsByAddr.values()) {
+    for (const t of txs) dedup.set(useST ? (t.tx + ':' + t.wallet) : t.signature, t);
+  }
   const allTxs = Array.from(dedup.values());
   if (!allTxs.length) throw new Error('這些地址沒有任何交易紀錄。');
 
-  // 7.2 SOL 歷史價
-  setProg(22, '抓 SOL 歷史價…');
-  const solPrice = await buildSolPrice();
+  // 7.2 SOL 歷史價。Solana Tracker 的成交本身就有美元價，不需要這步
+  let solPrice = null;
+  if (!useST) {
+    setProg(22, '抓 SOL 歷史價…');
+    solPrice = await buildSolPrice();
+  }
 
   // 7.3 重建部位（多地址合併計算，錢包之間互轉會自動抵銷）
   setProg(26, '重建買賣紀錄…');
-  const built = buildPositions(allTxs, new Set(addrs), solPrice, minCost);
+  const built = useST
+    ? buildPositionsFromTrades(allTxs, minCost)
+    : buildPositions(allTxs, new Set(addrs), solPrice, minCost);
   let positions = Array.from(built.pos.values()).sort((a, b) => b.costUSD - a.costUSD);
   const totalFound = positions.length;
   const truncated = Math.max(0, totalFound - maxTokens);
@@ -665,7 +784,9 @@ async function run() {
   if (addrs.length > 1) {
     const byMint = new Map(rows.map((r) => [r.mint, r]));
     for (const a of addrs) {
-      const b = buildPositions(txsByAddr.get(a), new Set([a]), solPrice, minCost);
+      const b = useST
+        ? buildPositionsFromTrades(txsByAddr.get(a), minCost)
+        : buildPositions(txsByAddr.get(a), new Set([a]), solPrice, minCost);
       const ar = [];
       for (const p of b.pos.values()) {
         const g = byMint.get(p.mint);
@@ -694,6 +815,7 @@ async function run() {
     perAddr: perAddr,
     meta: {
       txCount: allTxs.length, totalFound: totalFound, truncated: truncated,
+      txSrc: useST ? 'solanatracker' : 'helius',
       noPool: noPool, minCost: minCost, skippedMulti: built.skippedMulti,
       noPeak: rows.filter((r) => !r.hasPeak).length,
       aborted: aborted, planned: withPool.length,
