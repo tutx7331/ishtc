@@ -12,6 +12,16 @@
 
 const SOL_ADDR = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 
+/** secret 貼進來時常帶著引號、空白甚至整條 endpoint URL，這裡自動拆乾淨 */
+function cleanKey(raw, uuidStyle) {
+  const s = String(raw || '').trim().replace(/^["']|["']$/g, '');
+  if (uuidStyle) {
+    const m = s.match(/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/);
+    if (m) return m[0];
+  }
+  return s;
+}
+
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
@@ -73,11 +83,12 @@ export default {
       const before = url.searchParams.get('before') || '';
       if (!SOL_ADDR.test(address)) return json({ error: 'bad address' }, 400);
       if (before && !/^[1-9A-HJ-NP-Za-km-z]{40,120}$/.test(before)) return json({ error: 'bad cursor' }, 400);
-      if (!env.HELIUS_KEY) return json({ error: 'HELIUS_KEY not configured' }, 500);
+      const heliusKey = cleanKey(env.HELIUS_KEY, true);
+      if (!heliusKey) return json({ error: 'HELIUS_KEY not configured' }, 500);
       if (!(await takeQuota(env, 'helius', 1, heliusLimit))) return cooldown();
 
       const upstream = 'https://api.helius.xyz/v0/addresses/' + address + '/transactions'
-        + '?api-key=' + env.HELIUS_KEY + '&limit=100' + (before ? '&before=' + before : '');
+        + '?api-key=' + heliusKey + '&limit=100' + (before ? '&before=' + before : '');
       const r = await fetch(upstream);
       return new Response(r.body, {
         status: r.status,
@@ -91,7 +102,8 @@ export default {
       const from = Math.floor(Number(url.searchParams.get('time_from')) || 0);
       const to = Math.floor(Number(url.searchParams.get('time_to')) || 0);
       if (!SOL_ADDR.test(token) || !(from > 0) || !(to > from)) return json({ error: 'bad params' }, 400);
-      if (!env.ST_KEY) return json({ error: 'ST_KEY not configured' }, 500);
+      const stApiKey = cleanKey(env.ST_KEY, false);
+      if (!stApiKey) return json({ error: 'ST_KEY not configured' }, 500);
 
       // 快取鍵用「哪一天開始買」就夠準；同一隻熱門幣一次查詢供所有人共用
       const cacheKey = 'st:' + token + ':' + Math.floor(from / 86400);
@@ -101,7 +113,7 @@ export default {
       if (!(await takeQuota(env, 'st', 1, stLimit))) return cooldown();
 
       const r = await fetch('https://data.solanatracker.io/price/history/range?token=' + token
-        + '&time_from=' + from + '&time_to=' + to, { headers: { 'x-api-key': env.ST_KEY } });
+        + '&time_from=' + from + '&time_to=' + to, { headers: { 'x-api-key': stApiKey } });
       const body = await r.text();
       if (r.ok) await env.CACHE.put(cacheKey, body, { expirationTtl: 6 * 3600 });
       return new Response(body, { status: r.status, headers: { 'Content-Type': 'application/json', ...CORS } });

@@ -7,15 +7,15 @@ compatibility_date = "2026-08-01"
 # 然後把回傳的 id 貼進來
 [[kv_namespaces]]
 binding = "CACHE"
-id = "把你的 KV namespace id 貼在這裡"
+id = "043b9ae7f4084792bbd5d80fa3948d13"
 
 # D1：查詢記錄（選用，之後做排行榜要用）
 # 建立：npx wrangler d1 create ishtc-logs
 # 建表：npx wrangler d1 execute ishtc-logs --file=schema.sql --remote
-# [[d1_databases]]
-# binding = "DB"
-# database_name = "ishtc-logs"
-# database_id = "把你的 D1 database id 貼在這裡"
+[[d1_databases]]
+binding = "DB"
+database_name = "ishtc-logs"
+database_id = "287438fb-09ab-419c-950f-1ade78e60ccb"
 
 [vars]
 # 額度上限（超過就回冷卻）。升級方案之後改這兩個數字重新部署即可

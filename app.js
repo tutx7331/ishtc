@@ -31,10 +31,14 @@ const EXCLUDE = new Set([
 // ---------- 代理模式 ----------
 // 站長部署 worker/ 之後把網址填進 DEFAULT_PROXY，訪客就不用自備 API key。
 // 留空 = 純 BYOK 模式（現在的行為）。也可用 localStorage 的 fomo:proxy 覆寫（測試用）。
-const DEFAULT_PROXY = '';
+const DEFAULT_PROXY = 'https://ishtc-proxy.ishouldholdthecoin.workers.dev';
+// localStorage 的 fomo:proxy 可覆寫；設成 'off' 可強制關閉代理（站長測 BYOK 模式用）
 const PROXY_URL = (function () {
-  try { return (localStorage.getItem('fomo:proxy') || '').trim() || DEFAULT_PROXY; }
-  catch (e) { return DEFAULT_PROXY; }
+  try {
+    const v = (localStorage.getItem('fomo:proxy') || '').trim();
+    if (v === 'off') return '';
+    return v || DEFAULT_PROXY;
+  } catch (e) { return DEFAULT_PROXY; }
 })().replace(/\/+$/, '');
 
 const GT = 'https://api.geckoterminal.com/api/v2';
