@@ -1190,7 +1190,7 @@ $('#pager').addEventListener('click', (e) => {
 function render(d) {
   LAST = d;
   const s = d.sum;
-  $('#results').hidden = false;
+  wallDone(true);
   $('#intro').hidden = true;
 
   const eff = s.efficiency;
@@ -1617,6 +1617,10 @@ function initFromUrl() {
 }
 
 // ---------- 場景切換 ----------
+function wallDone(done) {
+  const w = $('#screen-wall');
+  if (w && w.classList) w.classList.toggle('done', !!done);
+}
 let landingHideTimer = 0;
 function enterRoom() {
   const landing = $('#landing');
@@ -1709,7 +1713,7 @@ $('#handle').addEventListener('input', redrawCard);
 
 $('#run').addEventListener('click', async () => {
   $('#error').hidden = true;
-  $('#results').hidden = true;
+  wallDone(false);
   $('#progress').hidden = false;
   enterRoom();                        // 換頁過場：首頁離場 → 全螢幕操盤室
   if (dogRoom()) dogRoom().reset();   // 清場，等狗從螢幕噴出來

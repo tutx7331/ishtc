@@ -134,112 +134,129 @@
 <section id="dog-room-panel" hidden>
   <canvas id="dog-room"></canvas>
 
-  <div id="screen-frame">
-    <div id="screen-head">
-      <span class="scr-dot"></span><span class="scr-dot"></span><span class="scr-dot"></span>
-      <span class="scr-title">ISHTC · TERMINAL</span>
-    </div>
-    <div id="screen-body">
-      <div id="screen-terminal">
-        <pre id="binstream"></pre>
-        <div id="progress" hidden>
-          <div class="bar"><div class="bar-glow" id="bar-glow"></div><div class="bar-fill" id="bar-fill"></div></div>
-          <p class="prog-text" id="prog-text"></p>
+  <div id="screen-wall">
+
+    <div class="scr" id="scr-1">
+      <div class="scr-head"><span class="scr-dot"></span><span class="scr-dot"></span><span class="scr-dot"></span><span class="scr-title">01 · 總結</span></div>
+      <div class="scr-body">
+        <div class="standby">● STANDBY</div>
+        <div class="scr-content">
+          <div class="verdict" id="verdict"></div>
+          <div class="stat-grid" id="stat-grid"></div>
         </div>
-        <p class="hint" id="dog-room-hint">金色是金狗，戴皇冠的是大金狗。點狗看幣名，抓起來丟也可以。</p>
-      </div>
-  <section id="results" hidden>
-
-    <div class="verdict" id="verdict"></div>
-
-    <div class="stat-grid" id="stat-grid"></div>
-
-    <div class="panel">
-      <h2>金狗品味</h2>
-      <p class="hint">漲幅與市值都過關才算金狗，分母是你買過的所有幣。</p>
-      <div id="dog-taste"></div>
-    </div>
-
-    <div class="panel">
-      <h2>漲幅命中率</h2>
-      <p class="hint">買入後曾漲到成本的幾倍，不看市值。</p>
-      <div id="golden"></div>
-    </div>
-
-    <div class="panel">
-      <h2>賣飛排行榜</h2>
-      <p class="hint">點欄位標題可排序。<b>賣飛</b>＝賣了它還在漲；<b>雲霄飛車</b>＝沒賣又跌回來。</p>
-      <div class="table-scroll">
-        <table id="tokens-table">
-          <thead></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-      <div id="pager"></div>
-    </div>
-
-    <div class="panel" id="per-address-panel">
-      <h2>各地址表現</h2>
-      <div class="table-scroll">
-        <table id="addr-table">
-          <thead>
-            <tr>
-              <th>地址</th>
-              <th class="num">幣數</th>
-              <th class="num">總成本</th>
-              <th class="num">神之手價值</th>
-              <th class="num">實際</th>
-              <th class="num">神化率</th>
-              <th class="num">10x 命中率</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
       </div>
     </div>
 
-    <div class="panel">
-      <h2>分享</h2>
-      <div class="share-layout">
-        <div id="share-wrap"><canvas id="share-canvas" width="1080" height="1350"></canvas></div>
-        <div class="share-side">
-          <div class="upload">
-            <span class="up-label">背景圖</span>
-            <label class="up-btn">選擇圖片<input id="bg-file" type="file" accept="image/*" hidden></label>
-            <button class="up-clear" id="bg-clear" hidden>移除</button>
-            <small>自動鋪滿並壓暗</small>
+    <div class="scr" id="scr-2">
+      <div class="scr-head"><span class="scr-dot"></span><span class="scr-dot"></span><span class="scr-dot"></span><span class="scr-title">02 · 金狗品味</span></div>
+      <div class="scr-body">
+        <div class="standby">● STANDBY</div>
+        <div class="scr-content">
+          <div class="panel">
+            <h2>金狗品味</h2>
+            <p class="hint">漲幅與市值都過關才算金狗，分母是你買過的所有幣。</p>
+            <div id="dog-taste"></div>
           </div>
-          <div class="upload">
-            <span class="up-label">Logo</span>
-            <label class="up-btn">選擇圖片<input id="logo-file" type="file" accept="image/*" hidden></label>
-            <button class="up-clear" id="logo-clear" hidden>移除</button>
-            <small>放右下角</small>
-          </div>
-          <div class="upload">
-            <span class="up-label">署名</span>
-            <input id="handle" type="text" maxlength="24" placeholder="@yourhandle">
-            <small>留空不顯示</small>
-          </div>
-          <div class="upload">
-            <span class="up-label">背景暗度</span>
-            <input id="dim" type="range" min="0" max="90" value="62">
+          <div class="panel">
+            <h2>漲幅命中率</h2>
+            <p class="hint">買入後曾漲到成本的幾倍，不看市值。</p>
+            <div id="golden"></div>
           </div>
         </div>
       </div>
-      <div class="actions">
-        <button id="download-card" class="primary">下載分享圖</button>
-        <button id="copy-link" class="ghost">複製查詢連結</button>
-        <button id="download-csv" class="ghost">下載 CSV</button>
+    </div>
+
+    <div class="scr" id="scr-3">
+      <div class="scr-head"><span class="scr-dot"></span><span class="scr-dot"></span><span class="scr-dot"></span><span class="scr-title">MAIN · 賣飛排行榜</span></div>
+      <div class="scr-body">
+        <div id="screen-terminal">
+          <pre id="binstream"></pre>
+          <div id="progress" hidden>
+            <div class="bar"><div class="bar-glow" id="bar-glow"></div><div class="bar-fill" id="bar-fill"></div></div>
+            <p class="prog-text" id="prog-text"></p>
+          </div>
+          <p class="hint" id="dog-room-hint">金色是金狗，戴皇冠的是大金狗。點狗看幣名，抓起來丟也可以。</p>
+        </div>
+        <div class="scr-content">
+          <div class="panel">
+            <p class="hint">點欄位標題可排序。<b>賣飛</b>＝賣了它還在漲；<b>雲霄飛車</b>＝沒賣又跌回來。</p>
+            <div class="table-scroll">
+              <table id="tokens-table">
+                <thead></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <div id="pager"></div>
+          </div>
+          <div class="panel" id="per-address-panel">
+            <h2>各地址表現</h2>
+            <div class="table-scroll">
+              <table id="addr-table">
+                <thead>
+                  <tr>
+                    <th>地址</th>
+                    <th class="num">幣數</th>
+                    <th class="num">總成本</th>
+                    <th class="num">神之手價值</th>
+                    <th class="num">實際</th>
+                    <th class="num">神化率</th>
+                    <th class="num">10x 命中率</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
-    <div class="panel caveats">
-      <h2>資料說明</h2>
-      <ul id="caveats-list"></ul>
+    <div class="scr" id="scr-4">
+      <div class="scr-head"><span class="scr-dot"></span><span class="scr-dot"></span><span class="scr-dot"></span><span class="scr-title">04 · 分享</span></div>
+      <div class="scr-body">
+        <div class="standby">● STANDBY</div>
+        <div class="scr-content">
+          <div class="panel">
+            <div class="share-layout">
+              <div id="share-wrap"><canvas id="share-canvas" width="1080" height="1350"></canvas></div>
+              <div class="share-side">
+                <div class="upload">
+                  <span class="up-label">背景圖</span>
+                  <label class="up-btn">選擇圖片<input id="bg-file" type="file" accept="image/*" hidden></label>
+                  <button class="up-clear" id="bg-clear" hidden>移除</button>
+                  <small>自動鋪滿並壓暗</small>
+                </div>
+                <div class="upload">
+                  <span class="up-label">Logo</span>
+                  <label class="up-btn">選擇圖片<input id="logo-file" type="file" accept="image/*" hidden></label>
+                  <button class="up-clear" id="logo-clear" hidden>移除</button>
+                  <small>放右下角</small>
+                </div>
+                <div class="upload">
+                  <span class="up-label">署名</span>
+                  <input id="handle" type="text" maxlength="24" placeholder="@yourhandle">
+                  <small>留空不顯示</small>
+                </div>
+                <div class="upload">
+                  <span class="up-label">背景暗度</span>
+                  <input id="dim" type="range" min="0" max="90" value="62">
+                </div>
+              </div>
+            </div>
+            <div class="actions">
+              <button id="download-card" class="primary">下載分享圖</button>
+              <button id="copy-link" class="ghost">複製查詢連結</button>
+              <button id="download-csv" class="ghost">下載 CSV</button>
+            </div>
+          </div>
+          <div class="panel caveats">
+            <h2>資料說明</h2>
+            <ul id="caveats-list"></ul>
+          </div>
+        </div>
+      </div>
     </div>
 
-  </section>
-    </div>
   </div>
 
   <button id="back-home" type="button">↩ 回首頁</button>

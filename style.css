@@ -209,33 +209,57 @@ button:disabled{opacity:.4;cursor:not-allowed}
   #dog-room-panel.reveal,#landing.leaving{animation:none}
 }
 
-/* ---- 牆上大螢幕（DOM，內容可捲動互動）---- */
-#screen-frame{
-  position:absolute;left:50%;top:5%;transform:translateX(-50%);
-  width:min(920px,90vw);height:50%;
-  display:flex;flex-direction:column;
+/* ---- 監控牆：四台主題螢幕（DOM，內容可捲動互動）---- */
+#screen-wall{
+  position:absolute;left:50%;transform:translateX(-50%);
+  top:30px;width:min(1240px,84vw);height:calc(63vh - 46px);
+  display:grid;grid-template-columns:1fr 1.45fr .92fr;grid-template-rows:1fr 1fr;gap:12px;
+  z-index:2;
+}
+#scr-1{grid-column:1;grid-row:1}
+#scr-2{grid-column:1;grid-row:2}
+#scr-3{grid-column:2;grid-row:1/3}
+#scr-4{grid-column:3;grid-row:1/3}
+.scr{
+  display:flex;flex-direction:column;min-height:0;
   background:#05070b;border:3px solid #202734;
-  box-shadow:0 0 0 2px #05070b,0 6px 40px rgba(0,0,0,.6),0 0 36px rgba(20,241,149,.10);
+  box-shadow:0 0 0 2px #05070b,0 6px 40px rgba(0,0,0,.6),0 0 26px rgba(20,241,149,.08);
+  transition:box-shadow .25s;
 }
-#screen-head{
+.scr.spawn{box-shadow:0 0 0 2px #05070b,0 0 46px rgba(20,241,149,.75),inset 0 0 30px rgba(20,241,149,.35)}
+.scr-head{
   flex:none;display:flex;align-items:center;gap:6px;
-  padding:8px 12px;background:#0b0e14;border-bottom:1px solid #202734;
+  padding:6px 10px;background:#0b0e14;border-bottom:1px solid #202734;
 }
-.scr-dot{width:8px;height:8px;border-radius:50%;background:#2e3542}
+.scr-dot{width:7px;height:7px;border-radius:50%;background:#2e3542}
 .scr-dot:first-child{background:rgba(255,77,109,.7)}
-.scr-title{margin-left:8px;font:700 10px var(--mono);letter-spacing:.2em;color:var(--dim)}
-#screen-body{
-  flex:1;overflow-y:auto;overflow-x:hidden;padding:16px 18px;
+.scr-title{margin-left:6px;font:700 10px var(--mono);letter-spacing:.2em;color:var(--dim);white-space:nowrap;overflow:hidden}
+.scr-body{
+  flex:1;min-height:0;position:relative;overflow-y:auto;overflow-x:hidden;padding:12px;
   scrollbar-width:thin;scrollbar-color:#2e3542 transparent;
 }
-#screen-body::-webkit-scrollbar{width:8px}
-#screen-body::-webkit-scrollbar-thumb{background:#2e3542}
-#screen-body .panel{background:#0b0e14;border-color:#202734;padding:16px;margin-bottom:14px}
-#screen-body .stat{background:#0b0e14}
-#screen-body .stat-grid{border-color:#202734;background:#202734}
-#screen-body .verdict{background:#0b0e14;border-color:#202734}
+.scr-body::-webkit-scrollbar{width:8px}
+.scr-body::-webkit-scrollbar-thumb{background:#2e3542}
+.scr-body .panel{background:#0b0e14;border-color:#202734;padding:14px;margin-bottom:12px}
+.scr-body .stat{background:#0b0e14}
+.scr-body .stat-grid{border-color:#202734;background:#202734;grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}
+.scr-body .verdict{background:#0b0e14;border-color:#202734}
+.scr-body .share-layout{grid-template-columns:1fr}
 
-/* 查詢中的終端畫面 */
+/* 查詢完成前：其他螢幕待機、內容隱藏 */
+.scr-content{display:none}
+#screen-wall.done .scr-content{display:block}
+#screen-wall.done .standby{display:none}
+.standby{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font:700 12px var(--mono);letter-spacing:.3em;color:#2f8f5f;
+  background:repeating-linear-gradient(0deg,rgba(20,241,149,.035) 0 2px,transparent 2px 4px);
+  animation:standby-blink 1.6s step-end infinite;
+}
+@keyframes standby-blink{0%,100%{opacity:.85}50%{opacity:.4}}
+@media (prefers-reduced-motion:reduce){.standby{animation:none}}
+
+/* 查詢中的終端畫面（MAIN 螢幕）*/
 #screen-terminal{padding:6px 2px}
 #binstream{
   margin:0 0 14px;height:180px;overflow:hidden;
@@ -250,9 +274,14 @@ button:disabled{opacity:.4;cursor:not-allowed}
   padding:9px 14px;font:700 12px var(--mono);letter-spacing:.08em;cursor:pointer;
 }
 #back-home:hover{border-color:var(--accent);color:var(--accent)}
-@media (max-width:560px){
-  #screen-frame{width:94vw;top:4%;height:56%}
-  #screen-body{padding:10px}
+@media (max-width:960px){
+  #screen-wall{
+    top:26px;width:92vw;height:calc(100vh - 40px);
+    display:flex;flex-direction:column;gap:12px;overflow-y:auto;
+  }
+  .scr{flex:none;min-height:0}
+  #scr-3 .scr-body,#scr-4 .scr-body{max-height:70vh}
+  .scr-body{max-height:52vh}
 }
 
 /* ---------- 數據卡 ---------- */
