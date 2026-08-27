@@ -195,11 +195,15 @@ async function fetchWalletTxs(address, key, maxTx, onTick) {
       if (e.status === 429) throw new Error('Helius 額度用完或被限流，稍後再試。');
       throw e;
     }
+    // 只有回傳空陣列才代表到底了。
+    // Helius 是掃一個簽章視窗再回傳解析得出來的那些，某一頁不足 100 筆
+    // 不代表沒有更舊的交易 —— 早期在這裡 break 會把後面的歷史整段丟掉。
     if (!Array.isArray(batch) || batch.length === 0) break;
     out.push.apply(out, batch);
-    before = batch[batch.length - 1].signature;
+    const next = batch[batch.length - 1].signature;
+    if (next === before) break;   // 游標沒前進，避免無限迴圈
+    before = next;
     onTick(out.length);
-    if (batch.length < 100) break;
   }
   return out;
 }
@@ -233,8 +237,12 @@ function walletDeltas(tx, walletSet, decimalsOut) {
 function buildPositions(txs, walletSet, solPrice, minCost) {
   const pos = new Map();
   const decimals = new Map();
+  const touched = new Set();   // 曾經在這個錢包出現過的所有非報價幣，含空投
   let skippedMulti = 0;
   let trades = 0;
+  // 判定「這是一筆買賣」的最小金額。太小會把手續費雜訊當成交易，
+  // 但也不能高過使用者設的最小成本，否則他調低了卻沒作用，還會被誤標成空投。
+  const tradeFloor = Math.max(0.02, Math.min(0.2, minCost));
 
   const sorted = txs.slice().sort((a, b) => a.timestamp - b.timestamp);
   for (const tx of sorted) {
@@ -249,7 +257,7 @@ function buildPositions(txs, walletSet, solPrice, minCost) {
 
     const subject = [];
     for (const [m, delta] of tokens) {
-      if (!EXCLUDE.has(m) && Math.abs(delta) > 0) subject.push([m, delta]);
+      if (!EXCLUDE.has(m) && Math.abs(delta) > 0) { subject.push([m, delta]); touched.add(m); }
     }
     if (subject.length === 0) continue;
     if (subject.length > 1) {
@@ -271,13 +279,13 @@ function buildPositions(txs, walletSet, solPrice, minCost) {
     p.netAmt += delta;
     p.lastTs = tx.timestamp;
 
-    if (delta > 0 && quoteUSD < -0.2) {          // 買
+    if (delta > 0 && quoteUSD < -tradeFloor) {   // 買
       p.boughtAmt += delta;
       p.costUSD += -quoteUSD;
       p.buys++;
       if (!p.firstBuyTs) p.firstBuyTs = tx.timestamp;
       trades++;
-    } else if (delta < 0 && quoteUSD > 0.2) {    // 賣
+    } else if (delta < 0 && quoteUSD > tradeFloor) {  // 賣
       p.soldAmt += -delta;
       p.proceedsUSD += quoteUSD;
       p.sells++;
@@ -287,12 +295,23 @@ function buildPositions(txs, walletSet, solPrice, minCost) {
     }
   }
 
+  // 記錄每一關各刷掉多少，報告要能回答「為什麼只找到這幾隻」
+  const enteredPos = pos.size;
+  let neverBought = 0;
+  let belowMinCost = 0;
   for (const [m, p] of Array.from(pos)) {
     p.decimals = decimals.get(m) || 0;
-    if (p.boughtAmt <= 0 || p.costUSD < minCost) pos.delete(m);
+    if (p.boughtAmt <= 0) { neverBought++; pos.delete(m); }
+    else if (p.costUSD < minCost) { belowMinCost++; pos.delete(m); }
     else p.avgBuy = p.costUSD / p.boughtAmt;
   }
-  return { pos: pos, skippedMulti: skippedMulti, trades: trades };
+  return {
+    pos: pos, skippedMulti: skippedMulti, trades: trades,
+    touched: touched.size,                      // 碰過的幣總數
+    lostToMulti: touched.size - enteredPos,     // 同筆多幣時被讓位掉的
+    neverBought: neverBought,                   // 只收到沒買過（空投、轉入）
+    belowMinCost: belowMinCost,                 // 買過但成本低於門檻
+  };
 }
 
 // ---------- 3. SOL 歷史價 ----------
@@ -637,6 +656,8 @@ async function run() {
       noPool: noPool, minCost: minCost, skippedMulti: built.skippedMulti,
       noPeak: rows.filter((r) => !r.hasPeak).length,
       aborted: aborted, planned: withPool.length,
+      touched: built.touched, lostToMulti: built.lostToMulti,
+      neverBought: built.neverBought, belowMinCost: built.belowMinCost,
       beRows: rows.filter((r) => r.peakSrc === 'birdeye').length,
       gtRows: rows.filter((r) => r.peakSrc === 'gecko').length,
       beQuotaLeft: beQuota && isFinite(beQuota.remaining) ? beQuota.remaining : 0,
@@ -841,11 +862,21 @@ function render(d) {
     cav.push('<b>這份報告是中途停止的</b>：預計要算 ' + m.planned + ' 隻，實際只算完 '
       + d.rows.length + ' 隻。下面所有比率的分母都只是這 ' + d.rows.length + ' 隻，不是你買過的全部。');
   }
-  cav.push(
-    '掃描了 ' + m.txCount.toLocaleString() + ' 筆交易，辨識出 ' + m.totalFound
-      + ' 隻成本 ≥ $' + m.minCost + ' 的幣'
-      + (m.truncated ? '，本次只分析成本前 ' + d.rows.length + ' 隻（另有 ' + m.truncated
-        + ' 隻未分析，可在進階設定調高上限）。' : '。'),
+  // 一條龍列出每一關刷掉多少，才能回答「為什麼只找到這幾隻」
+  const funnel = [];
+  funnel.push('掃描 <b>' + m.txCount.toLocaleString() + '</b> 筆交易');
+  if (isFinite(m.touched)) funnel.push('碰過 <b>' + m.touched + '</b> 隻幣');
+  if (m.neverBought) funnel.push('其中 <b>' + m.neverBought + '</b> 隻只收到沒買過（空投、別人轉進來）');
+  if (m.belowMinCost) funnel.push('<b>' + m.belowMinCost + '</b> 隻買入成本低於 $' + m.minCost);
+  if (m.lostToMulti) funnel.push('<b>' + m.lostToMulti + '</b> 隻只在多幣同筆交易裡出現過，被讓位');
+  funnel.push('真正買過且過門檻的有 <b>' + m.totalFound + '</b> 隻');
+  if (m.truncated) funnel.push('本次只分析成本前 <b>' + d.rows.length + '</b> 隻，另有 ' + m.truncated + ' 隻沒算（進階設定可調高上限）');
+  if (m.noPool.length) funnel.push('<b>' + m.noPool.length + '</b> 隻在 DexScreener 查不到池子（多半已下架），無法算最高價');
+
+  cav.push('<b>幣數是怎麼收斂的</b>：' + funnel.join(' → ') + '。');
+  cav.push('<b>跟 GMGN 之類的工具對不起來是正常的</b>：那些工具通常把「碰過的幣」全部算進去，'
+    + '包含空投與別人轉進來的垃圾幣；這裡只算<b>你真的花錢買過</b>的。'
+    + '想放寬就把進階設定的「最小買入成本」調低。',
     '<b>最高價取自目前流動性最深的那個池子</b>。pump.fun 這類先在 bonding curve 交易、之後才遷移的幣，遷移前的價格不在這個池子裡，MFE 可能被低估。',
     '標了 <b>*</b> 的幣代表 K 線沒有完整覆蓋到你第一次買入的時間，最高價只算了有資料的區間。',
     '<b>最高市值是推算的</b>：用目前的市值 ÷ 目前價格反推流通量，再乘上歷史最高價。假設流通量沒變過，遇到增發或大額燒毀會失真。',
@@ -859,7 +890,6 @@ function render(d) {
       + (m.gtRows ? '，另外 ' + m.gtRows + ' 隻退回 GeckoTerminal（只看單一池子，可能低估）' : '') + '。'
       + (m.beQuotaLeft ? '你的 Birdeye 額度還剩 ' + m.beQuotaLeft.toLocaleString() + '。' : ''));
   }
-  if (m.noPool.length) cav.push(m.noPool.length + ' 隻幣在 DexScreener 查不到池子（多半已完全歸零或下架），未列入報告。');
   if (m.noPeak) cav.push(m.noPeak + ' 隻幣抓不到歷史 K 線，最高價以現價與買入均價中較高者代替。');
   if (m.skippedMulti) cav.push(m.skippedMulti + ' 筆交易同時牽涉多隻代幣，只採計變動量最大的那隻。');
   $('#caveats-list').innerHTML = cav.map((c) => '<li>' + c + '</li>').join('');
