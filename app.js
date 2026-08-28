@@ -461,6 +461,7 @@ function buildPositions(txs, walletSet, solPrice, minCost) {
       p = {
         mint: mint, boughtAmt: 0, costUSD: 0, soldAmt: 0, proceedsUSD: 0,
         netAmt: 0, firstBuyTs: 0, lastTs: 0, buys: 0, sells: 0, movedOut: 0,
+        gotFree: 0,   // 轉入／空投：沒付錢就進來的數量
       };
       pos.set(mint, p);
     }
@@ -480,6 +481,8 @@ function buildPositions(txs, walletSet, solPrice, minCost) {
       trades++;
     } else if (delta < 0) {                      // 轉出，不是賣
       p.movedOut += -delta;
+    } else if (delta > 0) {                      // 轉入／空投，不是買（沒付錢）
+      p.gotFree += delta;
     }
   }
 
@@ -987,8 +990,16 @@ async function run() {
     const fixed = sanePeak(peakP, peak && peak.peakMcap, meta.price, meta.mcap);
     const peakFixed = fixed !== null;
     if (peakFixed) peakP = Math.max(fixed, p.avgBuy);
-    const holdAmt = Math.max(0, p.netAmt);
+    // 轉入／空投的幣不是你買的，不能算進「實際拿到」——
+    // 賣出只認賣掉「你買的那些」的部分，持倉也不能超過「買到但還沒賣掉」的量。
+    const soldFromBought = Math.min(p.soldAmt, p.boughtAmt);
+    const proceedsOwn = p.soldAmt > 0
+      ? p.proceedsUSD * (soldFromBought / p.soldAmt)
+      : 0;
+    const holdAmt = Math.max(0, Math.min(p.netAmt, p.boughtAmt - soldFromBought));
     const row = Object.assign({}, p, meta, {
+      proceedsUSD: proceedsOwn,
+      soldAmt: soldFromBought,
       peak: peakP,
       peakTs: (peak && peak.peakTs) || 0,
       partial: !!(peak && peak.partial),
@@ -1083,6 +1094,7 @@ async function run() {
     sum: summarize(rows),
     perAddr: perAddr,
     meta: {
+      transferIn: rows.filter((r) => (r.gotFree || 0) > 0).length,
       txCount: allTxs.length, totalFound: totalFound, truncated: truncated,
       txSrc: useST ? 'solanatracker' : 'helius',
       solSrc: solPrice ? solPrice.source : '',
