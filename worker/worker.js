@@ -26,7 +26,7 @@ const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
-  'Access-Control-Expose-Headers': 'x-cooldown',
+  'Access-Control-Expose-Headers': 'x-cooldown, x-cache',
 };
 
 const json = (body, status = 200, headers = {}) =>
