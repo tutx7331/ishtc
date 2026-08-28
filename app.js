@@ -1321,7 +1321,8 @@ function render(d) {
   cav.push('標 <b>*</b> 的幣，K 線未完整涵蓋買入時間，最高價可能被低估。');
   if (m.noPeak) cav.push(m.noPeak + ' 隻抓不到歷史 K 線，以現價與均價較高者代替。');
   cav.push('轉出到未列入的地址不算賣出 —— 有其他錢包記得一起貼上。');
-  $('#caveats-list').innerHTML = cav.map((c) => '<li>' + c + '</li>').join('');
+  const cavEl = $('#caveats-list');
+  if (cavEl) cavEl.innerHTML = cav.map((c) => '<li>' + c + '</li>').join('');
 
   if (dogRoom()) {
     dogRoom().setAll(d.rows.map((r) => ({ sym: r.symbol, mfeX: r.mfeX,
@@ -1642,7 +1643,7 @@ function drawCard(d) {
   spacing('5px');
   x.font = cardFont(600, 14, true);
   x.fillStyle = DIM;
-  x.fillText('你這輩子賣飛了多少錢？', fx, fy + 30);
+  x.fillText('你 2026 賣飛了多少錢？', fx, fy + 30);
   spacing('0px');
 
   x.textAlign = 'right';

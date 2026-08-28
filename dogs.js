@@ -295,7 +295,12 @@
   if (typeof Image !== 'undefined') {
     try {
       const ds = new Image();
-      ds.onload = () => { if (ds.width >= 300 && ds.height >= 90) dogSheet = ds; };
+      ds.onload = () => {
+        if (ds.width >= 300 && ds.height >= 90) {
+          dogSheet = ds;
+          if (typeof window !== 'undefined' && window.DogRoom) window.DogRoom._sheet = ds;
+        }
+      };
       ds.src = 'assets/dogs.png';
     } catch (e) {}
   }
@@ -304,8 +309,8 @@
   function spriteFrame(d, moving) {
     if (d.state === 'air' || d.state === 'held') return 10;
     if (d.state === 'tumble') return 11;
-    if (moving) return 4 + (Math.floor(d.phase * 10) % 6);
-    return Math.floor(d.phase * 2.5) % 4;
+    if (moving) return 4 + (Math.floor(d.phase * 8) % 6);
+    return Math.floor(d.phase * 2) % 4;
   }
 
   /** 用 sprite sheet 畫一隻狗；(x,y) = 腳底中心，s 同 stamp 的縮放 */
@@ -327,7 +332,9 @@
       ctx.ellipse(0, -size * 0.45, size * 0.62, size * 0.45, 0, 0, Math.PI * 2);
       ctx.fill();
     }
-    ctx.drawImage(dogSheet, f * cw, row * ch, cw, ch, -dw2 / 2, -dh2, dw2, dh2);
+    // 來源內縮：AI 生的格線不會 100% 精準，吃到隔壁幀會像鬼影
+    ctx.drawImage(dogSheet, f * cw + cw * 0.04, row * ch + ch * 0.02, cw * 0.92, ch * 0.96,
+      -dw2 / 2, -dh2, dw2, dh2);
     ctx.restore();
   }
 
@@ -784,10 +791,10 @@
     const colW = 60;
     const col = Math.floor(Math.random() * Math.floor(W / colW));
     candles.push({
-      x: col * colW + 10 + Math.random() * 18,
-      y: H + 30, h: 14 + Math.random() * 46, w: 7,
+      x: col * colW + 8 + Math.random() * 16,
+      y: H + 30, h: 18 + Math.random() * 64, w: 11,
       up: Math.random() < 0.62,
-      alpha: 0.05 + Math.random() * 0.12,
+      alpha: 0.14 + Math.random() * 0.2,
       vy: 12 + Math.random() * 22,
     });
   }
@@ -803,7 +810,7 @@
       y: H * (0.25 + Math.random() * 0.6),
       text: '+' + v + 'x', gold: jackpot,
       alpha: 0, life: 0, vy: 14 + Math.random() * 12,
-      size: jackpot ? 22 + Math.random() * 14 : 12 + Math.random() * 6,
+      size: jackpot ? 26 + Math.random() * 16 : 14 + Math.random() * 8,
     });
   }
   function spawnDog() {
@@ -824,7 +831,7 @@
     last = t;
 
     spawnT -= dt;
-    if (spawnT <= 0) { spawnCandle(); if (Math.random() < 0.5) spawnFloat(); spawnT = 0.22; }
+    if (spawnT <= 0) { spawnCandle(); if (Math.random() < 0.5) spawnFloat(); spawnT = 0.15; }
     dogT -= dt;
     if (dogT <= 0) { spawnDog(); dogT = 2.5 + Math.random() * 4; }
 
@@ -850,7 +857,7 @@
       ctx.font = '700 ' + Math.round(f.size) + 'px ui-monospace,Menlo,Consolas,monospace';
       ctx.fillStyle = f.gold
         ? 'rgba(255,211,77,' + (f.alpha * 0.85) + ')'
-        : 'rgba(20,241,149,' + (f.alpha * 0.4) + ')';
+        : 'rgba(20,241,149,' + (f.alpha * 0.55) + ')';
       if (f.gold) { ctx.shadowColor = 'rgba(255,211,77,.8)'; ctx.shadowBlur = 12; }
       ctx.fillText(f.text, f.x, f.y);
       ctx.shadowBlur = 0;
@@ -862,7 +869,21 @@
       d.x += d.dir * d.speed * dt;
       d.phase += dt;
       if ((d.dir > 0 && d.x > W + 50) || (d.dir < 0 && d.x < -50)) { runners.splice(i, 1); continue; }
-      if (stampFn) {
+      const sheet = window.DogRoom && window.DogRoom._sheet;
+      if (sheet) {
+        const cw2 = sheet.width / 12, ch2 = sheet.height / 3;
+        const rrow = d.tier === 'big' ? 0 : d.tier === 'gold' ? 1 : 2;
+        const fr = 4 + (Math.floor(d.phase * 8) % 6);
+        const hgt = 14 * d.scale, wdt = hgt * (cw2 / ch2);
+        ctx.save();
+        ctx.globalAlpha = 0.95;
+        ctx.translate(Math.round(d.x), Math.round(d.y));
+        if (d.dir < 0) ctx.scale(-1, 1);
+        ctx.drawImage(sheet, fr * cw2 + cw2 * 0.04, rrow * ch2 + ch2 * 0.02,
+          cw2 * 0.92, ch2 * 0.96, -wdt / 2, -hgt, wdt, hgt);
+        ctx.restore();
+        ctx.globalAlpha = 1;
+      } else if (stampFn) {
         ctx.globalAlpha = 0.9;
         stampFn(ctx, d.x, d.y, d.scale, d.tier, d.dir, d.phase, true);
         ctx.globalAlpha = 1;

@@ -280,7 +280,7 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .scr-body .stat.hero{
   border:0;background:transparent;text-align:center;padding:26px 12px 22px;
 }
-.scr-body .stat.hero .k{letter-spacing:.3em}
+.scr-body .stat.hero .k{letter-spacing:.3em;font-size:15px;font-weight:800;color:var(--fg)}
 .scr-body .stat.hero .v{font-size:clamp(48px,4.8vw,84px);margin-top:12px}
 .scr-body .stat.hero .n{margin-top:12px}
 .scr-body table{font-size:11px}
@@ -288,7 +288,17 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .scr-body .mint{font-size:10px}
 .scr-body .table-scroll{border:0}
 .scr-body #pager{margin-top:8px}
+#screen-wall.done #scr-1 .scr-content{display:flex;flex-direction:column;min-height:100%}
+#scr-1 .panel{flex:1;display:flex;flex-direction:column;margin:0}
+#scr-1 #golden{flex:1;display:flex;flex-direction:column;justify-content:space-evenly}
+#scr-1 .gold-row{margin-bottom:0;padding:8px 0;gap:16px}
+#scr-1 .gold-row .tag{width:66px;font-size:16px}
+#scr-1 .gold-row .track{height:28px}
+#scr-1 .gold-row .val{width:150px;font-size:13.5px}
 .scr-body .badge{font-size:9px;padding:1px 5px}
+#scr-4 .actions{display:flex;justify-content:center;margin-top:4px}
+#scr-4 #download-card{width:100%;max-width:460px;padding:14px 0;font-size:15px}
+#scr-4 .tools-row{text-align:center}
 .linklike{background:none;border:0;padding:0;color:var(--muted);cursor:pointer;
   font:12px var(--mono);letter-spacing:.06em;text-decoration:underline;text-underline-offset:3px}
 .linklike:hover{color:var(--accent)}
@@ -313,7 +323,7 @@ button:disabled{opacity:.4;cursor:not-allowed}
 #screen-terminal .hint{color:var(--dim)}
 
 #back-home{
-  position:absolute;top:42px;left:14px;z-index:5;
+  position:absolute;bottom:14px;left:14px;z-index:5;
   background:rgba(10,11,14,.7);border:1px solid var(--line-2);color:var(--muted);
   padding:9px 14px;font:700 12px var(--mono);letter-spacing:.08em;cursor:pointer;
 }
@@ -383,7 +393,9 @@ th .arrow{font-size:9px;margin-left:2px}
 th .sort-idle{opacity:.3}
 
 /* ---------- 分頁 ---------- */
-#pager{display:flex;align-items:center;gap:6px;margin-top:12px;flex-wrap:wrap}
+#pager{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:14px;flex-wrap:wrap}
+#pager button.pg{width:38px;height:34px;display:inline-flex;align-items:center;justify-content:center;padding:0}
+#pager .pg-info{margin:0 12px;color:var(--muted);font:12px/1 var(--mono);white-space:nowrap}
 button.pg{
   background:transparent;border:1px solid var(--line-2);color:var(--muted);
   padding:6px 12px;font:700 13px/1 var(--mono);letter-spacing:0;
