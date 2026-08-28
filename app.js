@@ -1317,6 +1317,14 @@ function render(d) {
 const CARD = { W: 1080, H: 1350, PAD: 72 };
 let bgImage = null;    // 使用者上傳的背景圖
 let logoImage = null;  // 使用者上傳的 logo
+let cardBgDefault = null;   // assets/card-bg.png：沒上傳背景時的預設卡底（可選）
+if (typeof Image !== 'undefined') {
+  try {
+    const cb = new Image();
+    cb.onload = () => { cardBgDefault = cb; if (LAST) drawCard(LAST); };
+    cb.src = 'assets/card-bg.png';
+  } catch (e) {}
+}
 
 const SANS = '"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif';
 const MONO = 'ui-monospace,SFMono-Regular,Menlo,Consolas,monospace';
@@ -1355,9 +1363,10 @@ function drawCard(d) {
   x.fillStyle = '#0a0b0e';
   x.fillRect(0, 0, W, H);
 
-  if (bgImage) {
+  const cardBg = bgImage || cardBgDefault;
+  if (cardBg) {
     x.save();
-    drawCover(x, bgImage, W, H);
+    drawCover(x, cardBg, W, H);
     x.fillStyle = 'rgba(10,11,14,' + dim + ')';
     x.fillRect(0, 0, W, H);
     const g = x.createLinearGradient(0, H * 0.4, 0, H);
