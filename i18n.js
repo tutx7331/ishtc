@@ -15,7 +15,7 @@
     // ---------- 首頁 ----------
     'hero.eyebrow': { zh: '─── SOLANA · 賣飛體檢 ───', en: '─── SOLANA · PAPER HANDS CHECK ───' },
     'hero.tagline': { zh: 'I SHOULD HOLD THE COIN', en: 'I SHOULD HOLD THE COIN' },
-    'hero.ask': { zh: '你 2026 賣飛了多少錢？', en: 'How much did you sell too early in 2026?' },
+    'hero.ask': { zh: '你 2026 賣飛了多少錢？', en: 'How much did you paper in 2026?' },
     'hero.addr': { zh: '貼上 Solana 地址（可多個，用空格分隔）', en: 'Paste Solana address (multiple OK, space-separated)' },
     'hero.nick': { zh: '暱稱（選填，上排行榜用）', en: 'Nickname (optional, for the leaderboard)' },
     'hero.run': { zh: '查詢', en: 'Check' },
@@ -83,7 +83,7 @@
     'col.symbol': { zh: '幣', en: 'Token' },
     'col.addr': { zh: '買入地址', en: 'Bought by' },
     'col.cost': { zh: '成本', en: 'Cost' },
-    'col.mfe': { zh: '最高倍數', en: 'Peak multiple' },
+    'col.mfe': { zh: '最高倍數', en: 'Peak' },
     'col.actual': { zh: '實際拿到', en: 'Got' },
     'col.missed': { zh: '錯過總額', en: 'Missed' },
     'badge.big': { zh: '大金狗', en: 'BIG WIN' },
@@ -142,7 +142,7 @@
     'card.wallet': { zh: '{n} 個地址', en: '{n} WALLET' },
     'card.wallets': { zh: '{n} 個地址', en: '{n} WALLETS' },
     'card.tokenCount': { zh: '{n} 隻幣', en: '{n} TOKENS' },
-    'card.footTag': { zh: '你 2026 賣飛了多少錢？', en: 'How much did you sell too early?' },
+    'card.footTag': { zh: '你 2026 賣飛了多少錢？', en: 'How much did you paper in 2026?' },
     'card.footNote': { zh: '鏈上交易 × 歷史K線 自動生成 · 僅供娛樂', en: 'On-chain trades × price history · for fun only' },
 
     // ---------- 排行榜 ----------

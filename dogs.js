@@ -960,8 +960,8 @@ const SHEET_BAKED = [
 })();
 
 /* ---------- FOMO Hero 背景 ----------
- * 上升的 K 線柱（低透明度）+ 飄浮的倍數（偶爾出現金色巨倍）
- * + 底部不時跑過的像素狗。輸入框由 CSS 的暗角罩保護可讀性。
+ * 滿天飄浮的倍數（偶爾出現金色巨倍）+ 底部不時跑過的狗。
+ * 中央輸入區靠 CSS 暗角罩與「離中心越近越淡」保護可讀性。
  */
 (function () {
   'use strict';
@@ -972,7 +972,6 @@ const SHEET_BAKED = [
   const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   let W = 0, H = 0, raf = 0, last = 0, inView = true;
-  const candles = [];   // {x, y, h, w, up, alpha, vy}
   const floats = [];    // {x, y, text, gold, alpha, vy, size}
   const runners = [];   // {x, dir, tier, phase, speed, scale}
   let spawnT = 0, dogT = 2;
@@ -985,31 +984,22 @@ const SHEET_BAKED = [
     ctx.imageSmoothingEnabled = false;
   }
 
-  function spawnCandle() {
-    const colW = 60;
-    const col = Math.floor(Math.random() * Math.floor(W / colW));
-    if (candles.length > 40) return;           // 太多會疊成一片糊
-    candles.push({
-      x: col * colW + 8 + Math.random() * 16,
-      y: H + 30, h: 18 + Math.random() * 52, w: 9,
-      up: Math.random() < 0.62,
-      alpha: 0.08 + Math.random() * 0.14,
-      vy: 30 + Math.random() * 34,
-    });
-  }
   function spawnFloat() {
+    if (floats.length > 90) return;
     // 多半是小倍數；偶爾一顆金色巨倍飄過，這才是 FOMO 的味道
     const jackpot = Math.random() < 0.12;
     const v = jackpot ? Math.round(100 + Math.random() * 9900)
       : Math.round(2 + Math.random() * 48);
-    // 避開中央標題區，只在左右兩側出現
-    const side = Math.random() < 0.5;
+    const x = 20 + Math.random() * (W - 60);
+    // 越靠近中央輸入區越淡，才不會蓋住標題與輸入框
+    const centerDist = Math.abs(x - W / 2) / (W / 2);
+    const fade = Math.min(1, 0.18 + centerDist * 1.5);
     floats.push({
-      x: side ? 30 + Math.random() * (W * 0.26) : W * 0.72 + Math.random() * (W * 0.24 - 60),
-      y: H * (0.25 + Math.random() * 0.6),
+      x: x,
+      y: H * (0.05 + Math.random() * 0.92),
       text: '+' + v + 'x', gold: jackpot,
-      alpha: 0, life: 0, vy: 14 + Math.random() * 12,
-      size: jackpot ? 26 + Math.random() * 16 : 14 + Math.random() * 8,
+      alpha: 0, life: 0, vy: 10 + Math.random() * 16, fade: fade,
+      size: jackpot ? 24 + Math.random() * 18 : 13 + Math.random() * 10,
     });
   }
   function spawnDog() {
@@ -1030,21 +1020,12 @@ const SHEET_BAKED = [
     last = t;
 
     spawnT -= dt;
-    if (spawnT <= 0) { spawnCandle(); if (Math.random() < 0.45) spawnFloat(); spawnT = 0.34; }
+    if (spawnT <= 0) { spawnFloat(); if (Math.random() < 0.55) spawnFloat(); spawnT = 0.13; }
     dogT -= dt;
     if (dogT <= 0) { spawnDog(); dogT = 2.5 + Math.random() * 4; }
 
     ctx.clearRect(0, 0, W, H);
 
-    // K 線柱
-    for (let i = candles.length - 1; i >= 0; i--) {
-      const c = candles[i];
-      c.y -= c.vy * dt;
-      if (c.y + c.h < -20) { candles.splice(i, 1); continue; }
-      ctx.fillStyle = c.up ? 'rgba(20,241,149,' + c.alpha + ')' : 'rgba(255,77,109,' + c.alpha + ')';
-      ctx.fillRect(c.x, c.y, c.w, c.h);
-      ctx.fillRect(c.x + c.w / 2 - 1, c.y - 8, 2, c.h + 16);   // 影線
-    }
     // 倍數
     ctx.textAlign = 'left';
     for (let i = floats.length - 1; i >= 0; i--) {
@@ -1054,10 +1035,11 @@ const SHEET_BAKED = [
       f.alpha = Math.min(1, f.life * 1.2) * Math.max(0, 1 - f.life / 5);
       if (f.life > 5) { floats.splice(i, 1); continue; }
       ctx.font = '700 ' + Math.round(f.size) + 'px ui-monospace,Menlo,Consolas,monospace';
+      const fd = f.fade == null ? 1 : f.fade;
       ctx.fillStyle = f.gold
-        ? 'rgba(255,211,77,' + (f.alpha * 0.85) + ')'
-        : 'rgba(20,241,149,' + (f.alpha * 0.55) + ')';
-      if (f.gold) { ctx.shadowColor = 'rgba(255,211,77,.8)'; ctx.shadowBlur = 12; }
+        ? 'rgba(255,211,77,' + (f.alpha * 0.85 * fd) + ')'
+        : 'rgba(20,241,149,' + (f.alpha * 0.6 * fd) + ')';
+      if (f.gold) { ctx.shadowColor = 'rgba(255,211,77,' + (0.8 * fd) + ')'; ctx.shadowBlur = 12; }
       ctx.fillText(f.text, f.x, f.y);
       ctx.shadowBlur = 0;
     }
@@ -1106,11 +1088,10 @@ const SHEET_BAKED = [
   }
   function kick() { if (!raf && !reduced) { last = performance.now(); raf = requestAnimationFrame(frame); } }
 
-  // 靜態模式：畫一張定格（幾根 K 線柱 + 一隻金狗）
+  // 靜態模式：畫一張定格（滿天倍數 + 一隻金狗）
   function staticFrame() {
     resize();
-    for (let i = 0; i < 26; i++) { spawnCandle(); candles[candles.length - 1].y = Math.random() * H; }
-    for (let i = 0; i < 5; i++) { spawnFloat(); floats[floats.length - 1].life = 1; floats[floats.length - 1].alpha = 0.6; }
+    for (let i = 0; i < 40; i++) { spawnFloat(); floats[floats.length - 1].life = 1; floats[floats.length - 1].alpha = 0.6; }
     spawnDog(); runners[0].x = W * 0.7;
     last = performance.now();
     const t = last;
