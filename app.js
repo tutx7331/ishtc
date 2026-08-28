@@ -1028,6 +1028,21 @@ async function run() {
   }
 
   setProg(100, '完成');
+  // 交易記錄與 DexScreener 都查不到名字的幣，問 GeckoTerminal 補符號
+  const noSym = rows.filter((r) => r.symbol === shortAddr(r.mint));
+  for (let i = 0; i < Math.min(noSym.length, 90); i += 30) {
+    const chunk = noSym.slice(i, i + 30);
+    try {
+      const j = await getJSON(GT + '/networks/solana/tokens/multi/'
+        + chunk.map((r) => r.mint).join('%2C'), { limiter: gtLimit });
+      for (const t of (j && j.data) || []) {
+        const at = t.attributes || {};
+        const row = chunk.find((r) => r.mint === at.address);
+        if (row && at.symbol) { row.symbol = at.symbol; row.addrLabelSym = true; }
+      }
+    } catch (e) { break; }
+  }
+
   rows.sort((a, b) => b.missedUSD - a.missedUSD);
   return {
     addrs: addrs,
@@ -1175,7 +1190,9 @@ $('#pager').addEventListener('click', (e) => {
   if (!b || b.disabled) return;
   page = parseInt(b.getAttribute('data-go'), 10);
   renderTable();
-  $('#tokens-table').scrollIntoView({ block: 'start', behavior: 'smooth' });
+  const tb = $('#tokens-table');
+  const sb = tb && typeof tb.closest === 'function' ? tb.closest('.scr-body') : null;
+  if (sb) sb.scrollTop = 0;
 });
 
 // ---------- 8b. 畫面 ----------
@@ -1318,7 +1335,8 @@ const CARD = { W: 1080, H: 1350, PAD: 72 };
 let bgImage = null;    // 使用者上傳的背景圖
 let logoImage = null;  // 使用者上傳的 logo
 let cardBgDefault = null;   // assets/card-bg.png：沒上傳背景時的預設卡底（可選）
-if (typeof Image !== 'undefined') {
+// file:// 直接開檔時，本機圖片會讓 canvas 無法匯出（瀏覽器安全限制），乾脆不載
+if (typeof Image !== 'undefined' && typeof location !== 'undefined' && /^https?:$/.test(location.protocol)) {
   try {
     const cb = new Image();
     cb.onload = () => { cardBgDefault = cb; if (LAST) drawCard(LAST); };
@@ -1788,7 +1806,7 @@ $('#bg-file').addEventListener('change', (e) => {
     redrawCard();
   });
 });
-$('#logo-file').addEventListener('change', (e) => {
+if ($('#logo-file')) $('#logo-file').addEventListener('change', (e) => {
   loadImageFile(e.target.files[0], (img) => {
     logoImage = img;
     $('#logo-clear').hidden = !img;
@@ -1798,7 +1816,7 @@ $('#logo-file').addEventListener('change', (e) => {
 $('#bg-clear').addEventListener('click', () => {
   bgImage = null; $('#bg-file').value = ''; $('#bg-clear').hidden = true; redrawCard();
 });
-$('#logo-clear').addEventListener('click', () => {
+if ($('#logo-clear')) $('#logo-clear').addEventListener('click', () => {
   logoImage = null; $('#logo-file').value = ''; $('#logo-clear').hidden = true; redrawCard();
 });
 $('#dim').addEventListener('input', redrawCard);
@@ -1870,7 +1888,14 @@ $('#clear-cache').addEventListener('click', () => {
 });
 
 $('#download-card').addEventListener('click', () => {
-  $('#share-canvas').toBlob((b) => download('sol-fomo.png', b), 'image/png');
+  try {
+    $('#share-canvas').toBlob((b) => {
+      if (b) download('ishtc.png', b);
+      else alert('分享圖匯出失敗：請改用 http:// 網址開啟（直接雙擊 index.html 會被瀏覽器擋）。');
+    }, 'image/png');
+  } catch (e) {
+    alert('分享圖匯出失敗：請改用 http:// 網址開啟（直接雙擊 index.html 會被瀏覽器擋）。');
+  }
 });
 
 $('#copy-link').addEventListener('click', () => {

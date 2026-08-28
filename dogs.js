@@ -355,20 +355,18 @@
     ctx.fillStyle = '#0b0e13';
     ctx.fillRect(0, 0, W, floorTop);
 
-    // ---- 桌面：深色木紋，往前漸暗 ----
+    // ---- 桌面：暗色檯面，往前漸暗＋極淡橫向紋理 ----
     const fg = ctx.createLinearGradient(0, floorTop, 0, H);
-    fg.addColorStop(0, '#2a2015');
-    fg.addColorStop(0.15, '#241b12');
-    fg.addColorStop(1, '#140e08');
+    fg.addColorStop(0, '#191510');
+    fg.addColorStop(0.2, '#15110c');
+    fg.addColorStop(1, '#0c0a07');
     ctx.fillStyle = fg;
     ctx.fillRect(0, floorTop, W, H - floorTop);
-    // 木板接縫（透視：往畫面下方展開）
-    ctx.strokeStyle = 'rgba(0,0,0,.28)';
+    ctx.strokeStyle = 'rgba(232,236,244,.03)';
     ctx.lineWidth = 1;
-    for (let i = 0; i < 6; i++) {
-      const x0 = W * (0.12 + i * 0.15);
-      const spread = (x0 - W / 2) * 0.35;
-      ctx.beginPath(); ctx.moveTo(x0, floorTop); ctx.lineTo(x0 + spread, H); ctx.stroke();
+    for (let i = 1; i <= 5; i++) {
+      const gy2 = floorTop + (H - floorTop) * (i / 6);
+      ctx.beginPath(); ctx.moveTo(0, gy2 + 0.5); ctx.lineTo(W, gy2 + 0.5); ctx.stroke();
     }
     // 桌沿（螢幕後方那條邊）
     ctx.fillStyle = '#0a0c10';
@@ -383,9 +381,9 @@
     // ---- 大滑鼠墊：狗的主跑道（取代地毯）----
     const padW = Math.min(W * 0.5, 720), padX = (W - padW) / 2;
     const padY = floorTop + (H - floorTop) * 0.22, padH = (H - floorTop) * 0.6;
-    ctx.fillStyle = 'rgba(10,10,16,.5)';
+    ctx.fillStyle = 'rgba(8,8,14,.4)';
     ctx.fillRect(padX, padY, padW, padH);
-    ctx.strokeStyle = 'rgba(153,69,255,.35)';
+    ctx.strokeStyle = 'rgba(153,69,255,.16)';
     ctx.strokeRect(padX + 1.5, padY + 1.5, padW - 3, padH - 3);
 
     // ---- 鍵盤（畫面正前方下緣，紫色背光）----
@@ -508,34 +506,31 @@
     up.addColorStop(1, 'rgba(20,241,149,' + (0.10 * pulse).toFixed(3) + ')');
     ctx.fillStyle = up;
     ctx.fillRect(lx, ly - 30, rx - lx, 30);
-    // 桌面反光：柱狀往前淡出
-    const n = Math.max(3, Math.round((rx - lx) / 240));
-    const segW = (rx - lx) / n;
-    for (let i = 0; i < n; i++) {
-      const gx = lx + i * segW + 8;
-      const gg = ctx.createLinearGradient(0, floorTop, 0, floorTop + 60);
-      gg.addColorStop(0, 'rgba(20,241,149,' + (0.12 * pulse).toFixed(3) + ')');
-      gg.addColorStop(1, 'rgba(20,241,149,0)');
-      ctx.fillStyle = gg;
-      ctx.fillRect(gx, floorTop, segW - 16, 60);
-    }
+    // 桌面反光：整條平滑往前淡出（不再是舊多螢幕的柱狀殘影）
+    const gg = ctx.createLinearGradient(0, floorTop, 0, floorTop + 90);
+    gg.addColorStop(0, 'rgba(20,241,149,' + (0.11 * pulse).toFixed(3) + ')');
+    gg.addColorStop(1, 'rgba(20,241,149,0)');
+    ctx.fillStyle = gg;
+    ctx.fillRect(lx, floorTop, rx - lx, 90);
   }
 
   function drawTicker() {
     ctx.fillStyle = '#05070b';
-    ctx.fillRect(0, 6, W, 16);
+    ctx.fillRect(0, 0, W, 30);
+    ctx.fillStyle = 'rgba(20,241,149,.25)';
+    ctx.fillRect(0, 30, W, 1);
     if (ticker.length) {
-      ctx.font = '700 10px ' + MONO;
+      ctx.font = '700 13px ' + MONO;
       ctx.textAlign = 'left';
       const sp = ctx.measureText('   ').width;
       let tw = 60;
       for (const seg of ticker) tw += ctx.measureText(seg).width + sp;
-      tickerX = (tickerX + (reduced ? 0 : 0.6)) % tw;
+      tickerX = (tickerX + (reduced ? 0 : 0.8)) % tw;
       for (let off = -tw; off < W + tw; off += tw) {
         let x = 8 - tickerX + off;
         for (const seg of ticker) {
           ctx.fillStyle = /x$/.test(seg) ? '#14f195' : '#7d8697';
-          ctx.fillText(seg, x, 17);
+          ctx.fillText(seg, x, 20);
           x += ctx.measureText(seg).width + sp;
         }
       }

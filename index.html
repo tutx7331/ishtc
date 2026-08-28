@@ -15,6 +15,7 @@
   <canvas id="hero-bg"></canvas>
   <div class="hero-vignette"></div>
   <div class="hero-inner">
+    <p class="hero-eyebrow">─── SOLANA · 賣飛體檢 ───</p>
     <h1 class="hero-title">ISHTC</h1>
     <p class="hero-tag">I SHOULD HOLD THE COIN</p>
     <p class="hero-ask">你這輩子賣飛了多少錢？</p>
@@ -221,12 +222,6 @@
                   <small>自動鋪滿並壓暗</small>
                 </div>
                 <div class="upload">
-                  <span class="up-label">Logo</span>
-                  <label class="up-btn">選擇圖片<input id="logo-file" type="file" accept="image/*" hidden></label>
-                  <button class="up-clear" id="logo-clear" hidden>移除</button>
-                  <small>放右下角</small>
-                </div>
-                <div class="upload">
                   <span class="up-label">署名</span>
                   <input id="handle" type="text" maxlength="24" placeholder="@yourhandle">
                   <small>留空不顯示</small>
@@ -238,14 +233,16 @@
               </div>
             </div>
             <div class="actions">
-              <button id="download-card" class="primary">下載分享圖</button>
-              <button id="copy-link" class="ghost">複製查詢連結</button>
-              <button id="download-csv" class="ghost">下載 CSV</button>
+              <button id="download-card" class="primary">分享</button>
             </div>
           </div>
           <div class="panel caveats">
             <h2>資料說明</h2>
             <ul id="caveats-list"></ul>
+            <p class="tools-row">
+              <button id="copy-link" class="linklike">複製查詢連結</button> ·
+              <button id="download-csv" class="linklike">下載 CSV</button>
+            </p>
           </div>
         </div>
       </div>
