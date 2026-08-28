@@ -36,7 +36,7 @@ const json = (body, status = 200, headers = {}) =>
   });
 
 const cooldown = () =>
-  json({ code: 'cooldown', message: '查詢用量過大，暫時冷卻中' }, 429, { 'x-cooldown': '1' });
+  json({ code: 'cooldown', message: '查詢用量過大，暫時冷卻中 —— 等 DEV 充值' }, 429, { 'x-cooldown': '1' });
 
 /** 本月的用量計數（KV 非原子性，粗略即可）。cost 以「次」計。 */
 async function takeQuota(env, kind, cost, limit) {

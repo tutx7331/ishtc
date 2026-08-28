@@ -291,7 +291,8 @@
 
   function dogScale(d) {
     const depth = (d.groundY - bandTop()) / Math.max(1, bandBot() - bandTop());
-    return (W < 520 ? 1.6 : 2) * (0.66 + depth * 0.5) * (d.tier === 'big' ? 1.3 : 1);
+    const tierK = d.tier === 'big' ? 1.3 : d.tier === 'cat' ? 1.35 : 1;
+    return (W < 520 ? 1.6 : 2) * (0.66 + depth * 0.5) * tierK;
   }
 
   // ---------- 繪製 ----------
@@ -324,6 +325,41 @@
     } catch (e) {}
   }
   const SHEET_ROW = { big: 0, gold: 1, norm: 2 };
+
+  // ---- 失意貓：全場只有一隻，查詢結束最後噴出 ----
+  // assets/cat.png 與狗 sheet 同規格（3 列 x 11 幀），但跑步幀彼此相黏、
+  // 投影法切不開 → 用等距接縫預先算好的幀框（normalized，取第 0 列）
+const CAT_BAKED = [
+    [[0.0055,0.0787,0.0810,0.2541],[0.0866,0.0856,0.0801,0.2472],[0.1671,0.0856,0.0847,0.2472],[0.2574,0.0373,0.0866,0.2956],[0.3559,0.1091,0.1017,0.2238],[0.4613,0.1146,0.0990,0.2182],[0.5617,0.1188,0.0916,0.2141],[0.6533,0.1354,0.0843,0.1975],[0.7376,0.1202,0.0925,0.2127],[0.8301,0.0166,0.0764,0.3163],[0.9065,0.0994,0.0866,0.2334]],
+    [[0.0064,0.3329,0.0746,0.3329],[0.0856,0.3329,0.0820,0.3329],[0.1676,0.3329,0.0893,0.3329],[0.2569,0.3329,0.0838,0.3329],[0.3582,0.3329,0.1027,0.3329],[0.4636,0.3329,0.0930,0.3329],[0.5599,0.3329,0.0806,0.3329],[0.6404,0.3329,0.0879,0.3329],[0.7284,0.3329,0.0916,0.3329],[0.8200,0.3895,0.0829,0.2472],[0.9029,0.3329,0.0916,0.3329]],
+    [[0.0032,0.6657,0.0741,0.3191],[0.0773,0.6657,0.0875,0.3191],[0.1648,0.6657,0.0921,0.3177],[0.2583,0.6657,0.0870,0.3177],[0.3610,0.6657,0.1008,0.3122],[0.4645,0.6657,0.0930,0.3191],[0.5576,0.6657,0.0907,0.3191],[0.6483,0.6657,0.0792,0.3204],[0.7274,0.6657,0.0912,0.3204],[0.8186,0.6809,0.0838,0.2707],[0.9024,0.6657,0.0948,0.3204]]
+  ];
+  let catSheet = null, catFrames = null;
+  if (typeof Image !== 'undefined') {
+    try {
+      const cs = new Image();
+      cs.onload = () => {
+        if (cs.width < 300 || cs.height < 90) return;
+        catSheet = cs;
+        catFrames = CAT_BAKED.map((row) => row.map((e) => ({
+          sx: e[0] * cs.width, sy: e[1] * cs.height,
+          sw: e[2] * cs.width, sh: e[3] * cs.height,
+        })));
+      };
+      cs.src = 'assets/cat.png';
+    } catch (e) {}
+  }
+  const CAT_INFO = { sym: '失意貓', mfeX: 99999, tier: 'cat' };
+
+  /** 這隻要用哪張圖、哪一列 */
+  function sheetFor(d) {
+    if (d.tier === 'cat') {
+      if (catSheet) return { img: catSheet, frames: catFrames, row: 0 };
+      return dogSheet ? { img: dogSheet, frames: sheetFrames, row: 2 } : null;
+    }
+    if (!dogSheet) return null;
+    return { img: dogSheet, frames: sheetFrames, row: SHEET_ROW[d.tier] != null ? SHEET_ROW[d.tier] : 2 };
+  }
 
   // 幀角色依實際幀數推導：前 4 張坐姿、最後 1 張翻肚、中間是跑步循環
   function frameRoles(n) {
@@ -407,35 +443,39 @@ const SHEET_BAKED = [
 
   /** 用 sprite sheet 畫一隻狗；(x,y) = 腳底中心，s 同 stamp 的縮放 */
   function blitDog(d, x, y, s, moving) {
-    const row = SHEET_ROW[d.tier] != null ? SHEET_ROW[d.tier] : 2;
-    const nFrames = (sheetFrames && sheetFrames[row] && sheetFrames[row].length) || 12;
+    const sp = sheetFor(d);
+    if (!sp) return false;
+    const row = sp.row;
+    const nFrames = (sp.frames && sp.frames[row] && sp.frames[row].length) || 12;
     const f = spriteFrame(d, moving, nFrames);
     const size = 24 * s;
     ctxF.save();
     ctxF.translate(Math.round(x), Math.round(y));
     if (d.dir < 0) ctxF.scale(-1, 1);
-    if (d.tier !== 'norm') {                   // 金狗的微光照舊
+    if (d.tier !== 'norm') {                   // 金狗微光；貓是紫光
       const grad = ctxF.createRadialGradient(0, -size * 0.45, s, 0, -size * 0.45, size * 0.62);
-      grad.addColorStop(0, d.tier === 'big' ? 'rgba(255,211,77,.30)' : 'rgba(240,180,41,.22)');
-      grad.addColorStop(1, 'rgba(255,211,77,0)');
+      grad.addColorStop(0, d.tier === 'cat' ? 'rgba(153,69,255,.34)'
+        : d.tier === 'big' ? 'rgba(255,211,77,.30)' : 'rgba(240,180,41,.22)');
+      grad.addColorStop(1, d.tier === 'cat' ? 'rgba(153,69,255,0)' : 'rgba(255,211,77,0)');
       ctxF.fillStyle = grad;
       ctxF.beginPath();
       ctxF.ellipse(0, -size * 0.45, size * 0.62, size * 0.45, 0, 0, Math.PI * 2);
       ctxF.fill();
     }
-    if (sheetFrames) {
-      const fr = sheetFrames[row][f];
-      const ref = (sheetFrames[row][4] && sheetFrames[row][4].sh) || fr.sh;
+    if (sp.frames) {
+      const fr = sp.frames[row][f];
+      const ref = (sp.frames[row][4] && sp.frames[row][4].sh) || fr.sh;
       const k = size / ref;
-      ctxF.drawImage(dogSheet, fr.sx, fr.sy, fr.sw, fr.sh,
+      ctxF.drawImage(sp.img, fr.sx, fr.sy, fr.sw, fr.sh,
         -fr.sw * k / 2, -fr.sh * k, fr.sw * k, fr.sh * k);
     } else {
-      const cw = dogSheet.width / nFrames, ch = dogSheet.height / 3;
+      const cw = sp.img.width / nFrames, ch = sp.img.height / 3;
       const dw2 = size * (cw / ch), dh2 = size;
-      ctxF.drawImage(dogSheet, f * cw + cw * 0.04, row * ch + ch * 0.02, cw * 0.92, ch * 0.96,
+      ctxF.drawImage(sp.img, f * cw + cw * 0.04, row * ch + ch * 0.02, cw * 0.92, ch * 0.96,
         -dw2 / 2, -dh2, dw2, dh2);
     }
     ctxF.restore();
+    return true;
   }
 
 
@@ -661,12 +701,10 @@ const SHEET_BAKED = [
         ctxF.save();
         ctxF.translate(d.x, y - 5 * s);
         ctxF.rotate(d.rot);
-        if (dogSheet) blitDog(d, 0, 5 * s, s, false);
-        else stamp(ctxF, 0, 5 * s, s, d.tier, d.dir, d.phase, false);
+        if (!blitDog(d, 0, 5 * s, s, false)) stamp(ctxF, 0, 5 * s, s, d.tier, d.dir, d.phase, false);
         ctxF.restore();
       } else {
-        if (dogSheet) blitDog(d, d.x, y, s, d.state === 'run');
-        else stamp(ctxF, d.x, y, s, d.tier, d.dir, d.phase, d.state === 'run');
+        if (!blitDog(d, d.x, y, s, d.state === 'run')) stamp(ctxF, d.x, y, s, d.tier, d.dir, d.phase, d.state === 'run');
       }
       if (d.sayT > 0) {
         const label = d.sym + (isFinite(d.mfeX) ? '  ' + (d.mfeX >= 100 ? Math.round(d.mfeX) : d.mfeX.toFixed(1)) + 'x' : '');
@@ -819,10 +857,12 @@ const SHEET_BAKED = [
 
   function updateHint() {
     if (!hintEl) return;
-    const shown = dogs.length + pending.length;
-    const golds = dogs.filter((d) => d.tier !== 'norm').length
-      + pending.filter((d) => d.tier && d.tier !== 'norm').length;
-    let t = '金色是金狗，戴皇冠的是大金狗。點狗看幣名，抓起來丟也可以。';
+    // 貓是彩蛋，不算進你的幣數
+    const notCat = (d) => d.tier !== 'cat';
+    const shown = dogs.filter(notCat).length + pending.filter(notCat).length;
+    const golds = dogs.filter((d) => d.tier !== 'norm' && d.tier !== 'cat').length
+      + pending.filter((d) => d.tier && d.tier !== 'norm' && d.tier !== 'cat').length;
+    let t = '金色是金狗，戴皇冠的是大金狗，全場還有一隻失意貓。滑過看幣名，抓起來丟也可以。';
     if (total > shown) t += '　房間塞不下，只顯示 ' + shown + ' / ' + total + ' 隻（金狗優先）。';
     else if (shown) t += '　共 ' + shown + ' 隻' + (golds ? '，其中 ' + golds + ' 隻金狗' : '') + '。';
     hintEl.textContent = t;
@@ -863,9 +903,12 @@ const SHEET_BAKED = [
       // 已經在場上的留著繼續玩，缺的排隊噴出來
       const have = new Set(dogs.map((d) => d.sym).concat(pending.map((p) => p.sym)));
       const want = new Set(pick.map((p) => p.sym));
+      want.add(CAT_INFO.sym);
       dogs = dogs.filter((d) => want.has(d.sym));
       pending = pending.filter((p) => want.has(p.sym));
       for (const p of pick) if (!have.has(p.sym)) pending.push(p);
+      // 全場一隻失意貓，排在最後噴出來
+      if (!have.has(CAT_INFO.sym)) pending.push(Object.assign({}, CAT_INFO));
       ticker = list.slice().sort(function (a, b) { return (b.mfeX || 0) - (a.mfeX || 0); })
         .slice(0, 8).map(function (r) { return r.sym + ' +' + Math.round(r.mfeX || 0) + 'x'; });
       if (panel) panel.hidden = false;

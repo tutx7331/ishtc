@@ -167,7 +167,7 @@ async function getJSON(url, opts) {
     if (res.status === 429) {
       // 代理的額度守門：不是暫時限流，是這個月共用額度用完了，重試沒有意義
       if (res.headers.get('x-cooldown')) {
-        const err = new Error('查詢用量過大，暫時冷卻中');
+        const err = new Error('查詢用量過大，暫時冷卻中 —— 等 DEV 充值');
         err.cooldown = true;
         throw err;
       }
@@ -1691,6 +1691,11 @@ if (PROXY_URL) {
   $('#proxy-note').hidden = false;
 }
 
+if ($('#show-keys')) $('#show-keys').addEventListener('click', () => {
+  $('#key-zone').hidden = false;
+  $('#show-keys').hidden = true;
+});
+
 $('#helius-key').value = localStorage.getItem('fomo:key') || '';
 $('#birdeye-key').value = localStorage.getItem('fomo:bekey') || '';
 $('#st-key').value = localStorage.getItem('fomo:stkey') || '';
@@ -1859,7 +1864,7 @@ $('#run').addEventListener('click', async () => {
       $('#cooldown').hidden = false;
       $('#key-zone').hidden = false;
       $('#proxy-note').hidden = true;
-      $('#error').textContent = '⚠ 查詢用量過大，暫時冷卻中。';
+      $('#error').textContent = '⚠ 查詢用量過大，暫時冷卻中 —— 等 DEV 充值，或自備 API key。';
       $('#error').hidden = false;
     } else if (e.message !== '__ABORT__') {
       exitRoom();
@@ -1916,7 +1921,7 @@ async function openBoard() {
     ).join('') || '<li class="board-empty">還沒有人抓到大金狗</li>';
   } catch (e) {
     $('#board-missed').innerHTML = '<li class="board-empty">'
-      + (e.cooldown ? '用量冷卻中，晚點再看' : '排行榜暫時拿不到') + '</li>';
+      + (e.cooldown ? '用量冷卻中，等 DEV 充值' : '排行榜暫時拿不到') + '</li>';
     $('#board-dogs').innerHTML = '';
   }
 }
