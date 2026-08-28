@@ -286,6 +286,50 @@
   }
 
   // ---------- 繪製 ----------
+  // ---- AI 生成的狗 sprite sheet（可選）----
+  // assets/dogs.png：透明背景、嚴格 64px 網格、無文字無外框。
+  // 3 列：列0 大金狗（皇冠）、列1 小金狗、列2 普通狗。
+  // 12 欄固定順序：欄0-3 坐姿 idle、欄4-9 跑步、欄10 跳躍、欄11 跌倒。
+  // 全部面向右、腳貼格子底邊。整張圖 768x192。沒有這個檔就用程式畫的狗。
+  let dogSheet = null;
+  if (typeof Image !== 'undefined') {
+    try {
+      const ds = new Image();
+      ds.onload = () => { if (ds.width >= 300 && ds.height >= 90) dogSheet = ds; };
+      ds.src = 'assets/dogs.png';
+    } catch (e) {}
+  }
+  const SHEET_ROW = { big: 0, gold: 1, norm: 2 };
+
+  function spriteFrame(d, moving) {
+    if (d.state === 'air' || d.state === 'held') return 10;
+    if (d.state === 'tumble') return 11;
+    if (moving) return 4 + (Math.floor(d.phase * 10) % 6);
+    return Math.floor(d.phase * 2.5) % 4;
+  }
+
+  /** 用 sprite sheet 畫一隻狗；(x,y) = 腳底中心，s 同 stamp 的縮放 */
+  function blitDog(d, x, y, s, moving) {
+    const cw = dogSheet.width / 12, ch = dogSheet.height / 3;
+    const row = SHEET_ROW[d.tier] != null ? SHEET_ROW[d.tier] : 2;
+    const f = spriteFrame(d, moving);
+    const size = 20 * s;                       // 跟程式畫的狗體型相當
+    ctx.save();
+    ctx.translate(Math.round(x), Math.round(y));
+    if (d.dir < 0) ctx.scale(-1, 1);
+    if (d.tier !== 'norm') {                   // 金狗的微光照舊
+      const grad = ctx.createRadialGradient(0, -size * 0.45, s, 0, -size * 0.45, size * 0.62);
+      grad.addColorStop(0, d.tier === 'big' ? 'rgba(255,211,77,.30)' : 'rgba(240,180,41,.22)');
+      grad.addColorStop(1, 'rgba(255,211,77,0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.ellipse(0, -size * 0.45, size * 0.62, size * 0.45, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.drawImage(dogSheet, f * cw, row * ch, cw, ch, -size / 2, -size, size, size);
+    ctx.restore();
+  }
+
   // 想換成自己生成的桌面圖：放 assets/room-bg.png（1920x1080，下方 ~26% 是桌面，狗在上面跑）
   let roomImg = null;
   if (typeof Image !== 'undefined') {
@@ -513,10 +557,12 @@
         ctx.save();
         ctx.translate(d.x, y - 5 * s);
         ctx.rotate(d.rot);
-        stamp(ctx, 0, 5 * s, s, d.tier, d.dir, d.phase, false);
+        if (dogSheet) blitDog(d, 0, 5 * s, s, false);
+        else stamp(ctx, 0, 5 * s, s, d.tier, d.dir, d.phase, false);
         ctx.restore();
       } else {
-        stamp(ctx, d.x, y, s, d.tier, d.dir, d.phase, d.state === 'run');
+        if (dogSheet) blitDog(d, d.x, y, s, d.state === 'run');
+        else stamp(ctx, d.x, y, s, d.tier, d.dir, d.phase, d.state === 'run');
       }
       if (d.sayT > 0) {
         const label = d.sym + (isFinite(d.mfeX) ? '  ' + (d.mfeX >= 100 ? Math.round(d.mfeX) : d.mfeX.toFixed(1)) + 'x' : '');
