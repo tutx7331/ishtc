@@ -53,9 +53,17 @@ b{color:var(--fg);font-weight:650}
 #nick:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
 #nick::placeholder{color:var(--dim)}
 @media (max-width:560px){
-  #hero{min-height:78svh}
-  #hero-form{flex-direction:column}
+  #hero{min-height:92svh}
+  #hero-form{flex-direction:column;gap:8px}
   #hero-run{width:100%}
+  .hero-inner{padding:28px 16px}
+  .hero-eyebrow{margin-bottom:10px;font-size:11px;letter-spacing:.32em}
+  .hero-title{font-size:clamp(56px,19vw,96px)}
+  .hero-tag{font-size:10px;letter-spacing:.24em}
+  .hero-ask{margin:22px 0 16px;font-size:clamp(20px,6.4vw,30px)}
+  #hero-addr{font-size:13px;padding:13px 14px}
+  .hero-note{font-size:10.5px;letter-spacing:.08em}
+  #nick{width:min(200px,72vw)}
 }
 
 /* ---------- 進階查詢摺疊區 ---------- */
@@ -288,8 +296,11 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .scr-body .stat{padding:8px 11px;background:rgba(232,236,244,.025);border:1px solid #1b2230;text-align:left}
 .scr-body .stat .k{font-size:9px}
 .scr-body .stat .v{font-size:clamp(13px,2.1vh,19px);margin-top:4px}
-#scr-3 .scr-content{text-align:center;display:flex;flex-direction:column;height:100%;min-height:0}
-#scr-3 .verdict{flex:none}
+#scr-3 .scr-content{
+  text-align:center;display:flex;flex-direction:column;justify-content:center;
+  height:100%;min-height:0;gap:clamp(8px,2vh,22px);
+}
+#scr-3 .verdict{flex:none;margin-bottom:0}
 #scr-3 .stat-grid{flex:none}
 #scr-3 .panel:empty{display:none}
 #scr-3 .verdict .big{text-wrap:balance}
@@ -412,13 +423,26 @@ button:disabled{opacity:.4;cursor:not-allowed}
   .board-cols section:not(:last-child){border-right:0;border-bottom:1px solid #1b2230}
 }
 @media (max-width:960px){
+  /* 手機：四台螢幕改直排捲動，佔上方 72vh；下面留給桌面與狗 */
   #screen-wall{
-    top:26px;width:92vw;height:calc(100vh - 40px);
-    display:flex;flex-direction:column;gap:12px;overflow-y:auto;
+    top:34px;width:94vw;height:calc(72vh - 42px);
+    display:flex;flex-direction:column;gap:10px;overflow-y:auto;
+    border:0;
   }
-  .scr{flex:none;min-height:0}
-  #scr-3 .scr-body,#scr-4 .scr-body{max-height:70vh}
-  .scr-body{max-height:52vh}
+  .scr{flex:none;min-height:0;border-width:2px}
+  .scr-head{padding:5px 8px}
+  .scr-title{font-size:9px;letter-spacing:.14em}
+  .scr-body{max-height:none;padding:10px}
+  /* 直排時每台螢幕給固定高度，滑動瀏覽 */
+  #scr-1 .scr-body{height:210px}
+  #scr-2 .scr-body{height:300px}
+  #scr-3 .scr-body{height:340px}
+  #scr-4 .scr-body{height:420px}
+  #screen-wall.done #scr-1 .scr-content,#scr-3 .scr-content{height:100%}
+  .scr-body .stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .scr-body table{font-size:10px}
+  .scr-body th,.scr-body td{padding:5px 6px}
+  #back-home,#board-btn{padding:7px 11px;font-size:11px}
 }
 
 /* ---------- 數據卡 ---------- */
