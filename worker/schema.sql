@@ -14,3 +14,18 @@ CREATE TABLE IF NOT EXISTS queries (
 );
 CREATE INDEX IF NOT EXISTS idx_queries_ts ON queries (ts);
 CREATE INDEX IF NOT EXISTS idx_queries_missed ON queries (missed_usd);
+
+-- 幣的區間最高價資料庫：大家查過的幣存起來，之後同一隻幣不用再燒 API
+-- 每筆記錄的意思是「從 from_day 起算到當時為止，最高價是 peak（發生在 peak_ts）」
+-- 命中條件：新查詢的起算日 >= from_day 且 peak_ts >= 新查詢起算日
+--   → 最高點就落在新查詢的區間內，那個值對新查詢是精確答案
+CREATE TABLE IF NOT EXISTS token_peaks (
+  mint     TEXT    NOT NULL,
+  from_day INTEGER NOT NULL,      -- 記錄當時的起算日（對齊到日）
+  peak     REAL    NOT NULL,
+  peak_ts  INTEGER NOT NULL,
+  mcap     REAL,
+  updated  INTEGER NOT NULL,      -- 最後更新時間（秒）
+  PRIMARY KEY (mint, from_day)
+);
+CREATE INDEX IF NOT EXISTS idx_token_peaks_lookup ON token_peaks (mint, peak_ts, from_day);

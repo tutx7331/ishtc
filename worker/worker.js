@@ -70,7 +70,21 @@ export default {
       const month = new Date().toISOString().slice(0, 7);
       const h = Number(await env.CACHE.get('usage:' + month + ':helius')) || 0;
       const s = Number(await env.CACHE.get('usage:' + month + ':st')) || 0;
-      return json({ ok: true, month, helius: h + '/' + heliusLimit, st: s + '/' + stLimit });
+      let tokens = null, saved = null;
+      if (env.DB) {
+        try {
+          const q = await env.DB.prepare(
+            'SELECT COUNT(*) AS rows, COUNT(DISTINCT mint) AS mints FROM token_peaks').first();
+          tokens = q ? q.mints : null;
+          saved = q ? q.rows : null;
+        } catch (e) { /* 表還沒建 */ }
+      }
+      return json({
+        ok: true, month,
+        helius: h + '/' + heliusLimit,
+        st: s + '/' + stLimit,
+        db: { tokens: tokens, records: saved },
+      });
     }
 
     if (!(await rateLimit(env, ip, Number(env.IP_RATE_PER_MIN) || 120))) {
@@ -96,26 +110,65 @@ export default {
       });
     }
 
-    // ---- 代理：Solana Tracker 區間最高價（含快取）----
+    // ---- 代理：Solana Tracker 區間最高價（KV 短快取 + D1 幣價資料庫）----
     if (url.pathname === '/st/range') {
       const token = url.searchParams.get('token') || '';
       const from = Math.floor(Number(url.searchParams.get('time_from')) || 0);
       const to = Math.floor(Number(url.searchParams.get('time_to')) || 0);
       if (!SOL_ADDR.test(token) || !(from > 0) || !(to > from)) return json({ error: 'bad params' }, 400);
-      const stApiKey = cleanKey(env.ST_KEY, false);
-      if (!stApiKey) return json({ error: 'ST_KEY not configured' }, 500);
+      const fromDay = Math.floor(from / 86400);
+      const nowS = Math.floor(Date.now() / 1000);
 
-      // 快取鍵用「哪一天開始買」就夠準；同一隻熱門幣一次查詢供所有人共用
-      const cacheKey = 'st:' + token + ':' + Math.floor(from / 86400);
+      // 1) KV：同一天同一隻幣的短快取（最快）
+      const cacheKey = 'st:' + token + ':' + fromDay;
       const hit = await env.CACHE.get(cacheKey);
       if (hit) return new Response(hit, { headers: { 'Content-Type': 'application/json', 'x-cache': 'hit', ...CORS } });
 
+      // 2) D1 幣價資料庫：別人查過這隻幣，而且最高點落在你的持有期間內 → 直接給答案
+      //    （最高點在你買入之後才發生，代表那個價格你也「有機會賣到」，數值精確）
+      if (env.DB) {
+        try {
+          const row = await env.DB.prepare(
+            'SELECT peak, peak_ts, mcap FROM token_peaks '
+            + 'WHERE mint = ? AND from_day <= ? AND peak_ts >= ? AND updated >= ? '
+            + 'ORDER BY peak DESC LIMIT 1')
+            .bind(token, fromDay, from, nowS - 6 * 3600).first();
+          if (row && row.peak > 0) {
+            const body = JSON.stringify({
+              price: { highest: { price: row.peak, time: row.peak_ts, marketcap: row.mcap || 0 } },
+            });
+            await env.CACHE.put(cacheKey, body, { expirationTtl: 6 * 3600 });
+            return new Response(body, {
+              headers: { 'Content-Type': 'application/json', 'x-cache': 'db', ...CORS },
+            });
+          }
+        } catch (e) { /* 資料表還沒建好就當沒有 */ }
+      }
+
+      // 3) 都沒有才真的去打 API
+      const stApiKey = cleanKey(env.ST_KEY, false);
+      if (!stApiKey) return json({ error: 'ST_KEY not configured' }, 500);
       if (!(await takeQuota(env, 'st', 1, stLimit))) return cooldown();
 
       const r = await fetch('https://data.solanatracker.io/price/history/range?token=' + token
         + '&time_from=' + from + '&time_to=' + to, { headers: { 'x-api-key': stApiKey } });
       const body = await r.text();
-      if (r.ok) await env.CACHE.put(cacheKey, body, { expirationTtl: 6 * 3600 });
+      if (r.ok) {
+        await env.CACHE.put(cacheKey, body, { expirationTtl: 6 * 3600 });
+        // 存進資料庫，之後所有人都能共用這一次查詢
+        if (env.DB) {
+          try {
+            const h = JSON.parse(body).price.highest;
+            if (h && h.price > 0) {
+              await env.DB.prepare(
+                'INSERT OR REPLACE INTO token_peaks (mint, from_day, peak, peak_ts, mcap, updated) '
+                + 'VALUES (?, ?, ?, ?, ?, ?)')
+                .bind(token, fromDay, h.price, Math.floor(h.time || from), h.marketcap || null, nowS)
+                .run();
+            }
+          } catch (e) { /* 存不進去不影響回應 */ }
+        }
+      }
       return new Response(body, { status: r.status, headers: { 'Content-Type': 'application/json', ...CORS } });
     }
 
