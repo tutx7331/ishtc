@@ -1225,12 +1225,10 @@ function render(d) {
   const rateEl = $('#dog-rates');
   if (rateEl) rateEl.innerHTML =
     '<div class="rate-duo">'
-    + '<div class="rate rate-big"><div class="k">大金狗捕獲率</div>'
-      + '<div class="v">' + fmtPct(s.bigRate) + '</div>'
-      + '<div class="n">' + s.bigDogs + ' / ' + s.n + ' 隻 · 100x 且市值破 $10M</div></div>'
-    + '<div class="rate"><div class="k">小金狗捕獲率</div>'
-      + '<div class="v">' + fmtPct(s.smallRate) + '</div>'
-      + '<div class="n">' + s.smallDogs + ' / ' + s.n + ' 隻 · 10x 且市值破 $1M</div></div>'
+    + '<div class="rate rate-big"><div class="k">大金狗</div>'
+      + '<div class="v">' + fmtPct(s.bigRate) + '</div></div>'
+    + '<div class="rate"><div class="k">小金狗</div>'
+      + '<div class="v">' + fmtPct(s.smallRate) + '</div></div>'
     + '</div>';
   $('#stat-grid').innerHTML = hero + stats.map((r) =>
     '<div class="stat"><div class="k">' + r[0] + '</div><div class="v ' + r[3] + '">'
@@ -1257,7 +1255,7 @@ function render(d) {
     + (s.mcapUnknown ? '<p class="hint">' + s.mcapUnknown + ' 隻查不到市值。</p>' : '');
 
   const maxT = Math.max(1, ...TIERS.map((t) => s.tiers[t]));
-  $('#golden').innerHTML = TIERS.map((t) => {
+  $('#golden').innerHTML = TIERS.filter((t) => t >= 5).map((t) => {
     const c = s.tiers[t];
     return '<div class="gold-row"><span class="tag">' + t + 'x+</span>'
       + '<span class="track"><span class="fill" style="width:' + ((c / maxT) * 100).toFixed(2) + '%"></span></span>'
@@ -1903,11 +1901,12 @@ $('#clear-cache').addEventListener('click', () => {
 
 
 // ---------- 全站排行榜 ----------
-function boardRow(i, name, right, sub, href) {
-  return '<li><a href="' + href + '">'
+function boardRow(i, name, right, sub, addr) {
+  return '<li><button type="button" class="board-item" data-addr="' + escapeHTML(addr) + '"'
+    + ' title="點擊複製地址">'
     + '<span class="rank">' + (i + 1) + '</span>'
     + '<span class="who">' + escapeHTML(name) + '<small>' + escapeHTML(sub) + '</small></span>'
-    + '<span class="score">' + right + '</span></a></li>';
+    + '<span class="score">' + right + '</span></button></li>';
 }
 async function openBoard() {
   const ov = $('#board-overlay');
@@ -1924,12 +1923,11 @@ async function openBoard() {
       || shortAddr((r.addresses || '').split(' ')[0] || '');
     $('#board-missed').innerHTML = (j.missed || []).map((r, i) =>
       boardRow(i, nameOf(r), '<b class="bad">' + fmtUSD(r.missed_usd) + '</b>',
-        (r.tokens || 0) + ' 隻幣', '?addr=' + (r.addresses || '').split(' ').join(','))
+        '成本 ' + fmtUSD(r.cost_usd || 0) + ' · ' + (r.tokens || 0) + ' 隻幣', r.addresses || '')
     ).join('') || '<li class="board-empty">還沒有人上榜，快查一筆</li>';
     $('#board-dogs').innerHTML = (j.dogs || []).map((r, i) =>
       boardRow(i, nameOf(r), '<b class="good">' + (r.big_dogs || 0) + ' 隻大金狗</b>',
-        fmtPct(r.big_rate) + ' · ' + (r.tokens || 0) + ' 隻幣',
-        '?addr=' + (r.addresses || '').split(' ').join(','))
+        fmtPct(r.big_rate) + ' · ' + (r.tokens || 0) + ' 隻幣', r.addresses || '')
     ).join('') || '<li class="board-empty">還沒有人抓到大金狗</li>';
   } catch (e) {
     $('#board-missed').innerHTML = '<li class="board-empty">'
@@ -1938,6 +1936,17 @@ async function openBoard() {
   }
 }
 if ($('#board-btn')) $('#board-btn').addEventListener('click', openBoard);
+// 點榜上任何一列 → 複製地址（不觸發查詢，免得別人隨手點就燒一次 API）
+if ($('#board-overlay')) $('#board-overlay').addEventListener('click', (e) => {
+  const b = e.target && e.target.closest && e.target.closest('.board-item');
+  if (!b) return;
+  const addr = b.getAttribute('data-addr') || '';
+  if (!addr) return;
+  copyText(addr).then(() => {
+    b.classList.add('copied');
+    setTimeout(() => b.classList.remove('copied'), 1200);
+  });
+});
 if ($('#board-close')) $('#board-close').addEventListener('click', () => { $('#board-overlay').hidden = true; });
 if ($('#board-overlay')) $('#board-overlay').addEventListener('click', (e) => {
   if (e.target === $('#board-overlay')) $('#board-overlay').hidden = true;
@@ -1954,6 +1963,21 @@ $('#download-card').addEventListener('click', () => {
   }
 });
 
+/** 複製到剪貼簿；瀏覽器擋下就退回 prompt 讓使用者自己複製 */
+function copyText(text) {
+  const fallback = () => {
+    try { prompt('複製這段文字：', text); } catch (e2) {}
+  };
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      // 權限被拒（非安全來源、視窗沒對焦…）也要有退路，不能默默失敗
+      return navigator.clipboard.writeText(text).catch(fallback);
+    }
+  } catch (e) {}
+  fallback();
+  return Promise.resolve();
+}
+
 $('#copy-link').addEventListener('click', () => {
   const addrs = $('#addresses').value.split(/[\s,]+/).filter(isSolAddress);
   if (!addrs.length) return;
@@ -1962,8 +1986,7 @@ $('#copy-link').addEventListener('click', () => {
     $('#copy-link').textContent = '已複製';
     setTimeout(() => { $('#copy-link').textContent = '複製查詢連結'; }, 1500);
   };
-  try { navigator.clipboard.writeText(url).then(done); }
-  catch (e) { try { prompt('複製這個連結：', url); } catch (e2) {} }
+  copyText(url).then(done);
 });
 
 $('#download-csv').addEventListener('click', () => {

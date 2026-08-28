@@ -200,12 +200,22 @@ export default {
       const hit = await env.CACHE.get('leaderboard');
       if (hit) return new Response(hit, { headers: { 'Content-Type': 'application/json', 'x-cache': 'hit', ...CORS } });
       let missed = [], dogs = [];
-      const pick = 'addresses, handle, tokens, missed_usd, big_rate, small_rate, MAX(ts) AS ts';
+      const pick = 'addresses, handle, tokens, cost_usd, missed_usd, big_rate, small_rate, MAX(ts) AS ts';
       try {
         if (env.DB) {
-          missed = (await env.DB.prepare(
-            'SELECT ' + pick + ' FROM queries WHERE missed_usd IS NOT NULL GROUP BY addresses '
-            + 'ORDER BY missed_usd DESC LIMIT 20').all()).results || [];
+          // 賣飛榜不能純看金額：砸 5000U 快進快出的人一定贏過砸 100U 抱到十萬倍的人。
+          // 用「成本開根號」正規化 → 金額仍是主角，但大戶的優勢被壓縮，
+          // 小額大賣飛才排得上來。門檻：成本 >= $50、至少 3 隻幣（擋灰塵與單押）。
+          const pool = (await env.DB.prepare(
+            'SELECT ' + pick + ' FROM queries '
+            + 'WHERE missed_usd > 0 AND cost_usd >= 50 AND tokens >= 3 '
+            + 'GROUP BY addresses ORDER BY missed_usd DESC LIMIT 300').all()).results || [];
+          missed = pool
+            .map((r) => Object.assign({}, r, {
+              score: r.missed_usd / Math.sqrt(Math.max(50, r.cost_usd || 50)),
+            }))
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 20);
           dogs = (await env.DB.prepare(
             'SELECT ' + pick + ', CAST(ROUND(big_rate * tokens) AS INTEGER) AS big_dogs '
             + 'FROM queries WHERE tokens >= 10 AND big_rate > 0 GROUP BY addresses '
