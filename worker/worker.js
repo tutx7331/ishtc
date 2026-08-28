@@ -381,8 +381,11 @@ export default {
           saved = q ? q.rows : null;
         } catch (e) { /* 表還沒建 */ }
       }
+      const stRatePerKey = Number(env.ST_RATE_PER_MIN) || 150;
       return json({
         ok: true, month,
+        // 前端據此決定要開多快：每把 key 的速率 × 把數
+        rate: { stPerMin: stRatePerKey * Math.max(1, stN) },
         helius: h + '/' + (heliusLimit * Math.max(1, heliusN)),
         st: s + '/' + (stLimit * Math.max(1, stN)),
         keys: { helius: heliusN, st: stN },

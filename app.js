@@ -120,6 +120,10 @@ function escapeHTML(s) {
 // ---------- 速率限制器 ----------
 class Limiter {
   constructor(perMin) { this.gap = 60000 / perMin; this.next = 0; }
+  /** 代理有幾把 key 就能開多快 —— 開跑前問一次，之後照這個節奏走 */
+  setRate(perMin) {
+    if (perMin > 0) this.gap = 60000 / perMin;
+  }
   async take() {
     const now = Date.now();
     const at = Math.max(now, this.next);
@@ -660,6 +664,22 @@ async function fetchPools(mints, onTick) {
   return info;
 }
 
+/**
+ * 問代理「現在能開多快」。速率是每把 key 的上限 × 把數，
+ * 所以擁有者加 key 或升級方案之後，前端會自動變快，不必改程式。
+ * 問一次就好，失敗就沿用預設值。
+ */
+let rateProbed = false;
+async function probeProxyRate() {
+  if (rateProbed || !PROXY_URL) return;
+  rateProbed = true;
+  try {
+    const j = await getJSON(PROXY_URL + '/health', { tries: 1 });
+    const per = j && j.rate && Number(j.rate.stPerMin);
+    if (per > 0) stLimit.setRate(Math.min(per, 3000));
+  } catch (e) { /* 問不到就用預設的保守值 */ }
+}
+
 // ---------- 5. MFE：買入後最高價 ----------
 function pickGranularity(ageDays) {
   if (ageDays <= 40) return { tf: 'hour', agg: 1 };   // 1000 根 ≈ 41 天
@@ -952,6 +972,7 @@ async function run() {
   }
 
   // 7.4 池子與現價
+  await probeProxyRate();     // 代理能開多快，開始算最高價之前先問清楚
   setProg(30, t('prog.pools'));
   const info = await fetchPools(positions.map((p) => p.mint),
     (done, all) => setProg(30 + (done / all) * 10, t('prog.pools') + ' ' + done + '/' + all));
