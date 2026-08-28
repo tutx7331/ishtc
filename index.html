@@ -23,7 +23,7 @@
     <p class="hero-ask" data-i18n="hero.ask">你 2026 賣飛了多少錢？</p>
     <p class="hero-nick">
       <input id="nick" type="text" maxlength="24" spellcheck="false" autocomplete="off"
-        data-i18n-ph="hero.nick" placeholder="暱稱（選填，上排行榜用）">
+        data-i18n-ph="hero.nick" placeholder="暱稱（選填，會與查詢一起記錄）">
     </p>
     <form id="hero-form" autocomplete="off">
       <input id="hero-addr" type="text" spellcheck="false" autocomplete="off"
@@ -51,7 +51,7 @@
     </div>
 
     <p class="hint" id="proxy-note" hidden>
-      <span data-i18n="adv.proxyNote">本站已代付查詢額度，貼上地址即可查詢。查詢紀錄將用於排行榜。</span>
+      <span data-i18n="adv.proxyNote">本站已代付查詢額度，貼上地址即可查詢。查詢紀錄（地址、統計、暱稱）會保存下來供排行榜與後續功能使用。</span>
       <button id="show-keys" class="linklike" type="button" data-i18n="adv.showKeys">改用自己的 API key</button>
     </p>
 
@@ -127,7 +127,7 @@
       <li data-i18n="intro.scope"><b>只算 2026 年</b>：2026/1/1 之後的買賣才計入，更早的歷史不列入。</li>
       <li data-i18n="intro.dogs"><b>大金狗</b>：≥ 100x 且最高市值 ≥ $10M；<b>小金狗</b>：≥ 10x 且 ≥ $1M。</li>
     </ul>
-    <p class="hint" data-i18n="intro.privacy">自備 key 時全程在你的瀏覽器執行；用本站額度時查詢經過本站代理，紀錄用於排行榜。圖片僅在本機處理。</p>
+    <p class="hint" data-i18n="intro.privacy">自備 key 時全程在你的瀏覽器執行；用本站額度時查詢經過本站代理，查詢的地址、統計與你填的暱稱會被保存（排行榜上只顯示地址）。圖片僅在本機處理。</p>
   </section>
 
   <section class="panel donate">

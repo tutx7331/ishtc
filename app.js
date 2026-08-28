@@ -1269,6 +1269,30 @@ $('#pager').addEventListener('click', (e) => {
   if (sb) sb.scrollTop = 0;
 });
 
+/**
+ * 回報一筆查詢記錄（fire-and-forget，失敗不影響使用者）。
+ * 暱稱不顯示在排行榜（避免冒名），但會一起記錄下來建立地址↔暱稱對照。
+ */
+function logQuery(d) {
+  if (!PROXY_URL || !d || !d.sum) return;
+  try {
+    const handle = (($('#nick') && $('#nick').value) || $('#handle').value || '').trim();
+    fetch(PROXY_URL + '/log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        addresses: d.addrs,
+        handle: handle || undefined,
+        stats: {
+          n: d.sum.n, cost: d.sum.cost, ideal: d.sum.ideal, actual: d.sum.actual,
+          missed: d.sum.missed, bigRate: d.sum.bigRate, smallRate: d.sum.smallRate,
+          efficiency: d.sum.efficiency,
+        },
+      }),
+    }).catch(function () {});
+  } catch (e) { /* 記錄失敗不影響使用者 */ }
+}
+
 // ---------- 8b. 畫面 ----------
 function render(d) {
   LAST = d;
@@ -1910,23 +1934,7 @@ $('#run').addEventListener('click', async () => {
     const d = await run();
     render(d);
     $('#screen-terminal').hidden = true;   // 終端讓位給報告
-    if (PROXY_URL) {
-      // 回報一筆查詢記錄給排行榜（fire-and-forget，失敗不影響使用者）
-      try {
-        fetch(PROXY_URL + '/log', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            addresses: d.addrs,
-            stats: {
-              n: d.sum.n, cost: d.sum.cost, ideal: d.sum.ideal, actual: d.sum.actual,
-              missed: d.sum.missed, bigRate: d.sum.bigRate, smallRate: d.sum.smallRate,
-              efficiency: d.sum.efficiency,
-            },
-          }),
-        }).catch(function () {});
-      } catch (e2) { /* 記錄失敗不影響使用者 */ }
-    }
+    logQuery(d);
   } catch (e) {
     if (e.cooldown) {
       exitRoom();
