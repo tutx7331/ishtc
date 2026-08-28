@@ -401,9 +401,20 @@ button:disabled{opacity:.4;cursor:not-allowed}
 #board-close:hover{color:var(--red)}
 .board-cols{
   display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;
-  overflow-y:auto;background:#0c1017;
+  flex:1;min-height:0;overflow:hidden;background:#0c1017;
 }
-.board-cols section{padding:16px 18px;min-width:0}
+/* 每一榜各自捲動：名次變多也不會把整個面板撐長，三欄的表頭永遠對齊 */
+.board-cols section{
+  padding:16px 18px;min-width:0;min-height:0;
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.board-cols section > ol{
+  flex:1;min-height:0;overflow-y:auto;
+  scrollbar-width:thin;scrollbar-color:#2e3542 transparent;
+}
+.board-cols section > ol::-webkit-scrollbar{width:7px}
+.board-cols section > ol::-webkit-scrollbar-thumb{background:#2e3542}
+.board-cols h3{flex:none}
 .board-cols section:not(:last-child){border-right:1px solid #1b2230}
 .board-cols h3{margin:0 0 12px;font:700 13px var(--mono);letter-spacing:.12em;color:var(--fg)}
 .board-cols h3 small{color:var(--dim);font-size:10px;letter-spacing:.06em;margin-left:6px}
@@ -414,9 +425,23 @@ button:disabled{opacity:.4;cursor:not-allowed}
   text-align:left;cursor:pointer;font:inherit;position:relative;
 }
 .board-cols li .board-item:hover{background:rgba(232,236,244,.04)}
-.board-cols li .board-item.copied::after{
-  content:'已複製';position:absolute;right:8px;top:50%;transform:translateY(-50%);
-  background:var(--accent);color:#05070b;font:700 10px var(--mono);padding:3px 8px;
+.board-cols li .board-item.copied{
+  background:rgba(20,241,149,.10);box-shadow:inset 2px 0 0 var(--accent);
+}
+
+/* 複製提示：固定在整個畫面右下角，半透明，不擋東西 */
+#toast{
+  position:fixed;right:22px;bottom:22px;z-index:200;
+  background:rgba(10,11,14,.82);border:1px solid var(--accent);
+  color:var(--accent);padding:11px 18px;
+  font:700 13px var(--mono);letter-spacing:.08em;
+  backdrop-filter:blur(6px);pointer-events:none;
+  opacity:0;transform:translateY(8px);transition:opacity .18s,transform .18s;
+}
+#toast.show{opacity:1;transform:none}
+#toast[hidden]{display:none}
+@media (max-width:560px){
+  #toast{right:12px;bottom:12px;padding:9px 14px;font-size:12px}
 }
 .board-cols .rank{flex:none;width:24px;text-align:right;color:var(--dim);font:700 13px var(--mono)}
 .board-cols li:nth-child(1) .rank{color:var(--amber)}

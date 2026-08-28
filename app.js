@@ -2042,6 +2042,7 @@ if ($('#board-overlay')) $('#board-overlay').addEventListener('click', (e) => {
   copyText(addr).then(() => {
     b.classList.add('copied');
     setTimeout(() => b.classList.remove('copied'), 1200);
+    showToast(t('toast.copiedAddr'));
   });
 });
 if ($('#board-close')) $('#board-close').addEventListener('click', () => { $('#board-overlay').hidden = true; });
@@ -2059,6 +2060,22 @@ $('#download-card').addEventListener('click', () => {
     alert(t('err.exportFail'));
   }
 });
+
+/** 畫面右下角的短暫提示（複製成功之類），會跟著語言走 */
+let toastTimer = 0;
+function showToast(text) {
+  const el = $('#toast');
+  if (!el) return;
+  el.textContent = text;
+  el.hidden = false;
+  void (el.offsetWidth || 0);
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    el.classList.remove('show');
+    setTimeout(() => { el.hidden = true; }, 220);
+  }, 1600);
+}
 
 /** 複製到剪貼簿；瀏覽器擋下就退回 prompt 讓使用者自己複製 */
 function copyText(text) {

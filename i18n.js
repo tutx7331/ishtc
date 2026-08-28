@@ -163,6 +163,7 @@
     'board.costOf': { zh: '成本 {cost} · {n} 隻幣', en: 'cost {cost} · {n} tokens' },
     'board.dogCount': { zh: '{n} 隻大金狗', en: '{n} big winners' },
     'board.dogSub': { zh: '{pct} · {n} 隻幣', en: '{pct} · {n} tokens' },
+    'toast.copiedAddr': { zh: '已複製地址', en: 'Address copied' },
     'board.copyHint': { zh: '點擊複製地址', en: 'Click to copy address' },
 
     // ---------- 進度 ----------
