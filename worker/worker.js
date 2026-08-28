@@ -500,23 +500,40 @@ export default {
     if (url.pathname === '/log' && request.method === 'POST') {
       let b;
       try { b = await request.json(); } catch (e) { return json({ error: 'bad json' }, 400); }
-      const addrs = (Array.isArray(b.addresses) ? b.addresses : [])
-        .filter((a) => SOL_ADDR.test(String(a))).slice(0, 10);
-      if (!addrs.length) return json({ error: 'no address' }, 400);
-      const s = b.stats || {};
+
+      // 一個地址一筆。查三個地址就寫三筆，各自記自己的成績 ——
+      // 否則排行榜會把 A+B+C 的總和掛在 A 頭上，顯示成 A 一個人的戰績。
+      const rows = [];
+      if (Array.isArray(b.entries)) {
+        for (const e of b.entries.slice(0, 10)) {
+          const a = String((e && e.address) || '');
+          if (SOL_ADDR.test(a)) rows.push({ addr: a, s: (e && e.stats) || {} });
+        }
+      } else {
+        // 舊版前端（可能還在瀏覽器快取裡）送的格式：一組地址 + 合併統計
+        const addrs = (Array.isArray(b.addresses) ? b.addresses : [])
+          .filter((a) => SOL_ADDR.test(String(a))).slice(0, 10);
+        if (addrs.length) rows.push({ addr: addrs.join(' '), s: b.stats || {} });
+      }
+      if (!rows.length) return json({ error: 'no address' }, 400);
+
       const num = (v) => (isFinite(Number(v)) ? Number(v) : null);
+      const handle = String(b.handle || '').slice(0, 32) || null;
+      const ts = Date.now();
       try {
         if (env.DB) {
-          await env.DB.prepare(
+          const stmt = env.DB.prepare(
             'INSERT INTO queries (ts, addresses, handle, tokens, cost_usd, ideal_usd, actual_usd, missed_usd, big_rate, small_rate, efficiency) '
-            + 'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-            .bind(Date.now(), addrs.join(' '), String(b.handle || '').slice(0, 32) || null,
-              num(s.n), num(s.cost), num(s.ideal), num(s.actual), num(s.missed),
-              num(s.bigRate), num(s.smallRate), num(s.efficiency))
-            .run();
+            + 'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+          const batch = rows.map((r) => stmt.bind(
+            ts, r.addr, handle,
+            num(r.s.n), num(r.s.cost), num(r.s.ideal), num(r.s.actual), num(r.s.missed),
+            num(r.s.bigRate), num(r.s.smallRate), num(r.s.efficiency)));
+          if (batch.length === 1) await batch[0].run();
+          else await env.DB.batch(batch);
         }
       } catch (e) { /* 記錄失敗不影響使用者 */ }
-      return json({ ok: true });
+      return json({ ok: true, rows: rows.length });
     }
 
     // ---- 全站排行榜：同一組地址取最新一筆；金狗榜要求至少買過 10 隻 ----

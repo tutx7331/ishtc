@@ -1298,18 +1298,20 @@ function logQuery(d) {
   if (!PROXY_URL || !d || !d.sum) return;
   try {
     const handle = (($('#nick') && $('#nick').value) || $('#handle').value || '').trim();
+    const pack = (sum) => ({
+      n: sum.n, cost: sum.cost, ideal: sum.ideal, actual: sum.actual,
+      missed: sum.missed, bigRate: sum.bigRate, smallRate: sum.smallRate,
+      efficiency: sum.efficiency,
+    });
+    // 排行榜是「一個地址一筆」：查多個地址時各記各的，
+    // 不然 A+B+C 的總和會被掛在 A 頭上，變成 A 一個人的戰績。
+    const entries = (d.perAddr && d.perAddr.length > 1)
+      ? d.perAddr.map((x) => ({ address: x.address, stats: pack(x.sum) }))
+      : [{ address: d.addrs[0], stats: pack(d.sum) }];
     fetch(PROXY_URL + '/log', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        addresses: d.addrs,
-        handle: handle || undefined,
-        stats: {
-          n: d.sum.n, cost: d.sum.cost, ideal: d.sum.ideal, actual: d.sum.actual,
-          missed: d.sum.missed, bigRate: d.sum.bigRate, smallRate: d.sum.smallRate,
-          efficiency: d.sum.efficiency,
-        },
-      }),
+      body: JSON.stringify({ entries: entries, handle: handle || undefined }),
     }).catch(function () {});
   } catch (e) { /* 記錄失敗不影響使用者 */ }
 }
