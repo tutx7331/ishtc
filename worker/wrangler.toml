@@ -17,6 +17,10 @@ binding = "DB"
 database_name = "ishtc-logs"
 database_id = "287438fb-09ab-419c-950f-1ade78e60ccb"
 
+# 每小時自動預載一批熱門幣（免金鑰的 GeckoTerminal，不花 Solana Tracker 額度）
+[triggers]
+crons = ["17 * * * *"]
+
 [vars]
 # 額度上限（超過就回冷卻），都是「每一把 key」的量，總量會自動乘上把數。
 # 升級方案之後改這兩個數字重新部署即可。

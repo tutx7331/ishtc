@@ -163,6 +163,103 @@ async function rateLimit(env, ip, max) {
   return n <= max;
 }
 
+// ---------- 熱門幣預載（GeckoTerminal，免金鑰、不消耗 Solana Tracker 額度）----------
+// 定時把當下熱門的幣先算好存進資料庫，訪客查到這些幣時就不必再打付費 API。
+const SCAN_YEAR = 2026;
+const SCAN_FROM = Math.floor(Date.UTC(SCAN_YEAR, 0, 1) / 1000);
+const GT = 'https://api.geckoterminal.com/api/v2';
+
+/** Cloudflare 免費方案每次執行最多 50 個外部請求，留餘裕 */
+const PRELOAD_BATCH = 15;
+
+async function gtJSON(url) {
+  const r = await fetch(url, { headers: { Accept: 'application/json' } });
+  if (!r.ok) return null;
+  try { return await r.json(); } catch (e) { return null; }
+}
+
+/** 熱門池 → [{ pool, mint }]，pool id 長得像 "solana_xxx"，要把前綴拆掉 */
+async function trendingPools() {
+  const outList = [];
+  const seen = new Set();
+  for (const path of ['/networks/solana/trending_pools?page=1', '/networks/solana/pools?page=1']) {
+    const j = await gtJSON(GT + path);
+    for (const row of (j && j.data) || []) {
+      const pool = String(row.id || '').replace(/^solana_/, '');
+      const rel = row.relationships || {};
+      const baseId = rel.base_token && rel.base_token.data && rel.base_token.data.id;
+      const mint = String(baseId || '').replace(/^solana_/, '');
+      if (!pool || !SOL_ADDR.test(mint) || seen.has(mint)) continue;
+      seen.add(mint);
+      outList.push({ pool: pool, mint: mint });
+    }
+  }
+  return outList;
+}
+
+/**
+ * 算出這隻幣在掃描年度內的最高價。
+ * GeckoTerminal 日線一次只回約 181 根、往前翻頁要付費，
+ * 所以我們誠實記錄「實際看得到的最早那天」當 from_day ——
+ * 買得比這更早的訪客不會誤用這筆記錄，會照常去查 Solana Tracker。
+ */
+async function peakFromGecko(pool) {
+  const j = await gtJSON(GT + '/networks/solana/pools/' + pool
+    + '/ohlcv/day?aggregate=1&limit=1000&currency=usd');
+  const raw = (j && j.data && j.data.attributes && j.data.attributes.ohlcv_list) || [];
+  if (!raw.length) return null;
+  let best = 0, bestTs = 0, oldest = Infinity;
+  for (const c of raw) {
+    const ts = Number(c[0]) || 0;
+    const high = Number(c[2]) || 0;
+    if (ts < oldest) oldest = ts;
+    if (ts < SCAN_FROM) continue;             // 只看掃描年度內
+    if (high > best) { best = high; bestTs = ts; }
+  }
+  if (!(best > 0)) return null;
+  return {
+    peak: best,
+    peakTs: bestTs,
+    // 記錄的適用起點：不能早於我們實際看得到的資料
+    fromTs: Math.max(SCAN_FROM, oldest === Infinity ? SCAN_FROM : oldest),
+  };
+}
+
+/** 跑一批預載；回傳統計 */
+async function preloadBatch(env, limit) {
+  if (!env.DB) return { ok: false, reason: 'no DB' };
+  const nowS = Math.floor(Date.now() / 1000);
+  let list = [];
+  try { list = await trendingPools(); } catch (e) { return { ok: false, reason: 'gt down' }; }
+
+  let done = 0, skipped = 0, failed = 0;
+  for (const item of list) {
+    if (done >= limit) break;
+    // 已經有夠新的記錄就跳過，別浪費請求
+    try {
+      const row = await env.DB.prepare(
+        'SELECT peak_ts, updated FROM token_peaks WHERE mint = ? ORDER BY updated DESC LIMIT 1')
+        .bind(item.mint).first();
+      if (row && (nowS - (row.updated || 0)) <= peakTtl(row.peak_ts, nowS)) { skipped++; continue; }
+    } catch (e) { /* 查不到就當沒有 */ }
+
+    let pk = null;
+    try { pk = await peakFromGecko(item.pool); } catch (e) {}
+    if (!pk) { failed++; continue; }
+
+    try {
+      await env.DB.prepare(
+        'INSERT OR REPLACE INTO token_peaks (mint, from_day, peak, peak_ts, mcap, updated) '
+        + 'VALUES (?, ?, ?, ?, ?, ?)')
+        .bind(item.mint, Math.floor(pk.fromTs / 86400), pk.peak, pk.peakTs, null, nowS)
+        .run();
+      done++;
+    } catch (e) { failed++; }
+  }
+  await bump(env, 'preload:' + new Date().toISOString().slice(0, 7), done);
+  return { ok: true, candidates: list.length, stored: done, skipped: skipped, failed: failed };
+}
+
 export default {
   async fetch(request, env) {
     if (request.method === 'OPTIONS') return new Response(null, { headers: CORS });
@@ -217,6 +314,7 @@ export default {
           helius: await perKey('helius', heliusN, heliusLimit),
           st: await perKey('st', stN, stLimit),
         },
+        preloaded: await readCount('preload:' + month),
         db: { tokens: tokens, records: saved },
       });
     }
@@ -370,6 +468,18 @@ export default {
       return new Response(body, { headers: { 'Content-Type': 'application/json', ...CORS } });
     }
 
+    // ---- 手動觸發一次預載（方便部署後立刻驗證，平常交給 Cron）----
+    if (url.pathname === '/preload') {
+      const n = Math.min(PRELOAD_BATCH, Math.max(1, Number(url.searchParams.get('n')) || PRELOAD_BATCH));
+      const r = await preloadBatch(env, n);
+      return json(r);
+    }
+
     return json({ error: 'not found' }, 404);
+  },
+
+  /** Cron 定時觸發：自動把熱門幣預載進資料庫，全程不消耗 Solana Tracker 額度 */
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(preloadBatch(env, PRELOAD_BATCH));
   },
 };
