@@ -112,6 +112,32 @@ function peakTtl(peakTs, nowS) {
   return 6 * 3600;                           // 還很新鮮：維持六小時
 }
 
+/**
+ * 排行榜的數字誰都能 POST 進來，所以要擋住明顯造假的：
+ *   1. 範圍要合理（不能有負數、不能是天文數字）
+ *   2. 三個數字要彼此對得起來：錯過 = 神之手 − 實際拿到、神化率 = 實際 ÷ 神之手
+ *   3. 比率要在 0~1 之間
+ * 這擋不住「精心構造的假資料」，但能把隨手灌水的擋在門外。
+ */
+function saneStats(s) {
+  const n = Number(s.n), cost = Number(s.cost);
+  const ideal = Number(s.ideal), actual = Number(s.actual), missed = Number(s.missed);
+  const nums = [n, cost, ideal, actual, missed];
+  if (!nums.every((v) => isFinite(v) && v >= 0)) return false;
+  if (n < 1 || n > 100000) return false;
+  if (cost > 1e9 || ideal > 1e12 || actual > 1e12 || missed > 1e12) return false;
+  // 實際拿到不可能超過「每一隻都賣在最高點」
+  if (actual > ideal * 1.02 + 1) return false;
+  // 錯過的錢就是兩者之差
+  if (Math.abs((ideal - actual) - missed) > Math.max(1, ideal * 0.02)) return false;
+  const rates = [s.bigRate, s.smallRate, s.efficiency].map(Number);
+  if (!rates.every((v) => isFinite(v) && v >= 0 && v <= 1.02)) return false;
+  // 神化率必須真的等於 實際 ÷ 神之手
+  const eff = ideal > 0 ? actual / ideal : 0;
+  if (Math.abs(eff - Number(s.efficiency)) > 0.03) return false;
+  return true;
+}
+
 const cooldown = () =>
   json({ code: 'cooldown', message: '查詢用量過大，暫時冷卻中 —— 等 DEV 充值' }, 429, { 'x-cooldown': '1' });
 
@@ -503,7 +529,7 @@ export default {
 
       // 一個地址一筆。查三個地址就寫三筆，各自記自己的成績 ——
       // 否則排行榜會把 A+B+C 的總和掛在 A 頭上，顯示成 A 一個人的戰績。
-      const rows = [];
+      let rows = [];
       if (Array.isArray(b.entries)) {
         for (const e of b.entries.slice(0, 10)) {
           const a = String((e && e.address) || '');
@@ -516,6 +542,14 @@ export default {
         if (addrs.length) rows.push({ addr: addrs.join(' '), s: b.stats || {} });
       }
       if (!rows.length) return json({ error: 'no address' }, 400);
+
+      // 寫入端要比讀取端更嚴：正常使用者一次查詢最多寫十筆，不需要高頻
+      if (!(await rateLimit(env, 'log:' + ip, Number(env.LOG_RATE_PER_MIN) || 20))) {
+        return json({ code: 'rate_limited' }, 429);
+      }
+      const before = rows.length;
+      rows = rows.filter((r) => saneStats(r.s));
+      if (!rows.length) return json({ error: 'bad stats', rejected: before }, 400);
 
       const num = (v) => (isFinite(Number(v)) ? Number(v) : null);
       const handle = String(b.handle || '').slice(0, 32) || null;
@@ -580,6 +614,10 @@ export default {
 
     // ---- 手動觸發一次預載（方便部署後立刻驗證，平常交給 Cron）----
     if (url.pathname === '/preload') {
+      // 手動觸發要通行碼：這支會打外部 API 又會寫資料庫，不能讓路人隨便按。
+      // 沒設 PRELOAD_KEY 就完全關閉手動入口（定時的 Cron 照常運作）。
+      const want = cleanKey(env.PRELOAD_KEY, false);
+      if (!want || url.searchParams.get('key') !== want) return json({ error: 'not found' }, 404);
       const n = Math.min(PRELOAD_BATCH, Math.max(1, Number(url.searchParams.get('n')) || PRELOAD_BATCH));
       const r = await preloadBatch(env, n);
       return json(r);

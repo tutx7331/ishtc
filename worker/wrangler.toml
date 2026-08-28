@@ -32,8 +32,12 @@ ST_MONTHLY_LIMIT = "2500"      # Solana Tracker 免費方案每月 2,500 次
 # 前端會自動跟著加速，不必改任何程式碼。
 ST_RATE_PER_MIN = "150"
 IP_RATE_PER_MIN = "600"
+LOG_RATE_PER_MIN = "20"        # 寫入排行榜的頻率上限（每 IP 每分鐘）
 
 # key 用 secret 存，不要寫在這個檔案裡：
+# 手動觸發預載的通行碼（不設就只有定時的 Cron 會跑，手動入口直接關閉）：
+#   npx wrangler secret put PRELOAD_KEY
+#
 #   npx wrangler secret put HELIUS_KEY     ← 一把
 #   npx wrangler secret put ST_KEY
 #
