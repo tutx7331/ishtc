@@ -142,6 +142,28 @@ export default {
       return json({ ok: true });
     }
 
+    // ---- 全站排行榜：同一組地址取最新一筆；金狗榜要求至少買過 10 隻 ----
+    if (url.pathname === '/leaderboard') {
+      const hit = await env.CACHE.get('leaderboard');
+      if (hit) return new Response(hit, { headers: { 'Content-Type': 'application/json', 'x-cache': 'hit', ...CORS } });
+      let missed = [], dogs = [];
+      const pick = 'addresses, handle, tokens, missed_usd, big_rate, small_rate, MAX(ts) AS ts';
+      try {
+        if (env.DB) {
+          missed = (await env.DB.prepare(
+            'SELECT ' + pick + ' FROM queries WHERE missed_usd IS NOT NULL GROUP BY addresses '
+            + 'ORDER BY missed_usd DESC LIMIT 20').all()).results || [];
+          dogs = (await env.DB.prepare(
+            'SELECT ' + pick + ', CAST(ROUND(big_rate * tokens) AS INTEGER) AS big_dogs '
+            + 'FROM queries WHERE tokens >= 10 AND big_rate > 0 GROUP BY addresses '
+            + 'ORDER BY big_dogs DESC, big_rate DESC LIMIT 20').all()).results || [];
+        }
+      } catch (e) { /* 表未建好等情況：回空榜 */ }
+      const body = JSON.stringify({ missed, dogs });
+      await env.CACHE.put('leaderboard', body, { expirationTtl: 600 });
+      return new Response(body, { headers: { 'Content-Type': 'application/json', ...CORS } });
+    }
+
     return json({ error: 'not found' }, 404);
   },
 };

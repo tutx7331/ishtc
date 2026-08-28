@@ -143,8 +143,8 @@
       <div class="scr-body">
         <div class="standby">● STANDBY</div>
         <div class="scr-content">
+          <div id="dog-rates"></div>
           <div class="panel">
-            <p class="hint">買入後曾漲到成本的幾倍，不看市值。金狗率在總結的數據卡裡。</p>
             <div id="golden"></div>
           </div>
         </div>
@@ -157,7 +157,6 @@
         <div class="standby">● STANDBY</div>
         <div class="scr-content">
           <div class="panel">
-            <p class="hint">點欄位標題可排序，完整欄位下載 CSV。</p>
             <div class="table-scroll">
               <table id="tokens-table">
                 <thead></thead>
@@ -214,7 +213,7 @@
         <div class="scr-content">
           <div class="panel">
             <div class="share-layout">
-              <div id="share-wrap"><canvas id="share-canvas" width="1080" height="1350"></canvas></div>
+              <div id="share-wrap"><canvas id="share-canvas" width="1080" height="1500"></canvas></div>
               <div class="share-side">
                 <div class="upload">
                   <span class="up-label">背景圖</span>
@@ -248,6 +247,27 @@
   </div>
 
   <button id="back-home" type="button">↩ 查詢</button>
+  <button id="board-btn" type="button">🏆 排行榜</button>
+
+  <div id="board-overlay" hidden>
+    <div id="board-panel">
+      <div class="scr-head">
+        <span class="scr-dot"></span><span class="scr-dot"></span><span class="scr-dot"></span>
+        <span class="scr-title">HALL OF PAIN · 全站排行榜</span>
+        <button id="board-close" type="button">✕</button>
+      </div>
+      <div class="board-cols">
+        <section>
+          <h3>💸 賣飛榜</h3>
+          <ol id="board-missed"><li class="board-empty">載入中…</li></ol>
+        </section>
+        <section>
+          <h3>🐕 金狗榜 <small>至少買過 10 隻幣才計入</small></h3>
+          <ol id="board-dogs"><li class="board-empty">載入中…</li></ol>
+        </section>
+      </div>
+    </div>
+  </div>
 </section>
 
 <script src="app.js"></script>

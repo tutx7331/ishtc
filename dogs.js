@@ -298,6 +298,7 @@
       ds.onload = () => {
         if (ds.width >= 300 && ds.height >= 90) {
           dogSheet = ds;
+          analyzeSheet(ds);
           if (typeof window !== 'undefined' && window.DogRoom) window.DogRoom._sheet = ds;
         }
       };
@@ -313,13 +314,49 @@
     return Math.floor(d.phase * 2) % 4;
   }
 
+  // AI 生的 sheet 幀不會乖乖置中，逐幀掃出實際內容框、以腳底中心錨定，
+  // 各幀高度統一到該列跑步幀的基準 → 不再像「方塊裡播幻燈片」
+  let sheetFrames = null;
+  function analyzeSheet(img) {
+    try {
+      if (typeof document === 'undefined' || !document.createElement) return;
+      const oc = document.createElement('canvas');
+      if (!oc.getContext) return;
+      oc.width = img.width; oc.height = img.height;
+      const c2 = oc.getContext('2d');
+      c2.drawImage(img, 0, 0);
+      const cw = img.width / 12, ch = img.height / 3;
+      const res = [];
+      for (let r = 0; r < 3; r++) {
+        res[r] = [];
+        for (let f = 0; f < 12; f++) {
+          const sx0 = Math.round(f * cw), sy0 = Math.round(r * ch);
+          const w2 = Math.round(cw), h2 = Math.round(ch);
+          const data = c2.getImageData(sx0, sy0, w2, h2).data;
+          let x0 = w2, y0 = h2, x1 = -1, y1 = -1;
+          for (let i = 3; i < data.length; i += 4) {
+            if (data[i] > 60) {
+              const idx = (i - 3) / 4;
+              const px = idx % w2, py = (idx / w2) | 0;
+              if (px < x0) x0 = px; if (px > x1) x1 = px;
+              if (py < y0) y0 = py; if (py > y1) y1 = py;
+            }
+          }
+          res[r][f] = x1 > x0
+            ? { sx: sx0 + x0, sy: sy0 + y0, sw: x1 - x0 + 1, sh: y1 - y0 + 1 }
+            : { sx: sx0 + w2 * 0.04, sy: sy0 + h2 * 0.02, sw: w2 * 0.92, sh: h2 * 0.96 };
+        }
+      }
+      sheetFrames = res;
+      if (typeof window !== 'undefined' && window.DogRoom) window.DogRoom._frames = res;
+    } catch (e) { /* file:// 等畫布受限就退回網格切法 */ }
+  }
+
   /** 用 sprite sheet 畫一隻狗；(x,y) = 腳底中心，s 同 stamp 的縮放 */
   function blitDog(d, x, y, s, moving) {
-    const cw = dogSheet.width / 12, ch = dogSheet.height / 3;
     const row = SHEET_ROW[d.tier] != null ? SHEET_ROW[d.tier] : 2;
     const f = spriteFrame(d, moving);
-    const size = 24 * s;                       // 高度基準；寬度依格子比例，不壓扁
-    const dw2 = size * (cw / ch), dh2 = size;
+    const size = 24 * s;
     ctx.save();
     ctx.translate(Math.round(x), Math.round(y));
     if (d.dir < 0) ctx.scale(-1, 1);
@@ -332,11 +369,21 @@
       ctx.ellipse(0, -size * 0.45, size * 0.62, size * 0.45, 0, 0, Math.PI * 2);
       ctx.fill();
     }
-    // 來源內縮：AI 生的格線不會 100% 精準，吃到隔壁幀會像鬼影
-    ctx.drawImage(dogSheet, f * cw + cw * 0.04, row * ch + ch * 0.02, cw * 0.92, ch * 0.96,
-      -dw2 / 2, -dh2, dw2, dh2);
+    if (sheetFrames) {
+      const fr = sheetFrames[row][f];
+      const ref = (sheetFrames[row][4] && sheetFrames[row][4].sh) || fr.sh;
+      const k = size / ref;
+      ctx.drawImage(dogSheet, fr.sx, fr.sy, fr.sw, fr.sh,
+        -fr.sw * k / 2, -fr.sh * k, fr.sw * k, fr.sh * k);
+    } else {
+      const cw = dogSheet.width / 12, ch = dogSheet.height / 3;
+      const dw2 = size * (cw / ch), dh2 = size;
+      ctx.drawImage(dogSheet, f * cw + cw * 0.04, row * ch + ch * 0.02, cw * 0.92, ch * 0.96,
+        -dw2 / 2, -dh2, dw2, dh2);
+    }
     ctx.restore();
   }
+
 
   // 想換成自己生成的桌面圖：放 assets/room-bg.png（1920x1080，下方 ~26% 是桌面，狗在上面跑）
   let roomImg = null;
@@ -636,27 +683,32 @@
       const dist = dx * dx + dy * dy;
       if (dist < bd) { bd = dist; best = d; }
     }
-    return (best && bd < (34 * 34)) ? best : null;
+    return (best && bd < (46 * 46)) ? best : null;
   }
-  cv.addEventListener('pointerdown', function (ev) {
+  // 狗畫在螢幕上層（canvas 本身不收事件），改在 panel 捕獲階段攔：
+  // 點到狗 → 攔下來抓狗；沒點到 → 事件照常進到底下的螢幕
+  const evRoot = (panel && panel.addEventListener) ? panel : cv;
+  const moveRoot = (typeof window !== 'undefined' && window.addEventListener) ? window : cv;
+  evRoot.addEventListener('pointerdown', function (ev) {
     const p = canvasPos(ev);
     const d = hitDog(p);
     downAt = { x: p.x, y: p.y, dog: d, moved: false };
     if (d) {
+      if (ev.preventDefault) ev.preventDefault();
+      if (ev.stopPropagation) ev.stopPropagation();
       held = d;
       d.state = 'held';
       d.rot = 0; d.vrot = 0; d.sayT = 0;
       trail = [{ x: p.x, y: p.y, t: performance.now() }];
-      try { cv.setPointerCapture(ev.pointerId); } catch (e) {}
-      cv.style.cursor = 'grabbing';
+      if (evRoot.style) evRoot.style.cursor = 'grabbing';
       kick();
     }
-  });
-  cv.addEventListener('pointermove', function (ev) {
+  }, true);
+  moveRoot.addEventListener('pointermove', function (ev) {
     const p = canvasPos(ev);
     if (downAt && (Math.abs(p.x - downAt.x) > 7 || Math.abs(p.y - downAt.y) > 7)) downAt.moved = true;
     if (!held) {
-      cv.style.cursor = hitDog(p) ? 'grab' : 'default';
+      if (evRoot.style) evRoot.style.cursor = hitDog(p) ? 'grab' : '';
       return;
     }
     // 抓著走：x 直接跟、深度夾在地板帶內、高度 = 地面 − 指標
@@ -680,7 +732,7 @@
       held.state = 'air';
       if (Math.abs(held.vx) < 40 && Math.abs(held.vh) < 40) held.vh = 20;   // 輕放也小跳一下
       held = null;
-      cv.style.cursor = 'default';
+      if (evRoot.style) evRoot.style.cursor = '';
       kick();
     } else if (downAt && !downAt.moved && downAt.dog) {
       downAt.dog.sayT = 2.6;                     // 純點擊 → 顯示幣名
@@ -688,8 +740,8 @@
     }
     downAt = null;
   }
-  cv.addEventListener('pointerup', release);
-  cv.addEventListener('pointercancel', function () { release(null); });
+  moveRoot.addEventListener('pointerup', release);
+  moveRoot.addEventListener('pointercancel', function () { release(null); });
 
   window.addEventListener('resize', function () { resize(); if (reduced) drawOnce(); });
   document.addEventListener('visibilitychange', function () { if (!document.hidden) kick(); });
@@ -790,12 +842,13 @@
   function spawnCandle() {
     const colW = 60;
     const col = Math.floor(Math.random() * Math.floor(W / colW));
+    if (candles.length > 40) return;           // 太多會疊成一片糊
     candles.push({
       x: col * colW + 8 + Math.random() * 16,
-      y: H + 30, h: 18 + Math.random() * 64, w: 11,
+      y: H + 30, h: 18 + Math.random() * 52, w: 9,
       up: Math.random() < 0.62,
-      alpha: 0.14 + Math.random() * 0.2,
-      vy: 12 + Math.random() * 22,
+      alpha: 0.08 + Math.random() * 0.14,
+      vy: 30 + Math.random() * 34,
     });
   }
   function spawnFloat() {
@@ -831,7 +884,7 @@
     last = t;
 
     spawnT -= dt;
-    if (spawnT <= 0) { spawnCandle(); if (Math.random() < 0.5) spawnFloat(); spawnT = 0.15; }
+    if (spawnT <= 0) { spawnCandle(); if (Math.random() < 0.45) spawnFloat(); spawnT = 0.34; }
     dogT -= dt;
     if (dogT <= 0) { spawnDog(); dogT = 2.5 + Math.random() * 4; }
 
@@ -871,16 +924,25 @@
       if ((d.dir > 0 && d.x > W + 50) || (d.dir < 0 && d.x < -50)) { runners.splice(i, 1); continue; }
       const sheet = window.DogRoom && window.DogRoom._sheet;
       if (sheet) {
-        const cw2 = sheet.width / 12, ch2 = sheet.height / 3;
         const rrow = d.tier === 'big' ? 0 : d.tier === 'gold' ? 1 : 2;
-        const fr = 4 + (Math.floor(d.phase * 8) % 6);
-        const hgt = 14 * d.scale, wdt = hgt * (cw2 / ch2);
+        const fi = 4 + (Math.floor(d.phase * 8) % 6);
+        const hgt = 14 * d.scale;
+        const FR = window.DogRoom._frames;
         ctx.save();
         ctx.globalAlpha = 0.95;
         ctx.translate(Math.round(d.x), Math.round(d.y));
         if (d.dir < 0) ctx.scale(-1, 1);
-        ctx.drawImage(sheet, fr * cw2 + cw2 * 0.04, rrow * ch2 + ch2 * 0.02,
-          cw2 * 0.92, ch2 * 0.96, -wdt / 2, -hgt, wdt, hgt);
+        if (FR) {
+          const fr = FR[rrow][fi];
+          const ref = (FR[rrow][4] && FR[rrow][4].sh) || fr.sh;
+          const k = hgt / ref;
+          ctx.drawImage(sheet, fr.sx, fr.sy, fr.sw, fr.sh, -fr.sw * k / 2, -fr.sh * k, fr.sw * k, fr.sh * k);
+        } else {
+          const cw2 = sheet.width / 12, ch2 = sheet.height / 3;
+          const wdt = hgt * (cw2 / ch2);
+          ctx.drawImage(sheet, fi * cw2 + cw2 * 0.04, rrow * ch2 + ch2 * 0.02,
+            cw2 * 0.92, ch2 * 0.96, -wdt / 2, -hgt, wdt, hgt);
+        }
         ctx.restore();
         ctx.globalAlpha = 1;
       } else if (stampFn) {

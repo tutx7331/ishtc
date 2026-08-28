@@ -1208,34 +1208,30 @@ function render(d) {
     : eff >= 0.08 ? ['正常人水準。', 'warn']
     : ['你就是那個一賣就漲的人。', 'bad'];
 
-  const pain = s.missed > 0
-    ? '其中 <b>' + fmtUSD(s.paperhand) + '</b> 是賣掉之後它還在漲，<b>'
-      + fmtUSD(s.roundtrip) + '</b> 是沒賣、漲上去又跌回來。'
-    : '';
-  const consol = (s.soldNow > 0 && s.soldNow < s.realized)
-    ? '　不過你賣掉的那些如果抱到現在只值 ' + fmtUSD(s.soldNow)
-      + '，比你當初賣的 ' + fmtUSD(s.realized) + ' 還少 —— 至少那幾筆你賣對了。'
-    : '';
   $('#verdict').innerHTML =
     '<p class="big">你買過 ' + s.n + ' 隻幣，如果每一隻都賣在最高點<br>'
     + '你會有 <em>' + fmtUSD(s.ideal) + '</em>。</p>'
     + '<p>你實際拿到 ' + fmtUSD(s.actual) + '，也就是說你錯過了 <b>'
-    + fmtUSD(s.missed) + '</b>。' + grade[0] + '</p>'
-    + (pain ? '<p>' + pain + consol + '</p>' : '');
+    + fmtUSD(s.missed) + '</b>。' + grade[0] + '</p>';
 
   const hero = '<div class="stat hero"><div class="k">錯過的錢</div>'
-    + '<div class="v bad">' + fmtUSD(s.missed) + '</div>'
-    + '<div class="n">賣飛（賣了它還在漲）' + fmtUSD(s.paperhand)
-    + '　·　雲霄飛車（沒賣又跌回來）' + fmtUSD(s.roundtrip) + '</div></div>';
+    + '<div class="v bad">' + fmtUSD(s.missed) + '</div></div>';
   const stats = [
     ['總投入成本', fmtUSD(s.cost), d.meta.txCount.toLocaleString() + ' 筆交易掃描', ''],
     ['實際損益', (s.pnl >= 0 ? '+' : '') + fmtUSD(s.pnl), '已實現 + 現有持倉', s.pnl >= 0 ? 'good' : 'bad'],
     ['神之手總值', fmtUSD(s.ideal), '每隻都賣在最高點', ''],
     ['神化率', fmtPct(eff), '實際 ÷ 神之手', grade[1]],
-    ['大金狗捕獲率', fmtPct(s.bigRate), s.bigDogs + ' / ' + s.n + ' 隻　100x 且市值破 $10M', s.bigDogs ? 'good' : ''],
-    ['小金狗捕獲率', fmtPct(s.smallRate), s.smallDogs + ' / ' + s.n + ' 隻　10x 且市值破 $1M', s.smallDogs ? 'good' : ''],
-    ['平均到頂天數', isFinite(s.avgDaysToPeak) ? s.avgDaysToPeak.toFixed(1) + ' 天' : '—', '從你第一次買到最高點', ''],
   ];
+  const rateEl = $('#dog-rates');
+  if (rateEl) rateEl.innerHTML =
+    '<div class="rate-duo">'
+    + '<div class="rate rate-big"><div class="k">大金狗捕獲率</div>'
+      + '<div class="v">' + fmtPct(s.bigRate) + '</div>'
+      + '<div class="n">' + s.bigDogs + ' / ' + s.n + ' 隻 · 100x 且市值破 $10M</div></div>'
+    + '<div class="rate"><div class="k">小金狗捕獲率</div>'
+      + '<div class="v">' + fmtPct(s.smallRate) + '</div>'
+      + '<div class="n">' + s.smallDogs + ' / ' + s.n + ' 隻 · 10x 且市值破 $1M</div></div>'
+    + '</div>';
   $('#stat-grid').innerHTML = hero + stats.map((r) =>
     '<div class="stat"><div class="k">' + r[0] + '</div><div class="v ' + r[3] + '">'
     + r[1] + '</div><div class="n">' + r[2] + '</div></div>').join('');
@@ -1332,7 +1328,7 @@ function render(d) {
 }
 
 // ---------- 9. 分享圖 ----------
-const CARD = { W: 1080, H: 1350, PAD: 72 };
+const CARD = { W: 1080, H: 1500, PAD: 72 };
 let bgImage = null;    // 使用者上傳的背景圖
 let logoImage = null;  // 使用者上傳的 logo
 let cardBgDefault = null;   // assets/card-bg.png：沒上傳背景時的預設卡底（可選）
@@ -1422,14 +1418,14 @@ function drawCard(d) {
   spacing('8px');
   x.font = cardFont(700, 20, true);
   x.fillStyle = GREEN;
-  x.fillText('ISHTC · I SHOULD HOLD THE COIN', PAD, y);
+  x.fillText('I SHOULD HOLD THE COIN', PAD, y);
   spacing('0px');
 
   y += 74;
   const handle = ($('#handle').value || '').trim();
   x.font = cardFont(900, 60, false);
   x.fillStyle = PAPER;
-  x.fillText(clipText(x, handle || '賣飛體檢報告', W - PAD - 360), PAD, y);
+  x.fillText(clipText(x, handle || 'ISHTC', W - PAD - 360), PAD, y);
 
   y += 44;
   x.font = cardFont(600, 20, true);
@@ -1454,10 +1450,6 @@ function drawCard(d) {
   x.font = cardFont(700, 58, true);
   x.fillStyle = paper ? RED : GREEN;
   x.fillText(fmtPct(s.efficiency), boxL + 34, 176);
-  x.font = cardFont(500, 17, true);
-  x.fillStyle = DIM;
-  x.fillText('實際拿到 ÷ 神之手', boxL + 34, 212);
-
   hr(238);
 
   // ================= HERO：錯過的錢 =================
@@ -1891,6 +1883,48 @@ $('#clear-cache').addEventListener('click', () => {
     .forEach((k) => localStorage.removeItem(k));
   $('#clear-cache').textContent = '已清除';
   setTimeout(() => { $('#clear-cache').textContent = '清除快取'; }, 1500);
+});
+
+
+// ---------- 全站排行榜 ----------
+function boardRow(i, name, right, sub, href) {
+  return '<li><a href="' + href + '">'
+    + '<span class="rank">' + (i + 1) + '</span>'
+    + '<span class="who">' + escapeHTML(name) + '<small>' + escapeHTML(sub) + '</small></span>'
+    + '<span class="score">' + right + '</span></a></li>';
+}
+async function openBoard() {
+  const ov = $('#board-overlay');
+  if (!ov) return;
+  ov.hidden = false;
+  if (!PROXY_URL) {
+    $('#board-missed').innerHTML = '<li class="board-empty">排行榜需要連上代理伺服器</li>';
+    $('#board-dogs').innerHTML = '';
+    return;
+  }
+  try {
+    const j = await getJSON(PROXY_URL + '/leaderboard');
+    const nameOf = (r) => (r.handle && r.handle.trim())
+      || shortAddr((r.addresses || '').split(' ')[0] || '');
+    $('#board-missed').innerHTML = (j.missed || []).map((r, i) =>
+      boardRow(i, nameOf(r), '<b class="bad">' + fmtUSD(r.missed_usd) + '</b>',
+        (r.tokens || 0) + ' 隻幣', '?addr=' + (r.addresses || '').split(' ').join(','))
+    ).join('') || '<li class="board-empty">還沒有人上榜，快查一筆</li>';
+    $('#board-dogs').innerHTML = (j.dogs || []).map((r, i) =>
+      boardRow(i, nameOf(r), '<b class="good">' + (r.big_dogs || 0) + ' 隻大金狗</b>',
+        fmtPct(r.big_rate) + ' · ' + (r.tokens || 0) + ' 隻幣',
+        '?addr=' + (r.addresses || '').split(' ').join(','))
+    ).join('') || '<li class="board-empty">還沒有人抓到大金狗</li>';
+  } catch (e) {
+    $('#board-missed').innerHTML = '<li class="board-empty">'
+      + (e.cooldown ? '用量冷卻中，晚點再看' : '排行榜暫時拿不到') + '</li>';
+    $('#board-dogs').innerHTML = '';
+  }
+}
+if ($('#board-btn')) $('#board-btn').addEventListener('click', openBoard);
+if ($('#board-close')) $('#board-close').addEventListener('click', () => { $('#board-overlay').hidden = true; });
+if ($('#board-overlay')) $('#board-overlay').addEventListener('click', (e) => {
+  if (e.target === $('#board-overlay')) $('#board-overlay').hidden = true;
 });
 
 $('#download-card').addEventListener('click', () => {
