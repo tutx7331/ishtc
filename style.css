@@ -638,6 +638,8 @@ footer{padding:28px 0 48px;color:var(--dim);font-size:12px;font-family:var(--mon
 
 /* 頁尾的隱私說明：字小、不搶戲，但該講的還是要講 */
 .foot-privacy{
-  max-width:760px;margin:0 auto 10px;
-  color:var(--dim);font:11.5px/1.7 var(--mono);letter-spacing:.02em;
+  /* 一行放得下：放寬容器、縮小字級，桌機不換行；窄螢幕才自然折行 */
+  max-width:100%;margin:0 auto 10px;
+  color:var(--dim);font:10px/1.6 var(--mono);letter-spacing:0;
 }
+@media (min-width:1100px){ .foot-privacy{white-space:nowrap} }
