@@ -876,6 +876,52 @@ function summarize(rows) {
   return s;
 }
 
+/**
+ * 補幣名。DexScreener 查不到池子（或池子沒帶名字）的幣會顯示成合約地址，
+ * 這裡再問一次 GeckoTerminal —— 它連 pump.fun 的新幣都查得到。
+ *
+ * 三個曾經的坑：只補前 90 隻、漏掉顯示成 '???' 的、某一批失敗就整段中止。
+ * 查到的名字存進本機快取，同一隻幣下次不必再問。
+ */
+async function backfillSymbols(rows, onProg) {
+  const isUnnamed = (r) => !r.symbol || r.symbol === '???' || r.symbol === shortAddr(r.mint);
+  const unknown = rows.filter(isUnnamed);
+  if (!unknown.length) return 0;
+
+  // 先吃本機快取
+  const rest = [];
+  for (const r of unknown) {
+    const hit = cacheGet('sym:' + r.mint);
+    if (hit) r.symbol = hit; else rest.push(r);
+  }
+  if (!rest.length) return 0;
+
+  let filled = 0;
+  const CAP = 900;                      // 再多就讓使用者等太久，其餘維持顯示地址
+  const todo = rest.slice(0, CAP);
+  for (let i = 0; i < todo.length; i += 30) {
+    if (abortFlag) break;
+    const chunk = todo.slice(i, i + 30);
+    if (onProg) onProg(Math.min(i + 30, todo.length), todo.length);
+    try {
+      const j = await getJSON(GT + '/networks/solana/tokens/multi/'
+        + chunk.map((r) => r.mint).join('%2C'), { limiter: gtLimit, tries: 2 });
+      for (const tk of (j && j.data) || []) {
+        const at = tk.attributes || {};
+        const row = chunk.find((r) => r.mint === at.address);
+        if (row && at.symbol) {
+          row.symbol = at.symbol;
+          cacheSet('sym:' + row.mint, at.symbol);
+          filled++;
+        }
+      }
+    } catch (e) {
+      // 這一批失敗就跳過，別讓整段停掉（以前這裡是 break，一次小失誤就放棄全部）
+    }
+  }
+  return filled;
+}
+
 // ---------- 7. 主流程 ----------
 let LAST = null;
 
@@ -1119,21 +1165,8 @@ async function run() {
     }
   }
 
+  await backfillSymbols(rows, (i, total) => setProg(99, t('prog.symbols', { i: i, total: total })));
   setProg(100, t('prog.done'));
-  // 交易記錄與 DexScreener 都查不到名字的幣，問 GeckoTerminal 補符號
-  const noSym = rows.filter((r) => r.symbol === shortAddr(r.mint));
-  for (let i = 0; i < Math.min(noSym.length, 90); i += 30) {
-    const chunk = noSym.slice(i, i + 30);
-    try {
-      const j = await getJSON(GT + '/networks/solana/tokens/multi/'
-        + chunk.map((r) => r.mint).join('%2C'), { limiter: gtLimit });
-      for (const t of (j && j.data) || []) {
-        const at = t.attributes || {};
-        const row = chunk.find((r) => r.mint === at.address);
-        if (row && at.symbol) { row.symbol = at.symbol; row.addrLabelSym = true; }
-      }
-    } catch (e) { break; }
-  }
 
   rows.sort((a, b) => b.missedUSD - a.missedUSD);
   return {

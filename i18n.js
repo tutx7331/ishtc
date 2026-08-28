@@ -174,6 +174,7 @@
     'prog.rebuild': { zh: '重建買賣紀錄…', en: 'Rebuilding buy/sell history…' },
     'prog.pools': { zh: '查池子與現價…', en: 'Looking up pools and prices…' },
     'prog.peak': { zh: '算最高價 {i}/{total}（{sym}）… 剩 {eta}', en: 'Peak price {i}/{total} ({sym})… {eta} left' },
+    'prog.symbols': { zh: '補幣名 {i}/{total}…', en: 'Resolving token names {i}/{total}…' },
     'prog.done': { zh: '完成', en: 'Done' },
     'eta.min': { zh: '約 {n} 分', en: 'about {n} min' },
     'eta.sec': { zh: '約 {n} 秒', en: 'about {n} s' },
