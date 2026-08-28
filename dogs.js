@@ -325,11 +325,18 @@
   }
   const SHEET_ROW = { big: 0, gold: 1, norm: 2 };
 
-  function spriteFrame(d, moving) {
-    if (d.state === 'air' || d.state === 'held') return 10;
-    if (d.state === 'tumble') return 11;
-    if (moving) return 4 + (Math.floor(d.phase * 8) % 6);
-    return Math.floor(d.phase * 2) % 4;
+  // 幀角色依實際幀數推導：前 4 張坐姿、最後 1 張翻肚、中間是跑步循環
+  function frameRoles(n) {
+    const tumble = Math.max(0, n - 1);
+    const runEnd = Math.max(4, n - 2);
+    return { idleN: Math.min(4, n), runStart: Math.min(4, n - 1), runEnd: runEnd, air: runEnd, tumble: tumble };
+  }
+  function spriteFrame(d, moving, n) {
+    const R = frameRoles(n || 12);
+    if (d.state === 'tumble') return R.tumble;
+    if (d.state === 'air' || d.state === 'held') return R.air;   // 跑步最後一張（騰空姿）當跳躍
+    if (moving) return R.runStart + (Math.floor(d.phase * 8) % Math.max(1, R.runEnd - R.runStart + 1));
+    return Math.floor(d.phase * 2) % Math.max(1, R.idleN);
   }
 
   // AI 生的 sheet 幀不會乖乖置中，逐幀掃出實際內容框、以腳底中心錨定，
@@ -337,9 +344,9 @@
   // file:// 開頁時瀏覽器禁止讀圖片像素、掃不了幀 —— 這是用 assets/dogs.png
   // 預先算好的 36 幀內容框（normalized 0..1），離線時直接套用
 const SHEET_BAKED = [
-    [[0.0074,0.0552,0.0654,0.2666],[0.0879,0.0608,0.0649,0.2610],[0.1690,0.0608,0.0635,0.2624],[0.2505,0.0608,0.0645,0.2610],[0.3375,0.0732,0.0732,0.2597],[0.4217,0.0718,0.0792,0.2610],[0.5092,0.0801,0.0792,0.2528],[0.6022,0.0773,0.0769,0.2459],[0.6952,0.0691,0.0750,0.2638],[0.8002,0.0359,0.0806,0.2818],[0.8996,0.1215,0.0511,0.2113],[0.9507,0.1202,0.0359,0.2127]],
-    [[0.0074,0.3936,0.0663,0.2390],[0.0884,0.3978,0.0654,0.2334],[0.1685,0.3992,0.0640,0.2320],[0.2505,0.4006,0.0645,0.2307],[0.3370,0.4088,0.0727,0.2334],[0.4231,0.4102,0.0797,0.2224],[0.5129,0.4102,0.0755,0.2390],[0.6064,0.4102,0.0732,0.2334],[0.6961,0.4102,0.0746,0.2390],[0.8048,0.3674,0.0723,0.2431],[0.8973,0.3867,0.0548,0.2555],[0.9521,0.4337,0.0391,0.2086]],
-    [[0.0074,0.7127,0.0649,0.2348],[0.0884,0.7155,0.0654,0.2320],[0.1685,0.7210,0.0645,0.2265],[0.2505,0.7155,0.0645,0.2320],[0.3370,0.7293,0.0727,0.2279],[0.4231,0.7265,0.0778,0.2265],[0.5120,0.7293,0.0764,0.2348],[0.6073,0.7348,0.0727,0.2224],[0.6966,0.7293,0.0741,0.2376],[0.8025,0.6865,0.0746,0.2376],[0.8983,0.7431,0.0580,0.2224],[0.9563,0.7970,0.0272,0.1685]]
+    [[0.0074,0.0552,0.0654,0.2666],[0.0879,0.0608,0.0649,0.2610],[0.1690,0.0608,0.0635,0.2624],[0.2505,0.0608,0.0645,0.2610],[0.3375,0.0732,0.0732,0.2597],[0.4217,0.0718,0.0792,0.2610],[0.5092,0.0801,0.0792,0.2528],[0.6022,0.0773,0.0769,0.2459],[0.6952,0.0691,0.0750,0.2638],[0.8002,0.0359,0.0806,0.2818],[0.8996,0.1202,0.0870,0.2127]],
+    [[0.0074,0.3936,0.0663,0.2390],[0.0884,0.3978,0.0654,0.2334],[0.1685,0.3992,0.0640,0.2320],[0.2505,0.4006,0.0645,0.2307],[0.3370,0.4088,0.0727,0.2334],[0.4231,0.4102,0.0797,0.2224],[0.5129,0.4102,0.0755,0.2390],[0.6064,0.4102,0.0732,0.2334],[0.6961,0.4102,0.0746,0.2390],[0.8048,0.3674,0.0723,0.2431],[0.8973,0.3867,0.0939,0.2555]],
+    [[0.0074,0.7127,0.0649,0.2348],[0.0884,0.7155,0.0654,0.2320],[0.1685,0.7210,0.0645,0.2265],[0.2505,0.7155,0.0645,0.2320],[0.3370,0.7293,0.0727,0.2279],[0.4231,0.7265,0.0778,0.2265],[0.5120,0.7293,0.0764,0.2348],[0.6073,0.7348,0.0727,0.2224],[0.6966,0.7293,0.0741,0.2376],[0.8025,0.6865,0.0746,0.2376],[0.8983,0.7431,0.0852,0.2224]]
   ];
 
   let sheetFrames = null;
@@ -375,26 +382,7 @@ const SHEET_BAKED = [
           else merged.push(g);
         }
         segs = merged;
-        while (segs.length > 12) {            // 太多：併最小空隙
-          let gi = 0, gap = 1e9;
-          for (let i = 0; i < segs.length - 1; i++) {
-            const g = segs[i + 1][0] - segs[i][1];
-            if (g < gap) { gap = g; gi = i; }
-          }
-          segs[gi][1] = segs[gi + 1][1];
-          segs.splice(gi + 1, 1);
-        }
-        while (segs.length < 12) {            // 太少：兩幀黏住 → 最寬段在投影谷底切開
-          let wi = 0, wid = 0;
-          for (let i = 0; i < segs.length; i++) {
-            if (segs[i][1] - segs[i][0] > wid) { wid = segs[i][1] - segs[i][0]; wi = i; }
-          }
-          const a2 = segs[wi][0], b2 = segs[wi][1];
-          const lo = a2 + Math.floor((b2 - a2) * 0.3), hi = b2 - Math.floor((b2 - a2) * 0.3);
-          let vx = lo, vv = 1e9;
-          for (let x = lo; x <= hi; x++) if (proj[x] < vv) { vv = proj[x]; vx = x; }
-          segs.splice(wi, 1, [a2, vx - 1], [vx, b2]);
-        }
+        if (segs.length < 6) return;        // 切不出合理幀數就放棄，外面套預烘焙表
         res[r] = segs.map(([sx0, sx1]) => {
           let yy0 = y1 - y0, yy1 = 0;
           for (let y = 0; y < y1 - y0; y++) {
@@ -420,7 +408,8 @@ const SHEET_BAKED = [
   /** 用 sprite sheet 畫一隻狗；(x,y) = 腳底中心，s 同 stamp 的縮放 */
   function blitDog(d, x, y, s, moving) {
     const row = SHEET_ROW[d.tier] != null ? SHEET_ROW[d.tier] : 2;
-    const f = spriteFrame(d, moving);
+    const nFrames = (sheetFrames && sheetFrames[row] && sheetFrames[row].length) || 12;
+    const f = spriteFrame(d, moving, nFrames);
     const size = 24 * s;
     ctxF.save();
     ctxF.translate(Math.round(x), Math.round(y));
@@ -441,7 +430,7 @@ const SHEET_BAKED = [
       ctxF.drawImage(dogSheet, fr.sx, fr.sy, fr.sw, fr.sh,
         -fr.sw * k / 2, -fr.sh * k, fr.sw * k, fr.sh * k);
     } else {
-      const cw = dogSheet.width / 12, ch = dogSheet.height / 3;
+      const cw = dogSheet.width / nFrames, ch = dogSheet.height / 3;
       const dw2 = size * (cw / ch), dh2 = size;
       ctxF.drawImage(dogSheet, f * cw + cw * 0.04, row * ch + ch * 0.02, cw * 0.92, ch * 0.96,
         -dw2 / 2, -dh2, dw2, dh2);
@@ -778,7 +767,12 @@ const SHEET_BAKED = [
     const p = canvasPos(ev);
     if (downAt && (Math.abs(p.x - downAt.x) > 7 || Math.abs(p.y - downAt.y) > 7)) downAt.moved = true;
     if (!held) {
-      if (evRoot.style) evRoot.style.cursor = hitDog(p) ? 'grab' : '';
+      const hv = hitDog(p);
+      if (evRoot.style) evRoot.style.cursor = hv ? 'grab' : '';
+      if (hv) {                                   // 滑過就顯示幣名，離開後淡出
+        hv.sayT = Math.max(hv.sayT, 0.3);
+        if (reduced) drawOnce(); else kick();
+      }
       return;
     }
     // 抓著走：x 直接跟、深度夾在地板帶內、高度 = 地面 − 指標
@@ -801,6 +795,7 @@ const SHEET_BAKED = [
       held.vrot = held.vx / 60;
       held.state = 'air';
       if (Math.abs(held.vx) < 40 && Math.abs(held.vh) < 40) held.vh = 20;   // 輕放也小跳一下
+      if (downAt && !downAt.moved) held.sayT = 2.6;    // 只是點一下 → 報幣名
       held = null;
       if (evRoot.style) evRoot.style.cursor = '';
       kick();
@@ -995,9 +990,11 @@ const SHEET_BAKED = [
       const sheet = window.DogRoom && window.DogRoom._sheet;
       if (sheet) {
         const rrow = d.tier === 'big' ? 0 : d.tier === 'gold' ? 1 : 2;
-        const fi = 4 + (Math.floor(d.phase * 8) % 6);
-        const hgt = 14 * d.scale;
         const FR = window.DogRoom._frames;
+        const nF = (FR && FR[rrow] && FR[rrow].length) || 12;
+        const runN = Math.max(1, (nF - 2) - 4 + 1);
+        const fi = 4 + (Math.floor(d.phase * 8) % runN);
+        const hgt = 14 * d.scale;
         ctx.save();
         ctx.globalAlpha = 0.95;
         ctx.translate(Math.round(d.x), Math.round(d.y));
@@ -1008,7 +1005,7 @@ const SHEET_BAKED = [
           const k = hgt / ref;
           ctx.drawImage(sheet, fr.sx, fr.sy, fr.sw, fr.sh, -fr.sw * k / 2, -fr.sh * k, fr.sw * k, fr.sh * k);
         } else {
-          const cw2 = sheet.width / 12, ch2 = sheet.height / 3;
+          const cw2 = sheet.width / nF, ch2 = sheet.height / 3;
           const wdt = hgt * (cw2 / ch2);
           ctx.drawImage(sheet, fi * cw2 + cw2 * 0.04, rrow * ch2 + ch2 * 0.02,
             cw2 * 0.92, ch2 * 0.96, -wdt / 2, -hgt, wdt, hgt);
