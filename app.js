@@ -1423,7 +1423,7 @@ function drawCard(d) {
   const handle = ($('#handle').value || '').trim();
   x.font = cardFont(900, 60, false);
   x.fillStyle = PAPER;
-  x.fillText(clipText(x, handle || 'ISHTC', W - PAD - 360), PAD, y);
+  x.fillText('ISHTC', PAD, y);
 
   y += 44;
   x.font = cardFont(600, 20, true);

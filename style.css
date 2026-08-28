@@ -263,7 +263,7 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .scr-body .panel{background:#0b0e14;border-color:#202734;padding:14px;margin-bottom:12px}
 .scr-body .stat{background:#0b0e14}
 .scr-body .stat-grid{
-  background:none;border:0;gap:8px;margin-bottom:12px;
+  background:none;border:0;gap:7px;margin-bottom:0;
   grid-template-columns:repeat(4,minmax(0,1fr));
 }
 .scr-body .stat{border:1px solid #202734}
@@ -282,26 +282,33 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .scr-body th{background:#0c1017}
 .scr-body .panel h2{font-size:11px;margin-bottom:8px}
 .scr-body .hint{font-size:11px;margin-bottom:10px}
-.scr-body .verdict{background:transparent;border:0;padding:8px 0 0;margin-bottom:14px}
-.scr-body .verdict .big{font-size:clamp(17px,1.55vw,25px);line-height:1.45}
-.scr-body .verdict p:not(.big){font-size:12px;margin-top:8px}
-.scr-body .stat{padding:10px 12px;background:rgba(232,236,244,.025);border:1px solid #1b2230;text-align:left}
+.scr-body .verdict{background:transparent;border:0;padding:4px 0 0;margin-bottom:10px}
+.scr-body .verdict .big{font-size:clamp(15px,2.6vh,25px);line-height:1.4}
+.scr-body .verdict p:not(.big){font-size:clamp(10px,1.6vh,12px);margin-top:6px}
+.scr-body .stat{padding:8px 11px;background:rgba(232,236,244,.025);border:1px solid #1b2230;text-align:left}
 .scr-body .stat .k{font-size:9px}
-.scr-body .stat .v{font-size:clamp(14px,1.35vw,20px);margin-top:6px}
-#scr-3 .scr-content{text-align:center}
+.scr-body .stat .v{font-size:clamp(13px,2.1vh,19px);margin-top:4px}
+#scr-3 .scr-content{text-align:center;display:flex;flex-direction:column;height:100%;min-height:0}
+#scr-3 .verdict{flex:none}
+#scr-3 .stat-grid{flex:none}
+#scr-3 .panel:empty{display:none}
 #scr-3 .verdict .big{text-wrap:balance}
 .scr-body .stat.hero{
-  border:0;background:transparent;text-align:center;padding:26px 12px 22px;
+  border:0;background:transparent;text-align:center;padding:12px 12px 14px;
 }
-.scr-body .stat.hero .k{letter-spacing:.3em;font-size:15px;font-weight:800;color:var(--fg)}
-.scr-body .stat.hero .v{font-size:clamp(48px,4.8vw,84px);margin-top:12px}
+.scr-body .stat.hero .k{letter-spacing:.3em;font-size:clamp(12px,1.8vh,15px);font-weight:800;color:var(--fg)}
+.scr-body .stat.hero .v{font-size:clamp(34px,7.5vh,80px);margin-top:6px;line-height:1.05}
 .scr-body .stat.hero .n{margin-top:12px}
 .scr-body table{font-size:11px}
 .scr-body th,.scr-body td{padding:6px 8px}
 .scr-body .mint{font-size:10px}
 .scr-body .table-scroll{border:0}
 .scr-body #pager{margin-top:8px}
-#screen-wall.done #scr-1 .scr-content{display:flex;flex-direction:column;min-height:100%}
+#screen-wall.done #scr-1 .scr-content{display:flex;flex-direction:column;height:100%;min-height:0}
+#scr-1 .scr-body{overflow:hidden}
+#scr-1 .rate-duo{flex:none}
+#scr-1 .rate{padding:6px 10px}
+#scr-1 .rate .v{font-size:clamp(15px,2.4vh,20px)}
 .rate-duo{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
 .rate{
   border:1px solid #1b2230;background:rgba(232,236,244,.025);padding:8px 12px;
@@ -310,12 +317,12 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .rate .k{color:var(--muted);font:700 10px var(--mono);letter-spacing:.12em;white-space:nowrap}
 .rate .v{font:700 clamp(17px,1.5vw,22px) var(--mono);color:var(--accent)}
 .rate-big .v{color:var(--amber)}
-#scr-1 .panel{flex:1;display:flex;flex-direction:column;margin:0}
-#scr-1 #golden{flex:1;display:flex;flex-direction:column;justify-content:space-evenly}
-#scr-1 .gold-row{margin-bottom:0;padding:10px 0;gap:18px}
-#scr-1 .gold-row .tag{width:66px;font-size:16px}
-#scr-1 .gold-row .track{height:32px}
-#scr-1 .gold-row .val{width:150px;font-size:13.5px}
+#scr-1 .panel{flex:1;min-height:0;display:flex;flex-direction:column;margin:0}
+#scr-1 #golden{flex:1;min-height:0;display:flex;flex-direction:column}
+#scr-1 .gold-row{flex:1;min-height:0;margin:0;padding:0;gap:16px}
+#scr-1 .gold-row .tag{width:60px;font-size:clamp(12px,2vh,16px)}
+#scr-1 .gold-row .track{height:62%;min-height:12px;max-height:30px}
+#scr-1 .gold-row .val{width:130px;font-size:clamp(10px,1.7vh,13px)}
 .scr-body .badge{font-size:9px;padding:1px 5px}
 #scr-4 .actions{display:flex;justify-content:center;margin-top:4px}
 #scr-4 #download-card{width:100%;max-width:460px;padding:14px 0;font-size:15px}
