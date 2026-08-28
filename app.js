@@ -1228,7 +1228,8 @@ function render(d) {
     : s.smallRate >= 0.15 ? ['小狗抓得不錯，大狗還差一步。', 'warn']
     : s.smallRate > 0 ? ['偶爾中，但還沒抓到真正做大的。', 'warn']
     : ['目前一隻真金狗都沒抓到。', 'bad'];
-  $('#dog-taste').innerHTML =
+  const dogTasteEl = $('#dog-taste');
+  if (dogTasteEl) dogTasteEl.innerHTML =
     '<div class="dog-grid">'
     + '<div class="dog big"><div class="k">大金狗捕獲率</div>'
       + '<div class="v ' + (s.bigDogs ? 'good' : '') + '">' + fmtPct(s.bigRate) + '</div>'
@@ -1339,9 +1340,16 @@ function drawCover(x, img, W, H) {
 function drawCard(d) {
   const c = $('#share-canvas');
   const x = c.getContext('2d');
-  const { W, H, PAD } = CARD;
+  const { W, H } = CARD;
+  const PAD = 64;
   const s = d.sum;
   const dim = (parseInt($('#dim').value, 10) || 0) / 100;
+
+  const LINE = 'rgba(232,236,244,.16)';
+  const GOLD = '#f0b429', GREEN = '#14f195', RED = '#ff4d6d';
+  const PAPER = '#e8ecf4', DIM = '#565f70', MUT = '#7d8697';
+  const hr = (yy) => { x.strokeStyle = LINE; x.lineWidth = 1; x.setLineDash([]); x.beginPath(); x.moveTo(24, yy + 0.5); x.lineTo(W - 24, yy + 0.5); x.stroke(); };
+  const spacing = (v) => { try { x.letterSpacing = v; } catch (e) {} };
 
   x.clearRect(0, 0, W, H);
   x.fillStyle = '#0a0b0e';
@@ -1352,183 +1360,267 @@ function drawCard(d) {
     drawCover(x, bgImage, W, H);
     x.fillStyle = 'rgba(10,11,14,' + dim + ')';
     x.fillRect(0, 0, W, H);
-    // 底部再壓一層漸層，讓下半部的小字不會糊在花俏的背景上
-    const g = x.createLinearGradient(0, H * 0.45, 0, H);
+    const g = x.createLinearGradient(0, H * 0.4, 0, H);
     g.addColorStop(0, 'rgba(10,11,14,0)');
-    g.addColorStop(1, 'rgba(10,11,14,.9)');
+    g.addColorStop(1, 'rgba(10,11,14,.92)');
     x.fillStyle = g;
-    x.fillRect(0, H * 0.45, W, H * 0.55);
+    x.fillRect(0, H * 0.4, W, H * 0.6);
     x.restore();
   }
 
-  // ---- 外框與角標 ----
-  x.strokeStyle = 'rgba(232,236,244,.14)';
-  x.lineWidth = 1;
-  x.strokeRect(PAD - 24, PAD - 24, W - (PAD - 24) * 2, H - (PAD - 24) * 2);
+  // ---- 巨型浮水印（斜壓在卡面後方）----
+  const paper = s.efficiency < 0.2;
+  x.save();
+  x.translate(W / 2, H * 0.46);
+  x.rotate(-0.25);
+  x.textAlign = 'center';
+  x.font = cardFont(900, 168, false);
+  x.fillStyle = paper ? 'rgba(255,77,109,.06)' : 'rgba(20,241,149,.055)';
+  x.fillText(paper ? 'PAPER HANDS' : 'DIAMOND', 0, 0);
+  x.restore();
 
-  let y = PAD + 24;
+  // ---- 票券外框（雙線）----
+  x.strokeStyle = LINE; x.lineWidth = 1;
+  x.strokeRect(14.5, 14.5, W - 29, H - 29);
+  x.strokeRect(24.5, 24.5, W - 49, H - 49);
 
-  // ---- 頁首 ----
+  // ================= HEAD =================
+  let y = 96;
   x.textAlign = 'left';
-  x.fillStyle = '#14f195';
-  x.fillRect(PAD, y - 22, 5, 30);
-  x.font = cardFont(700, 24, true);
-  x.fillStyle = '#e8ecf4';
-  x.fillText('ISHTC', PAD + 20, y);
-  x.fillStyle = '#565f70';
-  x.fillText('I SHOULD HOLD THE COIN', PAD + 20 + x.measureText('ISHTC').width + 18, y);
+  spacing('8px');
+  x.font = cardFont(700, 20, true);
+  x.fillStyle = GREEN;
+  x.fillText('ISHTC · I SHOULD HOLD THE COIN', PAD, y);
+  spacing('0px');
 
-  x.textAlign = 'right';
-  x.font = cardFont(600, 22, true);
-  x.fillStyle = '#565f70';
-  x.fillText(s.n + ' TOKENS', W - PAD, y);
-  // 吉祥物：一隻大金狗坐在標題列上
-  if (dogRoom() && dogRoom().stamp) {
-    dogRoom().stamp(x, W - PAD - 190, y + 6, 3, s.bigDogs ? 'big' : 'gold', -1, 0.25, false);
+  y += 74;
+  const handle = ($('#handle').value || '').trim();
+  x.font = cardFont(900, 60, false);
+  x.fillStyle = PAPER;
+  x.fillText(clipText(x, handle || '賣飛體檢報告', W - PAD - 360), PAD, y);
+
+  y += 44;
+  x.font = cardFont(600, 20, true);
+  x.fillStyle = DIM;
+  const dateStr = new Date().toISOString().slice(0, 10);
+  let hx = PAD;
+  x.fillText(dateStr, hx, y); hx += x.measureText(dateStr).width + 22;
+  x.fillText('·', hx, y); hx += 22;
+  x.fillText(s.n + ' TOKENS', hx, y); hx += x.measureText(s.n + ' TOKENS').width + 22;
+  x.fillText('·', hx, y); hx += 22;
+  x.fillText(d.addrs.length + ' WALLET' + (d.addrs.length > 1 ? 'S' : ''), hx, y);
+
+  // 右側：神化率方塊（票頭右欄）
+  const boxL = W - 320;
+  x.strokeStyle = LINE; x.setLineDash([]);
+  x.beginPath(); x.moveTo(boxL, 44); x.lineTo(boxL, 238); x.stroke();
+  spacing('4px');
+  x.font = cardFont(700, 18, true);
+  x.fillStyle = GOLD;
+  x.fillText('神化率', boxL + 34, 108);
+  spacing('0px');
+  x.font = cardFont(700, 58, true);
+  x.fillStyle = paper ? RED : GREEN;
+  x.fillText(fmtPct(s.efficiency), boxL + 34, 176);
+  x.font = cardFont(500, 17, true);
+  x.fillStyle = DIM;
+  x.fillText('實際拿到 ÷ 神之手', boxL + 34, 212);
+
+  hr(238);
+
+  // ================= HERO：錯過的錢 =================
+  y = 320;
+  spacing('6px');
+  x.font = cardFont(700, 26, true);
+  x.fillStyle = RED;
+  x.fillText('我錯過了', PAD, y);
+  spacing('0px');
+
+  y += 138;
+  let heroSize = 148;
+  x.font = cardFont(900, heroSize, true);
+  const heroTxt = fmtUSD(s.missed);
+  while (x.measureText(heroTxt).width > W - PAD * 2 - 40 && heroSize > 70) {
+    heroSize -= 8;
+    x.font = cardFont(900, heroSize, true);
   }
+  x.fillStyle = RED;
+  x.fillText(heroTxt, PAD, y);
 
-  y += 34;
-  x.strokeStyle = 'rgba(232,236,244,.14)';
-  x.beginPath(); x.moveTo(PAD, y); x.lineTo(W - PAD, y); x.stroke();
+  y += 66;
+  x.font = cardFont(600, 27, true);
+  let sx2 = PAD;
+  x.fillStyle = MUT; x.fillText('神之手', sx2, y); sx2 += x.measureText('神之手').width + 16;
+  x.fillStyle = PAPER; x.fillText(fmtUSD(s.ideal), sx2, y); sx2 += x.measureText(fmtUSD(s.ideal)).width + 40;
+  x.fillStyle = MUT; x.fillText('實際拿到', sx2, y); sx2 += x.measureText('實際拿到').width + 16;
+  x.fillStyle = PAPER; x.fillText(fmtUSD(s.actual), sx2, y);
 
-  // ---- 主數字：神之手 ----
-  y += 88;
-  x.textAlign = 'left';
-  x.font = cardFont(500, 30, false);
-  x.fillStyle = '#7d8697';
-  x.fillText('每一隻都賣在最高點，我會有', PAD, y);
+  // 神化率比例條（綠＝拿到的、紅＝飛走的）
+  y += 40;
+  const barW = W - PAD * 2, barH = 12;
+  const gw2 = Math.max(3, Math.min(barW, barW * s.efficiency));
+  x.fillStyle = 'rgba(255,77,109,.55)';
+  x.fillRect(PAD, y, barW, barH);
+  x.fillStyle = GREEN;
+  x.fillRect(PAD, y, gw2, barH);
+  x.strokeStyle = LINE;
+  x.strokeRect(PAD + 0.5, y + 0.5, barW - 1, barH - 1);
 
-  y += 104;
-  x.font = cardFont(700, 100, true);
-  x.fillStyle = '#14f195';
-  x.fillText(fmtUSD(s.ideal), PAD, y);
-
-  // ---- 對照：實際 ----
-  y += 76;
-  x.font = cardFont(500, 28, false);
-  x.fillStyle = '#7d8697';
-  const actLabel = '實際只拿到';
-  x.fillText(actLabel, PAD, y);
-  const labelW = x.measureText(actLabel).width;
-  x.font = cardFont(700, 40, true);
-  x.fillStyle = '#e8ecf4';
-  x.fillText(fmtUSD(s.actual), PAD + labelW + 40, y);
-
-  // ---- 錯過的錢（主視覺）----
-  y += 42;
-  const boxH = 220;
-  x.fillStyle = 'rgba(255,77,109,.10)';
-  x.fillRect(PAD, y, W - PAD * 2, boxH);
-  x.fillStyle = '#ff4d6d';
-  x.fillRect(PAD, y, 5, boxH);
-  x.strokeStyle = 'rgba(255,77,109,.3)';
-  x.strokeRect(PAD, y, W - PAD * 2, boxH);
-
-  x.font = cardFont(600, 28, false);
-  x.fillStyle = '#ff4d6d';
-  x.fillText('我錯過了', PAD + 44, y + 62);
-  x.font = cardFont(700, 92, true);
-  x.fillText(fmtUSD(s.missed), PAD + 44, y + 170);
-
-  y += boxH + 66;
-
-  // ---- 四格指標 ----
-  const cells = [
-    ['大金狗捕獲率', fmtPct(s.bigRate), '#ffb020'],
-    ['小金狗捕獲率', fmtPct(s.smallRate), '#ffb020'],
-    ['神化率', fmtPct(s.efficiency), '#e8ecf4'],
-    ['平均到頂天數', isFinite(s.avgDaysToPeak) ? s.avgDaysToPeak.toFixed(1) + ' 天' : '—', '#e8ecf4'],
-  ];
-  const gw = W - PAD * 2, colW = gw / 4;
-  x.strokeStyle = 'rgba(232,236,244,.14)';
+  // ---- 橡皮章（旋轉蓋在 HERO 右上）----
+  const st = paper
+    ? { en: 'PAPER HANDS', zh: '紙 手 認 證', col: RED }
+    : (s.bigDogs > 0
+      ? { en: 'GOLDEN HUNTER', zh: '金 狗 獵 人', col: GOLD }
+      : { en: 'DIAMOND HANDS', zh: '鑽 石 手', col: GREEN });
+  x.save();
+  x.translate(W - 250, 330);
+  x.rotate(-0.13);
+  x.textAlign = 'center';
+  x.font = cardFont(900, 34, false);
+  const stW = Math.max(x.measureText(st.en).width + 56, 260);
+  x.fillStyle = 'rgba(10,11,14,.55)';
+  x.fillRect(-stW / 2, -44, stW, 92);
+  x.strokeStyle = st.col;
+  x.lineWidth = 4;
+  x.strokeRect(-stW / 2, -44, stW, 92);
   x.lineWidth = 1;
-  x.beginPath(); x.moveTo(PAD, y); x.lineTo(W - PAD, y); x.stroke();
-  cells.forEach((cell, i) => {
-    const cx = PAD + i * colW;
-    if (i > 0) {
-      x.beginPath(); x.moveTo(cx, y + 14); x.lineTo(cx, y + 136); x.stroke();
-    }
-    x.textAlign = 'left';
-    x.font = cardFont(600, 18, true);
-    x.fillStyle = '#565f70';
-    x.fillText(cell[0], cx + (i ? 24 : 0), y + 48);
-    x.font = cardFont(700, 44, true);
-    x.fillStyle = cell[2];
-    x.fillText(cell[1], cx + (i ? 24 : 0), y + 112);
-  });
-  y += 148;
-  x.beginPath(); x.moveTo(PAD, y); x.lineTo(W - PAD, y); x.stroke();
+  x.strokeRect(-stW / 2 + 7.5, -36.5, stW - 15, 77);
+  x.fillStyle = st.col;
+  x.fillText(st.en, 0, 4);
+  x.font = cardFont(700, 17, true);
+  x.fillText(st.zh, 0, 34);
+  x.restore();
+  x.textAlign = 'left';
 
-  // ---- MFE 前五名 ----
-  // 右對齊的欄位邊界，跟網頁表格同一套順序
-  const COLX = { cost: 486, actual: 656, missed: 840, mfe: W - PAD };
+  // 吉祥物坐在分隔線上
+  if (dogRoom() && dogRoom().stamp) {
+    dogRoom().stamp(x, W - 96, 646, 3, s.bigDogs ? 'big' : 'gold', -1, 0.25, false);
+  }
+  hr(648);
+
+  // ================= 數據列（點線引導）＋ 戰績 =================
+  const lvTop = 700;
+  const midX = W / 2 + 10;
+  x.strokeStyle = LINE; x.setLineDash([]);
+  x.beginPath(); x.moveTo(midX - 40, lvTop - 34); x.lineTo(midX - 40, lvTop + 214); x.stroke();
+
+  const lvRow = (lx, rx, yy, label, value, valColor, valMono) => {
+    spacing('3px');
+    x.font = cardFont(700, 19, true);
+    x.fillStyle = GOLD;
+    x.textAlign = 'left';
+    x.fillText(label, lx, yy);
+    const lw2 = x.measureText(label).width;
+    spacing('0px');
+    x.font = cardFont(700, 28, valMono !== false);
+    x.fillStyle = valColor || PAPER;
+    x.textAlign = 'right';
+    x.fillText(value, rx, yy);
+    const vw2 = x.measureText(value).width;
+    x.strokeStyle = 'rgba(232,236,244,.25)';
+    x.setLineDash([2, 6]);
+    x.beginPath();
+    x.moveTo(lx + lw2 + 18, yy - 6);
+    x.lineTo(rx - vw2 - 18, yy - 6);
+    x.stroke();
+    x.setLineDash([]);
+    x.textAlign = 'left';
+  };
+  const Lx = PAD, LR = midX - 74;
+  lvRow(Lx, LR, lvTop,       '總投入成本', fmtUSD(s.cost));
+  lvRow(Lx, LR, lvTop + 62,  '實際損益', (s.pnl >= 0 ? '+' : '') + fmtUSD(Math.abs(s.pnl)).replace('$', '$'), s.pnl >= 0 ? GREEN : RED);
+  lvRow(Lx, LR, lvTop + 124, '賣飛金額', fmtUSD(s.paperhand), RED);
+  lvRow(Lx, LR, lvTop + 186, '平均到頂', isFinite(s.avgDaysToPeak) ? s.avgDaysToPeak.toFixed(1) + ' 天' : '—');
+
+  const Rx = midX + 6, RR = W - PAD;
+  lvRow(Rx, RR, lvTop,       '大金狗', s.bigDogs + ' 隻', GOLD);
+  lvRow(Rx, RR, lvTop + 62,  '小金狗', s.smallDogs + ' 隻', GOLD);
+  lvRow(Rx, RR, lvTop + 124, '10X 以上', (s.tiers[10] || 0) + ' 隻', GREEN);
+  lvRow(Rx, RR, lvTop + 186, '100X 以上', (s.tiers[100] || 0) + ' 隻', GREEN);
+
+  hr(lvTop + 232);
+
+  // ================= TOP5 =================
+  const t5Top = lvTop + 288;
+  const COLX = { cost: 520, actual: 690, missed: 878, mfe: W - PAD };
   const top5 = d.rows.slice()
     .filter((r) => isFinite(r.mfeX))
     .sort((a, b) => b.mfeX - a.mfeX)
     .slice(0, 5);
 
-  // 一隻都算不出 MFE 就整段不畫，不要留一個空表頭
   if (top5.length) {
-    y += 62;
-    x.font = cardFont(700, 18, true);
-    x.fillStyle = '#565f70';
-    x.textAlign = 'left';
-    x.fillText('TOP5', PAD, y);
+    spacing('4px');
+    x.font = cardFont(700, 19, true);
+    x.fillStyle = GOLD;
+    x.fillText('TOP5', PAD, t5Top);
+    x.fillStyle = DIM;
+    x.fillText('· 最痛的五隻', PAD + x.measureText('TOP5').width + 14, t5Top);
+    spacing('0px');
     x.textAlign = 'right';
-    x.fillText('成本', COLX.cost, y);
-    x.fillText('實拿', COLX.actual, y);
-    x.fillText('賣飛', COLX.missed, y);
-    x.fillText('倍數', COLX.mfe, y);
+    x.font = cardFont(700, 18, true);
+    x.fillStyle = DIM;
+    x.fillText('成本', COLX.cost, t5Top);
+    x.fillText('實拿', COLX.actual, t5Top);
+    x.fillText('賣飛', COLX.missed, t5Top);
+    x.fillText('倍數', COLX.mfe, t5Top);
 
-    y += 12;
-    x.strokeStyle = 'rgba(232,236,244,.14)';
-    x.beginPath(); x.moveTo(PAD, y); x.lineTo(W - PAD, y); x.stroke();
-
-    const ROW_H = 42;
+    const ROW_H = 50;
     top5.forEach((r, i) => {
-      const ry = y + 36 + i * ROW_H;
-      if (i > 0) {                                   // 列間細分隔線
-        x.strokeStyle = 'rgba(232,236,244,.07)';
-        x.beginPath(); x.moveTo(PAD, ry - 27); x.lineTo(W - PAD, ry - 27); x.stroke();
+      const ry = t5Top + 52 + i * ROW_H;
+      if (i > 0) {
+        x.strokeStyle = 'rgba(232,236,244,.10)';
+        x.setLineDash([1, 5]);
+        x.beginPath(); x.moveTo(PAD, ry - 32); x.lineTo(W - PAD, ry - 32); x.stroke();
+        x.setLineDash([]);
       }
       x.textAlign = 'left';
-      x.font = cardFont(700, 25, true);
-      x.fillStyle = '#e8ecf4';
-      x.fillText(clipText(x, r.symbol, 250), PAD, ry);
-
+      x.font = cardFont(800, 27, false);
+      x.fillStyle = isBigDog(r) ? GOLD : PAPER;
+      x.fillText(clipText(x, r.symbol, 260), PAD, ry);
       x.textAlign = 'right';
       x.font = cardFont(500, 24, true);
-      x.fillStyle = '#7d8697';
+      x.fillStyle = MUT;
       x.fillText(fmtUSD(r.costUSD), COLX.cost, ry);
-      x.fillStyle = '#e8ecf4';
+      x.fillStyle = PAPER;
       x.fillText(fmtUSD(r.actualUSD), COLX.actual, ry);
-      x.fillStyle = '#ff4d6d';
+      x.fillStyle = RED;
       x.fillText(fmtUSD(r.missedUSD), COLX.missed, ry);
       x.font = cardFont(700, 26, true);
-      x.fillStyle = isBigDog(r) ? '#ffb020' : '#14f195';
+      x.fillStyle = isBigDog(r) ? GOLD : GREEN;
       x.fillText(fmtX(r.mfeX), COLX.mfe, ry);
     });
-
-    y += 30 + top5.length * ROW_H;
-    x.beginPath(); x.moveTo(PAD, y); x.lineTo(W - PAD, y); x.stroke();
+    x.textAlign = 'left';
   }
 
-  // ---- 頁尾 ----
-  const footY = H - PAD - 16;
-  x.textAlign = 'left';
-  const handle = ($('#handle').value || '').trim();
-  if (handle) {
-    x.font = cardFont(700, 26, true);
-    x.fillStyle = '#e8ecf4';
-    x.fillText(handle, PAD, footY);
-  }
-
+  // ================= 頁尾品牌列 ＋ 免責條 =================
+  const footLine = H - 128;
+  hr(footLine);
+  const fy = H - 78;
+  let fx = PAD;
   if (logoImage) {
-    const maxSide = 120;
+    const maxSide = 64;
     const sc = Math.min(maxSide / logoImage.width, maxSide / logoImage.height);
     const lw = logoImage.width * sc, lh = logoImage.height * sc;
-    x.drawImage(logoImage, W - PAD - lw, footY - lh + 8, lw, lh);
+    x.drawImage(logoImage, fx, fy - lh + 12, lw, lh);
+    fx += lw + 20;
   }
+  x.font = cardFont(900, 30, false);
+  x.fillStyle = PAPER;
+  x.fillText(handle || 'ISHTC', fx, fy);
+  spacing('5px');
+  x.font = cardFont(600, 14, true);
+  x.fillStyle = DIM;
+  x.fillText('你這輩子賣飛了多少錢？', fx, fy + 30);
+  spacing('0px');
+
+  x.textAlign = 'right';
+  spacing('3px');
+  x.font = cardFont(600, 15, true);
+  x.fillStyle = DIM;
+  x.fillText('鏈上交易 × 歷史K線 自動生成 · 僅供娛樂', W - PAD, fy);
+  x.fillText('I SHOULD HOLD THE COIN', W - PAD, fy + 30);
+  spacing('0px');
+  x.textAlign = 'left';
 }
 
 // ---------- 10. CSV ----------

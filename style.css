@@ -212,7 +212,7 @@ button:disabled{opacity:.4;cursor:not-allowed}
 /* ---- 監控牆：四台主題螢幕（DOM，內容可捲動互動）---- */
 #screen-wall{
   position:absolute;left:50%;transform:translateX(-50%);
-  top:26px;width:min(1560px,95vw);height:calc(74vh - 42px);
+  top:26px;width:min(1860px,97.5vw);height:calc(74vh - 40px);
   display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.45fr) minmax(0,.92fr);
   grid-template-rows:minmax(0,1fr) minmax(0,1fr);gap:12px;
   z-index:2;
@@ -243,7 +243,12 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .scr-body::-webkit-scrollbar-thumb{background:#2e3542}
 .scr-body .panel{background:#0b0e14;border-color:#202734;padding:14px;margin-bottom:12px}
 .scr-body .stat{background:#0b0e14}
-.scr-body .stat-grid{border-color:#202734;background:#202734;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));margin-bottom:12px}
+.scr-body .stat-grid{
+  background:none;border:0;gap:8px;margin-bottom:12px;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+}
+.scr-body .stat{border:1px solid #202734}
+@media (max-width:960px){.scr-body .stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .scr-body .verdict{background:#0b0e14;border-color:#202734}
 .scr-body .share-layout{grid-template-columns:1fr}
 
@@ -262,7 +267,9 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .scr-body .stat .k{font-size:9px}
 .scr-body .stat .v{font-size:clamp(14px,1.35vw,20px);margin-top:6px}
 .scr-body table{font-size:11px}
-.scr-body th,.scr-body td{padding:7px 9px}
+.scr-body th,.scr-body td{padding:6px 8px}
+.scr-body .mint{font-size:10px}
+.scr-body .table-scroll{border:0}
 .scr-body #pager{margin-top:8px}
 .scr-body .badge{font-size:9px;padding:1px 5px}
 #screen-wall.done .standby{display:none}
