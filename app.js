@@ -915,7 +915,9 @@ async function run() {
   // 只有 GeckoTerminal 需要池子位址；Solana Tracker 與 Birdeye 都是按代幣地址查。
   // 所以有 key 的時候，DexScreener 找不到池子的幣（多半已經死透）還是要算進來 ——
   // 那些正是你賠最慘的，把它們丟掉會讓分母變小、金狗率虛高。
-  const canSkipPool = !!(stKey || birdeyeKey);
+  // 代理模式也是用 Solana Tracker 按幣地址查最高價，不需要池子 ——
+  // 漏掉 PROXY_URL 會讓免 key 的訪客把查不到池子的幣全部丟掉（32 隻只剩 8 隻）
+  const canSkipPool = !!(stKey || birdeyeKey || PROXY_URL);
   const rows = [];
   const noPool = [];
   const withPool = [];
