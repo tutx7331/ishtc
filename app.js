@@ -1354,7 +1354,7 @@ function render(d) {
   LAST = d;
   const s = d.sum;
   wallDone(true);
-  $('#intro').hidden = true;
+  if ($('#intro')) $('#intro').hidden = true;
 
   const eff = s.efficiency;
   const grade = eff >= 0.5 ? [t('grade.god'), 'good']
@@ -2006,7 +2006,7 @@ $('#run').addEventListener('click', async () => {
       const mp = $('#manual-panel'); if (mp) mp.open = true;
       $('#error').textContent = '⚠ ' + e.message;
       $('#error').hidden = false;
-      $('#intro').hidden = false;
+      if ($('#intro')) $('#intro').hidden = false;
     }
   } finally {
     $('#run').disabled = false;
