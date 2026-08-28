@@ -1833,7 +1833,6 @@ $('#run').addEventListener('click', async () => {
     const d = await run();
     render(d);
     $('#screen-terminal').hidden = true;   // 終端讓位給報告
-    try { history.replaceState(null, '', shareUrlFor(d.addrs)); } catch (e2) {}
     if (PROXY_URL) {
       // 回報一筆查詢記錄給排行榜（fire-and-forget，失敗不影響使用者）
       try {

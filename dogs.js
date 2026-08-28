@@ -93,6 +93,9 @@
   const panel = document.getElementById('dog-room-panel');
   const hintEl = document.getElementById('dog-room-hint');
   const ctx = cv.getContext('2d');
+  // 前景層：狗與標籤（在 DOM 螢幕上方）；房景留在背景層（螢幕下方）
+  const cvF = document.getElementById('dog-room-fg') || cv;
+  const ctxF = cvF === cv ? ctx : cvF.getContext('2d');
   const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   // 物理常數
@@ -131,6 +134,12 @@
     cv.height = Math.round(H * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.imageSmoothingEnabled = false;
+    if (cvF !== cv) {
+      cvF.width = cv.width;
+      cvF.height = cv.height;
+      ctxF.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctxF.imageSmoothingEnabled = false;
+    }
     floorTop = Math.round(H * 0.74);   // 桌面視角：螢幕佔上方，這裡以下是桌面（狗在桌上跑）
     layoutMonitors();
   }
@@ -328,9 +337,9 @@
   // file:// 開頁時瀏覽器禁止讀圖片像素、掃不了幀 —— 這是用 assets/dogs.png
   // 預先算好的 36 幀內容框（normalized 0..1），離線時直接套用
 const SHEET_BAKED = [
-    [[0.0074,0.0552,0.0654,0.2666],[0.0879,0.0608,0.0649,0.2610],[0.1690,0.0608,0.0635,0.2624],[0.2505,0.0608,0.0645,0.2610],[0.3375,0.0732,0.0732,0.2597],[0.4217,0.0718,0.0783,0.2610],[0.5000,0.0801,0.0833,0.2528],[0.5833,0.0773,0.0833,0.2459],[0.6667,0.0691,0.0833,0.2638],[0.7500,0.0718,0.0833,0.2514],[0.8333,0.0359,0.0833,0.2804],[0.9167,0.1202,0.0700,0.2127]],
-    [[0.0074,0.3936,0.0663,0.2390],[0.0884,0.3978,0.0654,0.2334],[0.1685,0.3992,0.0640,0.2320],[0.2505,0.4006,0.0645,0.2307],[0.3370,0.4088,0.0727,0.2334],[0.4231,0.4102,0.0769,0.2224],[0.5000,0.4102,0.0833,0.2390],[0.5833,0.4102,0.0833,0.2334],[0.6667,0.4102,0.0833,0.2390],[0.7500,0.4102,0.0833,0.2155],[0.8333,0.3674,0.0833,0.2652],[0.9167,0.3867,0.0746,0.2555]],
-    [[0.0074,0.7127,0.0649,0.2348],[0.0884,0.7155,0.0654,0.2320],[0.1685,0.7210,0.0645,0.2265],[0.2505,0.7155,0.0645,0.2320],[0.3370,0.7293,0.0727,0.2279],[0.4231,0.7265,0.0769,0.2265],[0.5000,0.7293,0.0833,0.2348],[0.5833,0.7348,0.0833,0.2224],[0.6667,0.7293,0.0833,0.2376],[0.7500,0.7293,0.0833,0.2127],[0.8333,0.6865,0.0833,0.2680],[0.9167,0.7500,0.0668,0.2155]]
+    [[0.0074,0.0552,0.0654,0.2666],[0.0879,0.0608,0.0649,0.2610],[0.1690,0.0608,0.0635,0.2624],[0.2505,0.0608,0.0645,0.2610],[0.3375,0.0732,0.0732,0.2597],[0.4217,0.0718,0.0792,0.2610],[0.5092,0.0801,0.0792,0.2528],[0.6022,0.0773,0.0769,0.2459],[0.6952,0.0691,0.0750,0.2638],[0.8002,0.0359,0.0806,0.2818],[0.8996,0.1215,0.0511,0.2113],[0.9507,0.1202,0.0359,0.2127]],
+    [[0.0074,0.3936,0.0663,0.2390],[0.0884,0.3978,0.0654,0.2334],[0.1685,0.3992,0.0640,0.2320],[0.2505,0.4006,0.0645,0.2307],[0.3370,0.4088,0.0727,0.2334],[0.4231,0.4102,0.0797,0.2224],[0.5129,0.4102,0.0755,0.2390],[0.6064,0.4102,0.0732,0.2334],[0.6961,0.4102,0.0746,0.2390],[0.8048,0.3674,0.0723,0.2431],[0.8973,0.3867,0.0548,0.2555],[0.9521,0.4337,0.0391,0.2086]],
+    [[0.0074,0.7127,0.0649,0.2348],[0.0884,0.7155,0.0654,0.2320],[0.1685,0.7210,0.0645,0.2265],[0.2505,0.7155,0.0645,0.2320],[0.3370,0.7293,0.0727,0.2279],[0.4231,0.7265,0.0778,0.2265],[0.5120,0.7293,0.0764,0.2348],[0.6073,0.7348,0.0727,0.2224],[0.6966,0.7293,0.0741,0.2376],[0.8025,0.6865,0.0746,0.2376],[0.8983,0.7431,0.0580,0.2224],[0.9563,0.7970,0.0272,0.1685]]
   ];
 
   let sheetFrames = null;
@@ -342,63 +351,102 @@ const SHEET_BAKED = [
       oc.width = img.width; oc.height = img.height;
       const c2 = oc.getContext('2d');
       c2.drawImage(img, 0, 0);
-      const cw = img.width / 12, ch = img.height / 3;
+      const W2 = img.width, H2 = img.height, ch = Math.floor(H2 / 3);
       const res = [];
       for (let r = 0; r < 3; r++) {
-        res[r] = [];
-        for (let f = 0; f < 12; f++) {
-          const sx0 = Math.round(f * cw), sy0 = Math.round(r * ch);
-          const w2 = Math.round(cw), h2 = Math.round(ch);
-          const data = c2.getImageData(sx0, sy0, w2, h2).data;
-          let x0 = w2, y0 = h2, x1 = -1, y1 = -1;
-          for (let i = 3; i < data.length; i += 4) {
-            if (data[i] > 60) {
-              const idx = (i - 3) / 4;
-              const px = idx % w2, py = (idx / w2) | 0;
-              if (px < x0) x0 = px; if (px > x1) x1 = px;
-              if (py < y0) y0 = py; if (py > y1) y1 = py;
+        const y0 = r * ch, y1 = r < 2 ? (r + 1) * ch : H2;
+        const band = c2.getImageData(0, y0, W2, y1 - y0).data;
+        // x 投影：這條橫帶每個 x 有幾個不透明像素
+        const proj = new Array(W2).fill(0);
+        for (let i = 3; i < band.length; i += 4) {
+          if (band[i] > 60) proj[((i - 3) / 4) % W2]++;
+        }
+        // 連續內容段；小空隙（<=6px）併起來
+        let segs = [];
+        let inseg = false, s0 = 0;
+        for (let x = 0; x < W2; x++) {
+          if (proj[x] > 0 && !inseg) { inseg = true; s0 = x; }
+          else if (proj[x] === 0 && inseg) { inseg = false; segs.push([s0, x - 1]); }
+        }
+        if (inseg) segs.push([s0, W2 - 1]);
+        const merged = [];
+        for (const g of segs) {
+          if (merged.length && g[0] - merged[merged.length - 1][1] <= 6) merged[merged.length - 1][1] = g[1];
+          else merged.push(g);
+        }
+        segs = merged;
+        while (segs.length > 12) {            // 太多：併最小空隙
+          let gi = 0, gap = 1e9;
+          for (let i = 0; i < segs.length - 1; i++) {
+            const g = segs[i + 1][0] - segs[i][1];
+            if (g < gap) { gap = g; gi = i; }
+          }
+          segs[gi][1] = segs[gi + 1][1];
+          segs.splice(gi + 1, 1);
+        }
+        while (segs.length < 12) {            // 太少：兩幀黏住 → 最寬段在投影谷底切開
+          let wi = 0, wid = 0;
+          for (let i = 0; i < segs.length; i++) {
+            if (segs[i][1] - segs[i][0] > wid) { wid = segs[i][1] - segs[i][0]; wi = i; }
+          }
+          const a2 = segs[wi][0], b2 = segs[wi][1];
+          const lo = a2 + Math.floor((b2 - a2) * 0.3), hi = b2 - Math.floor((b2 - a2) * 0.3);
+          let vx = lo, vv = 1e9;
+          for (let x = lo; x <= hi; x++) if (proj[x] < vv) { vv = proj[x]; vx = x; }
+          segs.splice(wi, 1, [a2, vx - 1], [vx, b2]);
+        }
+        res[r] = segs.map(([sx0, sx1]) => {
+          let yy0 = y1 - y0, yy1 = 0;
+          for (let y = 0; y < y1 - y0; y++) {
+            const base = y * W2 * 4;
+            for (let x = sx0; x <= sx1; x++) {
+              if (band[base + x * 4 + 3] > 60) {
+                if (y < yy0) yy0 = y;
+                if (y > yy1) yy1 = y;
+                break;
+              }
             }
           }
-          res[r][f] = x1 > x0
-            ? { sx: sx0 + x0, sy: sy0 + y0, sw: x1 - x0 + 1, sh: y1 - y0 + 1 }
-            : { sx: sx0 + w2 * 0.04, sy: sy0 + h2 * 0.02, sw: w2 * 0.92, sh: h2 * 0.96 };
-        }
+          if (yy1 < yy0) { yy0 = 0; yy1 = (y1 - y0) - 1; }
+          return { sx: sx0, sy: y0 + yy0, sw: sx1 - sx0 + 1, sh: yy1 - yy0 + 1 };
+        });
       }
       sheetFrames = res;
       if (typeof window !== 'undefined' && window.DogRoom) window.DogRoom._frames = res;
-    } catch (e) { /* file:// 等畫布受限就退回網格切法 */ }
+    } catch (e) { /* file:// 等畫布受限：外面會套 SHEET_BAKED */ }
   }
+
 
   /** 用 sprite sheet 畫一隻狗；(x,y) = 腳底中心，s 同 stamp 的縮放 */
   function blitDog(d, x, y, s, moving) {
     const row = SHEET_ROW[d.tier] != null ? SHEET_ROW[d.tier] : 2;
     const f = spriteFrame(d, moving);
     const size = 24 * s;
-    ctx.save();
-    ctx.translate(Math.round(x), Math.round(y));
-    if (d.dir < 0) ctx.scale(-1, 1);
+    ctxF.save();
+    ctxF.translate(Math.round(x), Math.round(y));
+    if (d.dir < 0) ctxF.scale(-1, 1);
     if (d.tier !== 'norm') {                   // 金狗的微光照舊
-      const grad = ctx.createRadialGradient(0, -size * 0.45, s, 0, -size * 0.45, size * 0.62);
+      const grad = ctxF.createRadialGradient(0, -size * 0.45, s, 0, -size * 0.45, size * 0.62);
       grad.addColorStop(0, d.tier === 'big' ? 'rgba(255,211,77,.30)' : 'rgba(240,180,41,.22)');
       grad.addColorStop(1, 'rgba(255,211,77,0)');
-      ctx.fillStyle = grad;
-      ctx.beginPath();
-      ctx.ellipse(0, -size * 0.45, size * 0.62, size * 0.45, 0, 0, Math.PI * 2);
-      ctx.fill();
+      ctxF.fillStyle = grad;
+      ctxF.beginPath();
+      ctxF.ellipse(0, -size * 0.45, size * 0.62, size * 0.45, 0, 0, Math.PI * 2);
+      ctxF.fill();
     }
     if (sheetFrames) {
       const fr = sheetFrames[row][f];
       const ref = (sheetFrames[row][4] && sheetFrames[row][4].sh) || fr.sh;
       const k = size / ref;
-      ctx.drawImage(dogSheet, fr.sx, fr.sy, fr.sw, fr.sh,
+      ctxF.drawImage(dogSheet, fr.sx, fr.sy, fr.sw, fr.sh,
         -fr.sw * k / 2, -fr.sh * k, fr.sw * k, fr.sh * k);
     } else {
       const cw = dogSheet.width / 12, ch = dogSheet.height / 3;
       const dw2 = size * (cw / ch), dh2 = size;
-      ctx.drawImage(dogSheet, f * cw + cw * 0.04, row * ch + ch * 0.02, cw * 0.92, ch * 0.96,
+      ctxF.drawImage(dogSheet, f * cw + cw * 0.04, row * ch + ch * 0.02, cw * 0.92, ch * 0.96,
         -dw2 / 2, -dh2, dw2, dh2);
     }
-    ctx.restore();
+    ctxF.restore();
   }
 
 
@@ -616,32 +664,32 @@ const SHEET_BAKED = [
       const y = d.groundY - d.h;
       // 影子（跳起來時縮小變淡）
       const air = Math.min(1, d.h / 120);
-      ctx.fillStyle = 'rgba(0,0,0,' + (0.35 - air * 0.22) + ')';
-      ctx.beginPath();
-      ctx.ellipse(d.x, d.groundY + 1, (8 - air * 3) * s, 2 * s, 0, 0, Math.PI * 2);
-      ctx.fill();
+      ctxF.fillStyle = 'rgba(0,0,0,' + (0.35 - air * 0.22) + ')';
+      ctxF.beginPath();
+      ctxF.ellipse(d.x, d.groundY + 1, (8 - air * 3) * s, 2 * s, 0, 0, Math.PI * 2);
+      ctxF.fill();
       if (d.rot) {
-        ctx.save();
-        ctx.translate(d.x, y - 5 * s);
-        ctx.rotate(d.rot);
+        ctxF.save();
+        ctxF.translate(d.x, y - 5 * s);
+        ctxF.rotate(d.rot);
         if (dogSheet) blitDog(d, 0, 5 * s, s, false);
-        else stamp(ctx, 0, 5 * s, s, d.tier, d.dir, d.phase, false);
-        ctx.restore();
+        else stamp(ctxF, 0, 5 * s, s, d.tier, d.dir, d.phase, false);
+        ctxF.restore();
       } else {
         if (dogSheet) blitDog(d, d.x, y, s, d.state === 'run');
-        else stamp(ctx, d.x, y, s, d.tier, d.dir, d.phase, d.state === 'run');
+        else stamp(ctxF, d.x, y, s, d.tier, d.dir, d.phase, d.state === 'run');
       }
       if (d.sayT > 0) {
         const label = d.sym + (isFinite(d.mfeX) ? '  ' + (d.mfeX >= 100 ? Math.round(d.mfeX) : d.mfeX.toFixed(1)) + 'x' : '');
-        ctx.font = '700 11px ui-monospace,Menlo,Consolas,monospace';
-        const tw = ctx.measureText(label).width;
+        ctxF.font = '700 11px ui-monospace,Menlo,Consolas,monospace';
+        const tw = ctxF.measureText(label).width;
         const bx = Math.max(4, Math.min(W - tw - 16, d.x - tw / 2 - 6));
         const by = y - 13 * s - 22;
-        ctx.fillStyle = '#e8ecf4';
-        ctx.fillRect(bx, by, tw + 12, 18);
-        ctx.fillStyle = '#0a0b0e';
-        ctx.textAlign = 'left';
-        ctx.fillText(label, bx + 6, by + 13);
+        ctxF.fillStyle = '#e8ecf4';
+        ctxF.fillRect(bx, by, tw + 12, 18);
+        ctxF.fillStyle = '#0a0b0e';
+        ctxF.textAlign = 'left';
+        ctxF.fillText(label, bx + 6, by + 13);
       }
     }
   }
@@ -662,6 +710,7 @@ const SHEET_BAKED = [
     step(dt, t);
     tickTerminal(t);
     drawRoom();
+    if (cvF !== cv) ctxF.clearRect(0, 0, W, H);
     drawDogs();
     if (!reduced && inView && !document.hidden && !panel.hidden) raf = requestAnimationFrame(frame);
   }
@@ -685,7 +734,11 @@ const SHEET_BAKED = [
     while (lines.length > 9) lines.shift();
     binEl.textContent = lines.join('\n');
   }
-  function drawOnce() { drawRoom(); drawDogs(); }
+  function drawOnce() {
+    drawRoom();
+    if (cvF !== cv) ctxF.clearRect(0, 0, W, H);
+    drawDogs();
+  }
 
   // ---------- 抓狗 / 丟狗 / 點狗 ----------
   function canvasPos(ev) {
