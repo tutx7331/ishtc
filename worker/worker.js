@@ -170,7 +170,9 @@ const SCAN_FROM = Math.floor(Date.UTC(SCAN_YEAR, 0, 1) / 1000);
 const GT = 'https://api.geckoterminal.com/api/v2';
 
 /** Cloudflare 免費方案每次執行最多 50 個外部請求，留餘裕 */
-const PRELOAD_BATCH = 10;
+// 小批次 + 高頻率：Workers 共用對外 IP，GeckoTerminal 隨時可能擋，
+// 與其一次衝一大批不如每十分鐘來一小批，被擋就下一輪再來。
+const PRELOAD_BATCH = 5;
 
 async function gtJSON(url) {
   const r = await fetch(url, { headers: { Accept: 'application/json' } });
@@ -178,8 +180,22 @@ async function gtJSON(url) {
   try { return await r.json(); } catch (e) { return null; }
 }
 
-/** 熱門池 → [{ pool, mint }]，pool id 長得像 "solana_xxx"，要把前綴拆掉 */
-async function trendingPools() {
+/**
+ * 熱門池 → [{ pool, mint }]，pool id 長得像 "solana_xxx"，要把前綴拆掉。
+ * 快取一小時：Workers 的對外 IP 是跟其他用戶共用的，GeckoTerminal 的
+ * IP 限額很容易被別人吃掉，每一次請求都要省著用。
+ */
+async function trendingPools(env) {
+  try {
+    const cached = await env.CACHE.get('gt:trending');
+    if (cached) return JSON.parse(cached);
+  } catch (e) {}
+  const list = await trendingPoolsFresh();
+  if (list.length) await kvPut(env, 'gt:trending', JSON.stringify(list), { expirationTtl: 3600 });
+  return list;
+}
+
+async function trendingPoolsFresh() {
   const outList = [];
   const seen = new Set();
   for (const path of ['/networks/solana/trending_pools?page=1', '/networks/solana/pools?page=1']) {
@@ -230,7 +246,7 @@ async function peakFromGecko(pool) {
 }
 
 /** GeckoTerminal 免金鑰限制很緊（連打第 4 次就 429），每次呼叫之間要留空檔 */
-const GT_GAP_MS = 2600;
+const GT_GAP_MS = 4000;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /** 記住這隻幣的池子，下次刷新就不必再找 */
@@ -274,7 +290,7 @@ async function preloadBatch(env, limit) {
   // 2) 熱門新幣
   let trending = [];
   if (targets.length < limit) {
-    try { trending = await trendingPools(); } catch (e) { trending = []; }
+    try { trending = await trendingPools(env); } catch (e) { trending = []; }
     for (const item of trending) {
       if (targets.length >= limit) break;
       if (seen.has(item.mint)) continue;

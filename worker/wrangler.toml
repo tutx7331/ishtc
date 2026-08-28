@@ -17,9 +17,10 @@ binding = "DB"
 database_name = "ishtc-logs"
 database_id = "287438fb-09ab-419c-950f-1ade78e60ccb"
 
-# 每小時自動預載一批熱門幣（免金鑰的 GeckoTerminal，不花 Solana Tracker 額度）
+# 每十分鐘預載一小批（免金鑰的 GeckoTerminal，不花 Solana Tracker 額度）
+# 小批次高頻率：Workers 共用對外 IP，被 GeckoTerminal 擋是常態，下一輪再補就好
 [triggers]
-crons = ["17 * * * *"]
+crons = ["*/10 * * * *"]
 
 [vars]
 # 額度上限（超過就回冷卻），都是「每一把 key」的量，總量會自動乘上把數。
