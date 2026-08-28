@@ -46,3 +46,14 @@ CREATE TABLE IF NOT EXISTS token_pools (
   pool TEXT NOT NULL,
   ts   INTEGER NOT NULL DEFAULT 0
 );
+
+-- 幣名對照表。訪客查到「查不出名字」的合約地址時會回報進來（symbol 先留空），
+-- 由定時工作用免金鑰的 GeckoTerminal 慢慢補上，補到的名字全站共用 ——
+-- 同一隻幣不必每個訪客各查一次。
+CREATE TABLE IF NOT EXISTS token_names (
+  mint    TEXT PRIMARY KEY,
+  symbol  TEXT,                          -- NULL 表示還沒查到
+  tries   INTEGER NOT NULL DEFAULT 0,
+  updated INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_token_names_todo ON token_names (symbol, updated);

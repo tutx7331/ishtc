@@ -362,6 +362,58 @@ async function preloadBatch(env, limit) {
   };
 }
 
+/** 幣名看起來合理才收（GeckoTerminal 回來的也可能是空的或超長的怪東西）*/
+function saneSymbol(v) {
+  const sym = String(v || '').trim();
+  if (!sym || sym.length > 20) return null;
+  if (/[\u0000-\u001f]/.test(sym)) return null;    // 控制字元
+  return sym;
+}
+
+/** 定時把「還沒查到名字」的幣補起來（GeckoTerminal 免金鑰，不花付費額度）*/
+async function backfillNames(env, limit) {
+  if (!env.DB) return { ok: false };
+  const nowS = Math.floor(Date.now() / 1000);
+  let todo = [];
+  try {
+    todo = (await env.DB.prepare(
+      'SELECT mint FROM token_names WHERE symbol IS NULL AND updated < ? '
+      + 'ORDER BY updated ASC LIMIT ?')
+      .bind(nowS - 6 * 3600, limit).all()).results || [];
+  } catch (e) { return { ok: false, reason: 'no table' }; }
+  if (!todo.length) return { ok: true, found: 0, tried: 0 };
+
+  let found = 0, tried = 0, throttled = false;
+  for (let i = 0; i < todo.length; i += 30) {
+    const chunk = todo.slice(i, i + 30).map((r) => r.mint);
+    if (i > 0) await sleep(GT_GAP_MS);
+    let j = null;
+    try {
+      const r = await fetch(GT + '/networks/solana/tokens/multi/' + chunk.join('%2C'),
+        { headers: { Accept: 'application/json' } });
+      if (r.status === 429) { throttled = true; break; }
+      if (r.ok) j = await r.json();
+    } catch (e) { /* 這批失敗就算了，下輪再來 */ }
+    tried += chunk.length;
+
+    const got = new Map();
+    for (const tk of (j && j.data) || []) {
+      const at = tk.attributes || {};
+      const sym = saneSymbol(at.symbol);
+      if (at.address && sym) got.set(at.address, sym);
+    }
+    try {
+      const stmt = env.DB.prepare(
+        'UPDATE token_names SET symbol = ?, tries = tries + 1, updated = ? WHERE mint = ?');
+      const batch = chunk.map((m) => stmt.bind(got.get(m) || null, nowS, m));
+      await env.DB.batch(batch);
+      found += got.size;
+    } catch (e) { /* 寫不進去下輪再試 */ }
+  }
+  await bump(env, 'names:' + new Date().toISOString().slice(0, 7), found);
+  return { ok: true, found: found, tried: tried, throttled: throttled };
+}
+
 export default {
   async fetch(request, env) {
     if (request.method === 'OPTIONS') return new Response(null, { headers: CORS });
@@ -420,6 +472,15 @@ export default {
           st: await perKey('st', stN, stLimit),
         },
         preloaded: await readCount('preload:' + month),
+        names: await (async () => {
+          if (!env.DB) return null;
+          try {
+            const q = await env.DB.prepare(
+              'SELECT COUNT(*) AS all_n, SUM(CASE WHEN symbol IS NULL THEN 1 ELSE 0 END) AS todo '
+              + 'FROM token_names').first();
+            return q ? { known: (q.all_n || 0) - (q.todo || 0), pending: q.todo || 0 } : null;
+          } catch (e) { return null; }
+        })(),
         db: { tokens: tokens, records: saved },
       });
     }
@@ -612,6 +673,43 @@ export default {
       return new Response(body, { headers: { 'Content-Type': 'application/json', ...CORS } });
     }
 
+    // ---- 幣名對照：問名字，順便把還不知道的排進補登佇列 ----
+    if (url.pathname === '/names' && request.method === 'POST') {
+      let b;
+      try { b = await request.json(); } catch (e) { return json({ error: 'bad json' }, 400); }
+      const mints = (Array.isArray(b.mints) ? b.mints : [])
+        .filter((m) => SOL_ADDR.test(String(m))).slice(0, 200);
+      if (!mints.length) return json({ names: {} });
+      if (!(await rateLimit(env, 'names:' + ip, Number(env.NAMES_RATE_PER_MIN) || 60))) {
+        return json({ code: 'rate_limited' }, 429);
+      }
+
+      const names = {};
+      const known = new Set();
+      if (env.DB) {
+        try {
+          for (let i = 0; i < mints.length; i += 100) {
+            const chunk = mints.slice(i, i + 100);
+            const q = 'SELECT mint, symbol FROM token_names WHERE mint IN ('
+              + chunk.map(() => '?').join(',') + ')';
+            const rows = (await env.DB.prepare(q).bind(...chunk).all()).results || [];
+            for (const r of rows) {
+              known.add(r.mint);
+              if (r.symbol) names[r.mint] = r.symbol;
+            }
+          }
+          // 沒看過的排進佇列，等定時工作去查
+          const fresh = mints.filter((m) => !known.has(m)).slice(0, 200);
+          if (fresh.length) {
+            const stmt = env.DB.prepare(
+              'INSERT OR IGNORE INTO token_names (mint, symbol, tries, updated) VALUES (?, NULL, 0, 0)');
+            await env.DB.batch(fresh.map((m) => stmt.bind(m)));
+          }
+        } catch (e) { /* 表還沒建好就當沒有 */ }
+      }
+      return json({ names: names });
+    }
+
     // ---- 手動觸發一次預載（方便部署後立刻驗證，平常交給 Cron）----
     if (url.pathname === '/preload') {
       // 手動觸發要通行碼：這支會打外部 API 又會寫資料庫，不能讓路人隨便按。
@@ -628,6 +726,10 @@ export default {
 
   /** Cron 定時觸發：自動把熱門幣預載進資料庫，全程不消耗 Solana Tracker 額度 */
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(preloadBatch(env, PRELOAD_BATCH));
+    // 兩件事：預載熱門幣的最高價、補登還沒查到的幣名。都只用免金鑰的來源。
+    ctx.waitUntil((async () => {
+      await preloadBatch(env, PRELOAD_BATCH);
+      await backfillNames(env, 60);
+    })());
   },
 };

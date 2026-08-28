@@ -156,7 +156,7 @@ function quotaText() {
 }
 
 async function getJSON(url, opts) {
-  const { limiter, tries = 3, headers, onHeaders } = opts || {};
+  const { limiter, tries = 3, headers, onHeaders, method, body } = opts || {};
   const host = new URL(url).host;
   let sawRateLimit = false;
   for (let i = 0; i < tries; i++) {
@@ -164,7 +164,13 @@ async function getJSON(url, opts) {
     if (limiter) await limiter.take();
     let res;
     try {
-      res = await fetch(url, { headers: Object.assign({ Accept: 'application/json' }, headers) });
+      const init = { headers: Object.assign({ Accept: 'application/json' }, headers) };
+      if (method) init.method = method;
+      if (body != null) {
+        init.body = body;
+        init.headers['Content-Type'] = 'application/json';
+      }
+      res = await fetch(url, init);
     } catch (e) {
       if (i === tries - 1) throw new Error(t('err.net', { host: host }));
       await sleep(800 * (i + 1));
@@ -888,15 +894,38 @@ async function backfillSymbols(rows, onProg) {
   const unknown = rows.filter(isUnnamed);
   if (!unknown.length) return 0;
 
-  // 先吃本機快取
-  const rest = [];
+  // 1) 先吃本機快取
+  let rest = [];
   for (const r of unknown) {
     const hit = cacheGet('sym:' + r.mint);
     if (hit) r.symbol = hit; else rest.push(r);
   }
   if (!rest.length) return 0;
 
-  let filled = 0;
+  let filledFromDb = 0;
+  // 2) 再問共用的幣名資料庫：別人查過的幣這裡就有，一次問完不必逐批打 GeckoTerminal。
+  //    順便把還沒人查過的排進後端的補登佇列，之後全站共用。
+  if (PROXY_URL) {
+    for (let i = 0; i < rest.length && i < 600; i += 200) {
+      const chunk = rest.slice(i, i + 200);
+      try {
+        const j = await getJSON(PROXY_URL + '/names', {
+          tries: 1,
+          method: 'POST',
+          body: JSON.stringify({ mints: chunk.map((r) => r.mint) }),
+        });
+        const names = (j && j.names) || {};
+        for (const r of chunk) {
+          const sym = names[r.mint];
+          if (sym) { r.symbol = sym; cacheSet('sym:' + r.mint, sym); filledFromDb++; }
+        }
+      } catch (e) { break; }
+    }
+    rest = rest.filter(isUnnamed);
+    if (!rest.length) return filledFromDb;
+  }
+
+  let filled = filledFromDb || 0;
   const CAP = 900;                      // 再多就讓使用者等太久，其餘維持顯示地址
   const todo = rest.slice(0, CAP);
   for (let i = 0; i < todo.length; i += 30) {
