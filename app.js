@@ -224,6 +224,29 @@ function cacheSet(key, v) {
 }
 
 // ---------- 1. Helius：抓交易 ----------
+// ---------- 掃描範圍：只算 SCAN_YEAR 這一年 ----------
+// 翻交易時提早收手（不用把 2026 之前的歷史全翻完）、算最高價時也只看年內。
+const SCAN_YEAR = 2026;
+const SCAN_FROM = Math.floor(Date.UTC(SCAN_YEAR, 0, 1) / 1000);
+const SCAN_TO = Math.floor(Date.UTC(SCAN_YEAR + 1, 0, 1) / 1000) - 1;
+/** 沒有時間戳的資料一律保留，寧可多算也不要莫名其妙少一筆 */
+function inScanRange(ts) {
+  if (!ts) return true;
+  return ts >= SCAN_FROM && ts <= SCAN_TO;
+}
+/** 最高價的觀察終點：現在，但不超出這一年 */
+function scanNow() {
+  return Math.min(Math.floor(Date.now() / 1000), SCAN_TO);
+}
+/** 交易只留年內的（Helius 用 timestamp 秒，ST 用 time 毫秒）；partial 旗標要跟著走 */
+function keepInRange(list, useST) {
+  const kept = list.filter((x) => inScanRange(useST
+    ? Math.floor((x.time || 0) / 1000)
+    : x.timestamp));
+  if (list.partial) kept.partial = true;
+  return kept;
+}
+
 async function fetchWalletTxs(address, key, maxTx, onTick) {
   const out = [];
   let before = '';
@@ -250,6 +273,9 @@ async function fetchWalletTxs(address, key, maxTx, onTick) {
     // 不代表沒有更舊的交易 —— 早期在這裡 break 會把後面的歷史整段丟掉。
     if (!Array.isArray(batch) || batch.length === 0) break;
     out.push.apply(out, batch);
+    // Helius 由新往舊翻：整批都比掃描起點還舊，就不用再往回了（省下大量額度）
+    const oldest = batch[batch.length - 1].timestamp;
+    if (oldest && oldest < SCAN_FROM) break;
     const next = batch[batch.length - 1].signature;
     if (next === before) break;   // 游標沒前進，避免無限迴圈
     before = next;
@@ -284,6 +310,8 @@ async function fetchWalletTradesST(address, maxTx, onTick) {
     if (!batch.length) break;
     out.push.apply(out, batch);
     onTick(out.length);
+    const oldestT = Math.floor((batch[batch.length - 1].time || 0) / 1000);
+    if (oldestT && oldestT < SCAN_FROM) break;   // 翻到掃描起點之前就收手
     if (!j.hasNextPage || j.nextCursor === undefined || j.nextCursor === null) break;
     const next = String(j.nextCursor);
     if (next === cursor) break;   // 游標沒前進
@@ -638,10 +666,10 @@ async function fetchPeakSolanaTracker(mint, sinceTs) {
   if (!hit) {
     const j = stKey
       ? await getJSON(ST + '/price/history/range?token=' + mint
-          + '&time_from=' + Math.floor(sinceTs) + '&time_to=' + now,
+          + '&time_from=' + Math.floor(sinceTs) + '&time_to=' + scanNow(),
           { limiter: stLimit, headers: { 'x-api-key': stKey } })
       : await getJSON(PROXY_URL + '/st/range?token=' + mint
-          + '&time_from=' + Math.floor(sinceTs) + '&time_to=' + now,
+          + '&time_from=' + Math.floor(sinceTs) + '&time_to=' + scanNow(),
           { limiter: stLimit });
     const h = j && j.price && j.price.highest;
     if (!h || !(h.price > 0)) return null;
@@ -666,7 +694,7 @@ async function fetchPeakBirdeye(mint, sinceTs) {
   if (!list) {
     const now = Math.floor(Date.now() / 1000);
     const j = await getJSON(BE + '/defi/ohlcv?address=' + mint + '&type=' + tf
-      + '&time_from=' + Math.floor(sinceTs) + '&time_to=' + now,
+      + '&time_from=' + Math.floor(sinceTs) + '&time_to=' + scanNow(),
       { limiter: beLimit, headers: { 'X-API-KEY': birdeyeKey, 'x-chain': 'solana' } });
     const items = (j && j.data && j.data.items) || [];
     list = items.map((c) => [c.unixTime, c.h]);
@@ -859,9 +887,10 @@ async function run() {
       + t('prog.got', { addr: shortAddr(a), n: n }));
     setProg(base, t(useST ? 'prog.trades' : 'prog.txs',
       { i: i + 1, total: addrs.length, addr: shortAddr(a) }));
-    const txs = useST
+    const raw = useST
       ? await fetchWalletTradesST(a, maxTx, tick)
       : await fetchWalletTxs(a, key, maxTx, tick);
+    const txs = keepInRange(raw, useST);
     if (txs.partial) partialAddrs.push(a);
     txsByAddr.set(a, txs);
   }
@@ -1224,7 +1253,8 @@ function render(d) {
   const hero = '<div class="stat hero"><div class="k">' + t('stat.missed') + '</div>'
     + '<div class="v bad">' + fmtUSD(s.missed) + '</div></div>';
   const stats = [
-    [t('stat.cost'), fmtUSD(s.cost), t('stat.costSub', { n: d.meta.txCount.toLocaleString() }), ''],
+    [t('stat.cost'), fmtUSD(s.cost),
+      t('stat.costSub', { n: d.meta.txCount.toLocaleString(), year: SCAN_YEAR }), ''],
     [t('stat.pnl'), (s.pnl >= 0 ? '+' : '') + fmtUSD(s.pnl), t('stat.pnlSub'), s.pnl >= 0 ? 'good' : 'bad'],
     [t('stat.ideal'), fmtUSD(s.ideal), t('stat.idealSub'), ''],
     [t('stat.eff'), fmtPct(eff), t('stat.effSub'), grade[1]],
@@ -1948,6 +1978,19 @@ I18N.onChange(() => {
   syncLangBtn();
   if (LAST) { render(LAST); }          // 報告與分享卡整份重畫
   if (dogRoom() && dogRoom().relabel) dogRoom().relabel();
+});
+
+// 贊助地址：點一下複製
+if ($('#donate-addr')) $('#donate-addr').addEventListener('click', () => {
+  const el = $('#donate-addr');
+  // 地址存在 data-addr，連點兩下也不會把「已複製」寫回去
+  const addr = el.getAttribute('data-addr') || el.textContent.trim();
+  copyText(addr).then(() => {
+    el.classList.add('copied');
+    el.textContent = t('donate.copied');
+    clearTimeout(el._t);
+    el._t = setTimeout(() => { el.textContent = addr; el.classList.remove('copied'); }, 1400);
+  });
 });
 
 if ($('#board-btn')) $('#board-btn').addEventListener('click', openBoard);
