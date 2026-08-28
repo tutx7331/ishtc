@@ -296,7 +296,8 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .scr-body .stat{padding:8px 11px;background:rgba(232,236,244,.025);border:1px solid #1b2230;text-align:left}
 .scr-body .stat .k{font-size:9px}
 .scr-body .stat .v{font-size:clamp(13px,2.1vh,19px);margin-top:4px}
-#scr-3 .scr-content{
+/* 權重要壓過 #screen-wall.done .scr-content{display:block}，否則 flex 置中不生效 */
+#screen-wall.done #scr-3 .scr-content{
   text-align:center;display:flex;flex-direction:column;justify-content:center;
   height:100%;min-height:0;gap:clamp(8px,2vh,22px);
 }
@@ -360,6 +361,15 @@ button:disabled{opacity:.4;cursor:not-allowed}
   white-space:pre-wrap;word-break:break-all;
 }
 #screen-terminal .hint{color:var(--dim)}
+
+#lang-toggle{
+  position:absolute;top:18px;right:20px;z-index:5;
+  background:rgba(10,11,14,.72);border:1px solid var(--line-2);color:var(--muted);
+  padding:7px 13px;font:700 12px var(--mono);letter-spacing:.12em;cursor:pointer;
+}
+#lang-toggle:hover{border-color:var(--accent);color:var(--accent)}
+#dog-room-panel #lang-toggle{top:auto;bottom:14px;right:130px}
+@media (max-width:560px){#lang-toggle{top:12px;right:12px;padding:6px 10px;font-size:11px}}
 
 #back-home{
   position:absolute;bottom:14px;left:14px;z-index:5;

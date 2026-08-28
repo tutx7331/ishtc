@@ -361,6 +361,7 @@ const CAT_BAKED = [
       cs.src = 'assets/cat.png';
     } catch (e) {}
   }
+  const CAT_NAME = () => (typeof t === 'function' ? t('cat.sym') : '失意貓');
   const CAT_INFO = { sym: '失意貓', mfeX: 99999, tier: 'cat' };
 
   /** 該列最高的一幀當縮放基準；用跑步幀當基準會讓趴長的貓被放大成巨貓 */
@@ -885,10 +886,21 @@ const SHEET_BAKED = [
     const shown = dogs.filter(notCat).length + pending.filter(notCat).length;
     const golds = dogs.filter((d) => d.tier !== 'norm' && d.tier !== 'cat').length
       + pending.filter((d) => d.tier && d.tier !== 'norm' && d.tier !== 'cat').length;
-    let t = '金色是金狗，戴皇冠的是大金狗，全場還有一隻失意貓。滑過看幣名，抓起來丟也可以。';
-    if (total > shown) t += '　房間塞不下，只顯示 ' + shown + ' / ' + total + ' 隻（金狗優先）。';
-    else if (shown) t += '　共 ' + shown + ' 隻' + (golds ? '，其中 ' + golds + ' 隻金狗' : '') + '。';
-    hintEl.textContent = t;
+    const T = (k, v) => (typeof t === 'function' ? t(k, v) : k);
+    let txt = T('room.hint');
+    if (total > shown) txt += T('room.overflow', { shown: shown, total: total });
+    else if (shown) {
+      txt += T('room.count', { n: shown, gold: golds ? T('room.golds', { n: golds }) : '' });
+    }
+    hintEl.textContent = txt;
+  }
+
+  /** 語言切換後重貼提示與貓名 */
+  function relabel() {
+    for (const d of dogs) if (d.tier === 'cat') d.sym = CAT_NAME();
+    for (const p2 of pending) if (p2.tier === 'cat') p2.sym = CAT_NAME();
+    updateHint();
+    if (reduced) drawOnce(); else kick();
   }
 
   // ---------- API ----------
@@ -916,6 +928,7 @@ const SHEET_BAKED = [
       updateHint();
       reduced ? this.renderNow(1) : kick();
     },
+    relabel: relabel,
     _roles: frameRoles,        // 測試用
     _frameOf: spriteFrame,     // 測試用
     setAll: function (list, totalCount) {
@@ -928,12 +941,12 @@ const SHEET_BAKED = [
       // 已經在場上的留著繼續玩，缺的排隊噴出來
       const have = new Set(dogs.map((d) => d.sym).concat(pending.map((p) => p.sym)));
       const want = new Set(pick.map((p) => p.sym));
-      want.add(CAT_INFO.sym);
+      want.add(CAT_INFO.sym); want.add(CAT_NAME());
       dogs = dogs.filter((d) => want.has(d.sym));
       pending = pending.filter((p) => want.has(p.sym));
       for (const p of pick) if (!have.has(p.sym)) pending.push(p);
       // 全場一隻失意貓，排在最後噴出來
-      if (!have.has(CAT_INFO.sym)) pending.push(Object.assign({}, CAT_INFO));
+      if (!have.has(CAT_INFO.sym)) pending.push(Object.assign({}, CAT_INFO, { sym: CAT_NAME() }));
       ticker = list.slice().sort(function (a, b) { return (b.mfeX || 0) - (a.mfeX || 0); })
         .slice(0, 8).map(function (r) { return r.sym + ' +' + Math.round(r.mfeX || 0) + 'x'; });
       if (panel) panel.hidden = false;

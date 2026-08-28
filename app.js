@@ -95,9 +95,9 @@ function fmtPct(x) { return (isFinite(x) ? (x * 100).toFixed(1) : '—') + '%'; 
 /** n 隻幣要多久。速率取決於走 Birdeye(50/min) 還是 GeckoTerminal(25/min) */
 function etaText(n, perMin) {
   const secs = Math.round((n * 60) / (perMin || 25));
-  if (secs >= 3600) return '約 ' + (secs / 3600).toFixed(1) + ' 小時';
-  if (secs >= 60) return '約 ' + Math.ceil(secs / 60) + ' 分';
-  return '約 ' + secs + ' 秒';
+  if (secs >= 3600) return t('eta.hour', { n: (secs / 3600).toFixed(1) });
+  if (secs >= 60) return t('eta.min', { n: Math.ceil(secs / 60) });
+  return t('eta.sec', { n: secs });
 }
 function shortAddr(a) { return a.slice(0, 4) + '…' + a.slice(-4); }
 function isSolAddress(s) { return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(s); }
@@ -139,8 +139,8 @@ let beQuota = null;    // Birdeye 回傳的剩餘額度，從 response header �
 
 function quotaText() {
   if (!beQuota || !isFinite(beQuota.remaining)) return '';
-  return '　Birdeye 剩 ' + beQuota.remaining.toLocaleString()
-    + (isFinite(beQuota.limit) ? ' / ' + beQuota.limit.toLocaleString() : '');
+  return t('quota.birdeye', { n: beQuota.remaining.toLocaleString()
+    + (isFinite(beQuota.limit) ? ' / ' + beQuota.limit.toLocaleString() : '') });
 }
 
 async function getJSON(url, opts) {
@@ -154,7 +154,7 @@ async function getJSON(url, opts) {
     try {
       res = await fetch(url, { headers: Object.assign({ Accept: 'application/json' }, headers) });
     } catch (e) {
-      if (i === tries - 1) throw new Error('網路錯誤，連不到 ' + host);
+      if (i === tries - 1) throw new Error(t('err.net', { host: host }));
       await sleep(800 * (i + 1));
       continue;
     }
@@ -167,7 +167,7 @@ async function getJSON(url, opts) {
     if (res.status === 429) {
       // 代理的額度守門：不是暫時限流，是這個月共用額度用完了，重試沒有意義
       if (res.headers.get('x-cooldown')) {
-        const err = new Error('查詢用量過大，暫時冷卻中 —— 等 DEV 充值');
+        const err = new Error(t('err.cooldownShort'));
         err.cooldown = true;
         throw err;
       }
@@ -179,8 +179,8 @@ async function getJSON(url, opts) {
       const transient = res.status >= 500;
       if (i === tries - 1) {
         const err = new Error(transient
-          ? host + ' 暫時出問題（HTTP ' + res.status + '），重試 ' + tries + ' 次都沒過'
-          : host + ' 回應 HTTP ' + res.status);
+          ? t('err.upstream', { host: host, status: res.status, tries: tries })
+          : t('err.http', { host: host, status: res.status }));
         err.status = res.status;
         throw err;
       }
@@ -191,7 +191,7 @@ async function getJSON(url, opts) {
   }
   // 重試次數用完了。是被限流還是單純沒資料，錯誤訊息要說得清楚
   if (sawRateLimit) {
-    const err = new Error(host + ' 暫時限流中，請稍後再試。');
+    const err = new Error(t('err.rate', { host: host }));
     err.status = 429;
     throw err;
   }
@@ -239,8 +239,8 @@ async function fetchWalletTxs(address, key, maxTx, onTick) {
       batch = await getJSON(url, { tries: 5 });
     } catch (e) {
       if (e.message === '__ABORT__') throw e;
-      if (e.status === 401) throw new Error('Helius API key 無效或已停用。');
-      if (e.status === 429) throw new Error('Helius 額度用完或被限流，稍後再試。');
+      if (e.status === 401) throw new Error(t('err.keyHelius'));
+      if (e.status === 429) throw new Error(t('err.quotaHelius'));
       // 翻到一半掛掉：已經抓到的先留著
       if (out.length) { out.partial = true; break; }
       throw e;
@@ -275,7 +275,7 @@ async function fetchWalletTradesST(address, maxTx, onTick) {
       j = await getJSON(url, { limiter: stLimit, tries: 5, headers: { 'x-api-key': stKey } });
     } catch (e) {
       if (e.message === '__ABORT__') throw e;
-      if (e.status === 401) throw new Error('Solana Tracker API key 無效或已停用。');
+      if (e.status === 401) throw new Error(t('err.keySt'));
       // 翻到一半掛掉：已經抓到的先留著，整份丟掉更糟
       if (out.length) { partial = true; break; }
       throw e;
@@ -551,7 +551,7 @@ async function buildSolPrice(sinceTs, onStatus) {
   if (!list) {
     for (const src of SOL_SOURCES) {
       try {
-        if (onStatus) onStatus('抓 SOL 歷史價（' + src.name + '）…');
+        if (onStatus) onStatus(t('prog.solPriceSrc', { src: src.name }));
         const raw = await src.get(need);
         if (!raw.length) continue;
         const byTs = new Map();
@@ -569,7 +569,7 @@ async function buildSolPrice(sinceTs, onStatus) {
     if (list) cacheSet(cacheKey, { list: list, source: source });
   }
   if (!list || !list.length) {
-    throw new Error('三個來源都抓不到 SOL 歷史價（Binance / Coinbase / GeckoTerminal），稍後再試。');
+    throw new Error(t('err.solPrice'));
   }
 
   const ts = list.map((c) => c[0]);
@@ -718,7 +718,7 @@ async function fetchPeakBest(mint, pool, sinceTs) {
       if (r) return r;
     } catch (e) {
       if (e.message === '__ABORT__') throw e;
-      if (e.status === 401) throw new Error('Solana Tracker API key 無效。清空該欄位就會改用其他來源。');
+      if (e.status === 401) throw new Error(t('err.keyStAlt'));
       // 額度用完或查不到就往下一個來源退
     }
   }
@@ -728,7 +728,7 @@ async function fetchPeakBest(mint, pool, sinceTs) {
       if (r) return r;
     } catch (e) {
       if (e.message === '__ABORT__') throw e;
-      if (e.status === 401) throw new Error('Birdeye API key 無效。清空該欄位就會改用免金鑰的 GeckoTerminal。');
+      if (e.status === 401) throw new Error(t('err.keyBirdeye'));
       // 其他錯誤（額度用完、單一代幣查不到）就靜靜退回 GeckoTerminal
     }
   }
@@ -781,7 +781,7 @@ function summarize(rows) {
     daysToPeakSum: 0, daysToPeakN: 0, worst: null,
     bigDogs: 0, smallDogs: 0, mcapUnknown: 0, topDog: null,
   };
-  TIERS.forEach((t) => { s.tiers[t] = 0; });
+  TIERS.forEach((tier) => { s.tiers[tier] = 0; });
   for (const r of rows) {
     s.cost += r.costUSD;
     s.ideal += r.idealUSD;
@@ -828,11 +828,11 @@ async function run() {
   const minCost = Math.max(0, parseFloat($('#min-cost').value) || 0);
   const maxTx = clamp(parseInt($('#max-tx').value, 10) || 300000, 100, 1000000);
 
-  if (!addrs.length) throw new Error('請至少輸入一個 Solana 地址。');
+  if (!addrs.length) throw new Error(t('err.noAddr'));
   const bad = addrs.filter((a) => !isSolAddress(a));
-  if (bad.length) throw new Error('這些看起來不是 Solana 地址：\n' + bad.join('\n'));
+  if (bad.length) throw new Error(t('err.badAddr') + bad.join('\n'));
   if (!stKey && !key && !PROXY_URL) {
-    throw new Error('請至少填一把 API key（建議 Helius + Solana Tracker 都填）。');
+    throw new Error(t('err.noKey'));
   }
 
   localStorage.setItem('fomo:key', key);
@@ -856,9 +856,9 @@ async function run() {
     const a = addrs[i];
     const base = 2 + (i / addrs.length) * 18;
     const tick = (n) => setProg(base, '[' + (i + 1) + '/' + addrs.length + '] '
-      + shortAddr(a) + ' — 已抓 ' + n + (useST ? ' 筆成交' : ' 筆交易'));
-    setProg(base, '[' + (i + 1) + '/' + addrs.length + '] 抓 ' + shortAddr(a)
-      + (useST ? ' 的成交紀錄…' : ' 的交易紀錄…'));
+      + t('prog.got', { addr: shortAddr(a), n: n }));
+    setProg(base, t(useST ? 'prog.trades' : 'prog.txs',
+      { i: i + 1, total: addrs.length, addr: shortAddr(a) }));
     const txs = useST
       ? await fetchWalletTradesST(a, maxTx, tick)
       : await fetchWalletTxs(a, key, maxTx, tick);
@@ -867,22 +867,22 @@ async function run() {
   }
   const dedup = new Map();
   for (const txs of txsByAddr.values()) {
-    for (const t of txs) dedup.set(useST ? (t.tx + ':' + t.wallet) : t.signature, t);
+    for (const tx of txs) dedup.set(useST ? (tx.tx + ':' + tx.wallet) : tx.signature, tx);
   }
   const allTxs = Array.from(dedup.values());
-  if (!allTxs.length) throw new Error('這些地址沒有任何交易紀錄。');
+  if (!allTxs.length) throw new Error(t('err.noTx'));
 
   // 7.2 SOL 歷史價。Solana Tracker 的成交本身就有美元價，不需要這步
   let solPrice = null;
   if (!useST) {
-    setProg(22, '抓 SOL 歷史價…');
+    setProg(22, t('prog.solPrice'));
     let earliest = Math.floor(Date.now() / 1000);
     for (const t of allTxs) if (t.timestamp && t.timestamp < earliest) earliest = t.timestamp;
     solPrice = await buildSolPrice(earliest - 86400, (m) => setProg(22, m));
   }
 
   // 7.3 重建部位（多地址合併計算，錢包之間互轉會自動抵銷）
-  setProg(26, '重建買賣紀錄…');
+  setProg(26, t('prog.rebuild'));
   const built = useST
     ? buildPositionsFromTrades(allTxs, minCost)
     : buildPositions(allTxs, new Set(addrs), solPrice, minCost);
@@ -903,13 +903,13 @@ async function run() {
   const truncated = Math.max(0, totalFound - maxTokens);
   positions = positions.slice(0, maxTokens);
   if (!positions.length) {
-    throw new Error('找不到符合條件的買入紀錄（最小成本 $' + minCost + '）。試著把「最小買入成本」調低。');
+    throw new Error(t('err.noBuys', { n: minCost }));
   }
 
   // 7.4 池子與現價
-  setProg(30, '查池子與現價…');
+  setProg(30, t('prog.pools'));
   const info = await fetchPools(positions.map((p) => p.mint),
-    (d, t) => setProg(30 + (d / t) * 10, '查池子與現價… ' + d + '/' + t));
+    (done, all) => setProg(30 + (done / all) * 10, t('prog.pools') + ' ' + done + '/' + all));
 
   // 7.5 逐幣算 MFE
   // 只有 GeckoTerminal 需要池子位址；Solana Tracker 與 Birdeye 都是按代幣地址查。
@@ -933,8 +933,10 @@ async function run() {
       price: 0, mcap: 0, createdAt: 0,
     };
     setProg(40 + (i / withPool.length) * 58,
-      '算最高價 ' + (i + 1) + '/' + withPool.length + '（' + meta.symbol + '）… 剩 '
-      + etaText(withPool.length - i, (stKey || PROXY_URL) ? 150 : birdeyeKey ? 50 : 25));
+      t('prog.peak', {
+        i: i + 1, total: withPool.length, sym: meta.symbol,
+        eta: etaText(withPool.length - i, (stKey || PROXY_URL) ? 150 : birdeyeKey ? 50 : 25),
+      }));
 
     let peak = null;
     try {
@@ -998,7 +1000,7 @@ async function run() {
     }
   }
 
-  if (!rows.length) throw new Error('還沒算完任何一隻就停止了，沒有結果可以顯示。');
+  if (!rows.length) throw new Error(t('err.nothingDone'));
 
   // 7.6 各地址拆分
   const perAddr = [];
@@ -1027,7 +1029,7 @@ async function run() {
     }
   }
 
-  setProg(100, '完成');
+  setProg(100, t('prog.done'));
   // 交易記錄與 DexScreener 都查不到名字的幣，問 GeckoTerminal 補符號
   const noSym = rows.filter((r) => r.symbol === shortAddr(r.mint));
   for (let i = 0; i < Math.min(noSym.length, 90); i += 30) {
@@ -1076,12 +1078,12 @@ async function run() {
 const PAGE_SIZE = 10;
 // 排行榜只留五欄，完整數據在 CSV
 const ALL_COLS = [
-  { key: 'symbol',    label: '幣',          num: false },
-  { key: 'addrLabel', label: '買入地址',    num: false, multi: true },
-  { key: 'costUSD',   label: '成本',        num: true, fmt: fmtUSD },
-  { key: 'mfeX',      label: '最高倍數',    num: true, fmt: fmtX },
-  { key: 'actualUSD', label: '實際拿到',    num: true, fmt: fmtUSD },
-  { key: 'missedUSD', label: '錯過總額',    num: true, fmt: fmtUSD },
+  { key: 'symbol',    i18n: 'col.symbol', num: false },
+  { key: 'addrLabel', i18n: 'col.addr',   num: false, multi: true },
+  { key: 'costUSD',   i18n: 'col.cost',   num: true, fmt: fmtUSD },
+  { key: 'mfeX',      i18n: 'col.mfe',    num: true, fmt: fmtX },
+  { key: 'actualUSD', i18n: 'col.actual', num: true, fmt: fmtUSD },
+  { key: 'missedUSD', i18n: 'col.missed', num: true, fmt: fmtUSD },
 ];
 
 /** 只有一個地址時「買入地址」整欄沒意義，不顯示 */
@@ -1126,12 +1128,12 @@ function renderTable() {
     return '<th class="' + (c.num ? 'num ' : '') + 'sortable' + (active ? ' active' : '') + '"'
       + ' data-key="' + c.key + '" tabindex="0" role="button"'
       + ' aria-sort="' + (active ? (sortDir === -1 ? 'descending' : 'ascending') : 'none') + '">'
-      + escapeHTML(c.label) + ' <span class="arrow">' + arrow + '</span></th>';
+      + escapeHTML(t(c.i18n)) + ' <span class="arrow">' + arrow + '</span></th>';
   }).join('') + '</tr>';
 
   $('#tokens-table tbody').innerHTML = slice.map((r) => {
-    const dog = isBigDog(r) ? '<span class="badge big">大金狗</span>'
-      : isSmallDog(r) ? '<span class="badge gold">小金狗</span>' : '';
+    const dog = isBigDog(r) ? '<span class="badge big">' + t('badge.big') + '</span>'
+      : isSmallDog(r) ? '<span class="badge gold">' + t('badge.small') + '</span>' : '';
 
     const cells = C.slice(1).map((c) => {
       const v = r[c.key];
@@ -1161,8 +1163,10 @@ function renderTable() {
   $('#pager').innerHTML =
     '<button class="pg" data-go="0"' + (page === 0 ? ' disabled' : '') + '>«</button>'
     + '<button class="pg" data-go="' + (page - 1) + '"' + (page === 0 ? ' disabled' : '') + '>‹</button>'
-    + '<span class="pg-info">' + from + '–' + Math.min(rows.length, (page + 1) * PAGE_SIZE)
-    + ' / ' + rows.length + '　第 ' + (page + 1) + ' / ' + pages + ' 頁</span>'
+    + '<span class="pg-info">' + t('pager.info', {
+      from: from, to: Math.min(rows.length, (page + 1) * PAGE_SIZE),
+      total: rows.length, page: page + 1, pages: pages,
+    }) + '</span>'
     + '<button class="pg" data-go="' + (page + 1) + '"' + (page >= pages - 1 ? ' disabled' : '') + '>›</button>'
     + '<button class="pg" data-go="' + (pages - 1) + '"' + (page >= pages - 1 ? ' disabled' : '') + '>»</button>';
 }
@@ -1203,63 +1207,44 @@ function render(d) {
   $('#intro').hidden = true;
 
   const eff = s.efficiency;
-  const grade = eff >= 0.5 ? ['你是神。', 'good']
-    : eff >= 0.2 ? ['你算會賣的。', 'good']
-    : eff >= 0.08 ? ['正常人水準。', 'warn']
-    : ['你就是那個一賣就漲的人。', 'bad'];
+  const grade = eff >= 0.5 ? [t('grade.god'), 'good']
+    : eff >= 0.2 ? [t('grade.good'), 'good']
+    : eff >= 0.08 ? [t('grade.normal'), 'warn']
+    : [t('grade.bad'), 'bad'];
 
   $('#verdict').innerHTML =
-    '<p class="big">你買過 ' + s.n + ' 隻幣，如果每一隻都賣在最高點<br>'
-    + '你會有 <em>' + fmtUSD(s.ideal) + '</em>。</p>'
-    + '<p>你實際拿到 ' + fmtUSD(s.actual) + '，也就是說你錯過了 <b>'
-    + fmtUSD(s.missed) + '</b>。' + grade[0] + '</p>';
+    '<p class="big">' + t(s.n === 1 ? 'sum.verdictBig1' : 'sum.verdictBig',
+      { n: s.n, ideal: fmtUSD(s.ideal) }) + '</p>'
+    + '<p>' + t('sum.verdictSub', {
+      actual: fmtUSD(s.actual), missed: fmtUSD(s.missed), grade: grade[0],
+    }) + '</p>';
 
-  const hero = '<div class="stat hero"><div class="k">錯過的錢</div>'
+  const hero = '<div class="stat hero"><div class="k">' + t('stat.missed') + '</div>'
     + '<div class="v bad">' + fmtUSD(s.missed) + '</div></div>';
   const stats = [
-    ['總投入成本', fmtUSD(s.cost), d.meta.txCount.toLocaleString() + ' 筆交易掃描', ''],
-    ['實際損益', (s.pnl >= 0 ? '+' : '') + fmtUSD(s.pnl), '已實現 + 現有持倉', s.pnl >= 0 ? 'good' : 'bad'],
-    ['神之手總值', fmtUSD(s.ideal), '每隻都賣在最高點', ''],
-    ['神化率', fmtPct(eff), '實際 ÷ 神之手', grade[1]],
+    [t('stat.cost'), fmtUSD(s.cost), t('stat.costSub', { n: d.meta.txCount.toLocaleString() }), ''],
+    [t('stat.pnl'), (s.pnl >= 0 ? '+' : '') + fmtUSD(s.pnl), t('stat.pnlSub'), s.pnl >= 0 ? 'good' : 'bad'],
+    [t('stat.ideal'), fmtUSD(s.ideal), t('stat.idealSub'), ''],
+    [t('stat.eff'), fmtPct(eff), t('stat.effSub'), grade[1]],
   ];
   const rateEl = $('#dog-rates');
   if (rateEl) rateEl.innerHTML =
     '<div class="rate-duo">'
-    + '<div class="rate rate-big"><div class="k">大金狗</div>'
+    + '<div class="rate rate-big"><div class="k">' + t('rate.big') + '</div>'
       + '<div class="v">' + fmtPct(s.bigRate) + '</div></div>'
-    + '<div class="rate"><div class="k">小金狗</div>'
+    + '<div class="rate"><div class="k">' + t('rate.small') + '</div>'
       + '<div class="v">' + fmtPct(s.smallRate) + '</div></div>'
     + '</div>';
   $('#stat-grid').innerHTML = hero + stats.map((r) =>
     '<div class="stat"><div class="k">' + r[0] + '</div><div class="v ' + r[3] + '">'
     + r[1] + '</div><div class="n">' + r[2] + '</div></div>').join('');
 
-  // 金狗品味：漲幅 × 市值雙門檻
-  const taste = s.bigRate >= 0.05 ? ['你抓得到大狗。', 'good']
-    : s.smallRate >= 0.15 ? ['小狗抓得不錯，大狗還差一步。', 'warn']
-    : s.smallRate > 0 ? ['偶爾中，但還沒抓到真正做大的。', 'warn']
-    : ['目前一隻真金狗都沒抓到。', 'bad'];
-  const dogTasteEl = $('#dog-taste');
-  if (dogTasteEl) dogTasteEl.innerHTML =
-    '<div class="dog-grid">'
-    + '<div class="dog big"><div class="k">大金狗捕獲率</div>'
-      + '<div class="v ' + (s.bigDogs ? 'good' : '') + '">' + fmtPct(s.bigRate) + '</div>'
-      + '<div class="n">' + s.bigDogs + ' / ' + s.n + ' 隻　MFE ≥ 100x 且最高市值 ≥ $10M</div></div>'
-    + '<div class="dog"><div class="k">小金狗捕獲率</div>'
-      + '<div class="v ' + (s.smallDogs ? 'good' : '') + '">' + fmtPct(s.smallRate) + '</div>'
-      + '<div class="n">' + s.smallDogs + ' / ' + s.n + ' 隻　MFE ≥ 10x 且最高市值 ≥ $1M</div></div>'
-    + '</div>'
-    + '<p class="taste-verdict ' + taste[1] + '">' + taste[0] + '</p>'
-    + (s.topDog ? '<p class="hint">你抓過市值做最大的一隻是 <b>' + escapeHTML(s.topDog.symbol)
-        + '</b>，最高衝到 ' + fmtUSD(s.topDog.peakMcap) + '，你的成本位對應 ' + fmtX(s.topDog.mfeX) + '。</p>' : '')
-    + (s.mcapUnknown ? '<p class="hint">' + s.mcapUnknown + ' 隻查不到市值。</p>' : '');
-
-  const maxT = Math.max(1, ...TIERS.map((t) => s.tiers[t]));
-  $('#golden').innerHTML = TIERS.filter((t) => t >= 5).map((t) => {
-    const c = s.tiers[t];
-    return '<div class="gold-row"><span class="tag">' + t + 'x+</span>'
+  const maxT = Math.max(1, ...TIERS.map((tier) => s.tiers[tier]));
+  $('#golden').innerHTML = TIERS.filter((tier) => tier >= 5).map((tier) => {
+    const c = s.tiers[tier];
+    return '<div class="gold-row"><span class="tag">' + tier + 'x+</span>'
       + '<span class="track"><span class="fill" style="width:' + ((c / maxT) * 100).toFixed(2) + '%"></span></span>'
-      + '<span class="val">' + c + ' 隻 · ' + fmtPct(c / s.n) + '</span></div>';
+      + '<span class="val">' + t('golden.row', { n: c, pct: fmtPct(c / s.n) }) + '</span></div>';
   }).join('');
 
   sortKey = 'missedUSD'; sortDir = -1; page = 0;
@@ -1284,37 +1269,38 @@ function render(d) {
   const m = d.meta;
   const cav = [];
   if (m.aborted) {
-    cav.push('<b>中途停止</b>：預計 ' + m.planned + ' 隻，只算完 ' + d.rows.length + ' 隻，比率分母以此為準。');
+    cav.push(t('cav.aborted', { planned: m.planned, done: d.rows.length }));
   }
   if (m.partialAddrs && m.partialAddrs.length) {
-    cav.push(m.partialAddrs.map(shortAddr).join('、') + ' 的紀錄沒抓完（資料源暫時故障），稍後重跑即可。');
+    cav.push(t('cav.partial', { addrs: m.partialAddrs.map(shortAddr).join('、') }));
   }
   // 幣數漏斗：回答「為什麼只有這幾隻」
-  const funnel = ['掃描 <b>' + m.txCount.toLocaleString() + '</b> 筆交易'];
-  if (isFinite(m.touched)) funnel.push('碰過 <b>' + m.touched + '</b> 隻幣');
-  if (m.neverBought) funnel.push('<b>' + m.neverBought + '</b> 隻只收到沒買過');
-  if (m.belowMinCost) funnel.push('<b>' + m.belowMinCost + '</b> 隻成本低於 $' + m.minCost);
-  if (m.lostToMulti) funnel.push('<b>' + m.lostToMulti + '</b> 隻被多幣交易讓位');
-  funnel.push('計入 <b>' + m.totalFound + '</b> 隻');
-  if (m.truncated) funnel.push('另有 ' + m.truncated + ' 隻沒算（可調高上限）');
-  if (m.noPool.length) funnel.push('<b>' + m.noPool.length + '</b> 隻查不到池子');
+  const funnel = [t('cav.scanned', { n: m.txCount.toLocaleString() })];
+  if (isFinite(m.touched)) funnel.push(t('cav.touched', { n: m.touched }));
+  if (m.neverBought) funnel.push(t('cav.neverBought', { n: m.neverBought }));
+  if (m.belowMinCost) funnel.push(t('cav.belowMin', { n: m.belowMinCost, min: m.minCost }));
+  if (m.lostToMulti) funnel.push(t('cav.lostToMulti', { n: m.lostToMulti }));
+  funnel.push(t('cav.counted', { n: m.totalFound }));
+  if (m.truncated) funnel.push(t('cav.truncated', { n: m.truncated }));
+  if (m.noPool.length) funnel.push(t('cav.noPool', { n: m.noPool.length }));
   cav.push(funnel.join(' → ') + '。');
 
   if (m.solStale) {
-    cav.push('<b>' + m.solStale + ' 隻</b>的買入早於匯率資料起點（'
-      + new Date(m.solStartTs * 1000).toISOString().slice(0, 10) + '），成本為估算值。');
+    cav.push(t('cav.solStale', {
+      n: m.solStale, date: new Date(m.solStartTs * 1000).toISOString().slice(0, 10),
+    }));
   }
-  if (m.txSrc === 'solanatracker') {
-    cav.push('成交紀錄來自 Solana Tracker，冷門路由的交易可能有漏；補一把 Helius key 可完整覆蓋。');
-  }
-  if (m.underwater) cav.push(m.underwater + ' 隻最高倍數低於 1x，來自滑價與手續費。');
-  if (m.peakFixed) cav.push(m.peakFixed + ' 隻的最高價為錯誤報價，已用市值回推修正。');
+  if (m.txSrc === 'solanatracker') cav.push(t('cav.stSrc'));
+  if (m.underwater) cav.push(t('cav.underwater', { n: m.underwater }));
+  if (m.peakFixed) cav.push(t('cav.peakFixed', { n: m.peakFixed }));
   if (m.exactMcap !== d.rows.length) {
-    cav.push((m.exactMcap ? (d.rows.length - m.exactMcap) + ' 隻的' : '') + '最高市值為推算值（以現市值反推流通量）。');
+    cav.push(t('cav.mcapEst', {
+      prefix: m.exactMcap ? t('cav.mcapPrefix', { n: d.rows.length - m.exactMcap }) : '',
+    }));
   }
-  cav.push('標 <b>*</b> 的幣，K 線未完整涵蓋買入時間，最高價可能被低估。');
-  if (m.noPeak) cav.push(m.noPeak + ' 隻抓不到歷史 K 線，以現價與均價較高者代替。');
-  cav.push('轉出到未列入的地址不算賣出 —— 有其他錢包記得一起貼上。');
+  cav.push(t('cav.starMark'));
+  if (m.noPeak) cav.push(t('cav.noPeak', { n: m.noPeak }));
+  cav.push(t('cav.transferOut'));
   const cavEl = $('#caveats-list');
   if (cavEl) cavEl.innerHTML = cav.map((c) => '<li>' + c + '</li>').join('');
 
@@ -1349,10 +1335,10 @@ const cardFont = (w, sz, mono) => w + ' ' + sz + 'px ' + (mono ? MONO : SANS);
 
 /** 超出寬度就截掉並補上省略號，避免長幣名撞到右邊的數字 */
 function clipText(x, text, maxW) {
-  let t = String(text || '');
-  if (x.measureText(t).width <= maxW) return t;
-  while (t.length > 1 && x.measureText(t + '…').width > maxW) t = t.slice(0, -1);
-  return t + '…';
+  let out = String(text || '');
+  if (x.measureText(out).width <= maxW) return out;
+  while (out.length > 1 && x.measureText(out + '…').width > maxW) out = out.slice(0, -1);
+  return out + '…';
 }
 
 /** 等比例填滿整個畫布（等同 CSS background-size: cover） */
@@ -1416,7 +1402,7 @@ function drawCard(d) {
   spacing('8px');
   x.font = cardFont(700, 20, true);
   x.fillStyle = GREEN;
-  x.fillText('I SHOULD HOLD THE COIN', PAD, y);
+  x.fillText(t('card.eyebrow'), PAD, y);
   spacing('0px');
 
   y += 74;
@@ -1430,11 +1416,13 @@ function drawCard(d) {
   x.fillStyle = DIM;
   const dateStr = new Date().toISOString().slice(0, 10);
   let hx = PAD;
+  const tokLabel = t('card.tokenCount', { n: s.n });
+  const walLabel = t(d.addrs.length > 1 ? 'card.wallets' : 'card.wallet', { n: d.addrs.length });
   x.fillText(dateStr, hx, y); hx += x.measureText(dateStr).width + 22;
   x.fillText('·', hx, y); hx += 22;
-  x.fillText(s.n + ' TOKENS', hx, y); hx += x.measureText(s.n + ' TOKENS').width + 22;
+  x.fillText(tokLabel, hx, y); hx += x.measureText(tokLabel).width + 22;
   x.fillText('·', hx, y); hx += 22;
-  x.fillText(d.addrs.length + ' WALLET' + (d.addrs.length > 1 ? 'S' : ''), hx, y);
+  x.fillText(walLabel, hx, y);
 
   // 右側：神化率方塊（票頭右欄）
   const boxL = W - 320;
@@ -1443,7 +1431,7 @@ function drawCard(d) {
   spacing('4px');
   x.font = cardFont(700, 18, true);
   x.fillStyle = GOLD;
-  x.fillText('神化率', boxL + 34, 108);
+  x.fillText(t('card.eff'), boxL + 34, 108);
   spacing('0px');
   x.font = cardFont(700, 58, true);
   x.fillStyle = paper ? RED : GREEN;
@@ -1455,7 +1443,7 @@ function drawCard(d) {
   spacing('6px');
   x.font = cardFont(700, 26, true);
   x.fillStyle = RED;
-  x.fillText('我錯過了', PAD, y);
+  x.fillText(t('card.missed'), PAD, y);
   spacing('0px');
 
   y += 138;
@@ -1472,9 +1460,10 @@ function drawCard(d) {
   y += 66;
   x.font = cardFont(600, 27, true);
   let sx2 = PAD;
-  x.fillStyle = MUT; x.fillText('神之手', sx2, y); sx2 += x.measureText('神之手').width + 16;
+  const lblGod = t('card.godHands'), lblGot = t('card.got');
+  x.fillStyle = MUT; x.fillText(lblGod, sx2, y); sx2 += x.measureText(lblGod).width + 16;
   x.fillStyle = PAPER; x.fillText(fmtUSD(s.ideal), sx2, y); sx2 += x.measureText(fmtUSD(s.ideal)).width + 40;
-  x.fillStyle = MUT; x.fillText('實際拿到', sx2, y); sx2 += x.measureText('實際拿到').width + 16;
+  x.fillStyle = MUT; x.fillText(lblGot, sx2, y); sx2 += x.measureText(lblGot).width + 16;
   x.fillStyle = PAPER; x.fillText(fmtUSD(s.actual), sx2, y);
 
   // 神化率比例條（綠＝拿到的、紅＝飛走的）
@@ -1490,10 +1479,10 @@ function drawCard(d) {
 
   // ---- 橡皮章（旋轉蓋在 HERO 右上）----
   const st = paper
-    ? { en: 'PAPER HANDS', zh: '紙 手 認 證', col: RED }
+    ? { en: 'PAPER HANDS', zh: t('card.stampPaper'), col: RED }
     : (s.bigDogs > 0
-      ? { en: 'GOLDEN HUNTER', zh: '金 狗 獵 人', col: GOLD }
-      : { en: 'DIAMOND HANDS', zh: '鑽 石 手', col: GREEN });
+      ? { en: 'GOLDEN HUNTER', zh: t('card.stampHunter'), col: GOLD }
+      : { en: 'DIAMOND HANDS', zh: t('card.stampDiamond'), col: GREEN });
   x.save();
   x.translate(W - 250, 330);
   x.rotate(-0.13);
@@ -1549,16 +1538,17 @@ function drawCard(d) {
     x.textAlign = 'left';
   };
   const Lx = PAD, LR = midX - 74;
-  lvRow(Lx, LR, lvTop,       '總投入成本', fmtUSD(s.cost));
-  lvRow(Lx, LR, lvTop + 62,  '實際損益', (s.pnl >= 0 ? '+' : '') + fmtUSD(Math.abs(s.pnl)).replace('$', '$'), s.pnl >= 0 ? GREEN : RED);
-  lvRow(Lx, LR, lvTop + 124, '賣飛金額', fmtUSD(s.paperhand), RED);
-  lvRow(Lx, LR, lvTop + 186, '平均到頂', isFinite(s.avgDaysToPeak) ? s.avgDaysToPeak.toFixed(1) + ' 天' : '—');
+  lvRow(Lx, LR, lvTop,       t('card.cost'), fmtUSD(s.cost));
+  lvRow(Lx, LR, lvTop + 62,  t('card.pnl'), (s.pnl >= 0 ? '+' : '') + fmtUSD(Math.abs(s.pnl)), s.pnl >= 0 ? GREEN : RED);
+  lvRow(Lx, LR, lvTop + 124, t('card.paper'), fmtUSD(s.paperhand), RED);
+  lvRow(Lx, LR, lvTop + 186, t('card.days'),
+    isFinite(s.avgDaysToPeak) ? t('card.days.unit', { n: s.avgDaysToPeak.toFixed(1) }) : '—');
 
   const Rx = midX + 6, RR = W - PAD;
-  lvRow(Rx, RR, lvTop,       '大金狗', s.bigDogs + ' 隻', GOLD);
-  lvRow(Rx, RR, lvTop + 62,  '小金狗', s.smallDogs + ' 隻', GOLD);
-  lvRow(Rx, RR, lvTop + 124, '10X 以上', (s.tiers[10] || 0) + ' 隻', GREEN);
-  lvRow(Rx, RR, lvTop + 186, '100X 以上', (s.tiers[100] || 0) + ' 隻', GREEN);
+  lvRow(Rx, RR, lvTop,       t('card.bigDogs'), t('card.tokens', { n: s.bigDogs }), GOLD);
+  lvRow(Rx, RR, lvTop + 62,  t('card.smallDogs'), t('card.tokens', { n: s.smallDogs }), GOLD);
+  lvRow(Rx, RR, lvTop + 124, t('card.over10'), t('card.tokens', { n: s.tiers[10] || 0 }), GREEN);
+  lvRow(Rx, RR, lvTop + 186, t('card.over100'), t('card.tokens', { n: s.tiers[100] || 0 }), GREEN);
 
   hr(lvTop + 232);
 
@@ -1574,17 +1564,17 @@ function drawCard(d) {
     spacing('4px');
     x.font = cardFont(700, 19, true);
     x.fillStyle = GOLD;
-    x.fillText('TOP5', PAD, t5Top);
+    x.fillText(t('card.top5'), PAD, t5Top);
     x.fillStyle = DIM;
-    x.fillText('· 最痛的五隻', PAD + x.measureText('TOP5').width + 14, t5Top);
+    x.fillText(t('card.top5Sub'), PAD + x.measureText(t('card.top5')).width + 14, t5Top);
     spacing('0px');
     x.textAlign = 'right';
     x.font = cardFont(700, 18, true);
     x.fillStyle = DIM;
-    x.fillText('成本', COLX.cost, t5Top);
-    x.fillText('實拿', COLX.actual, t5Top);
-    x.fillText('賣飛', COLX.missed, t5Top);
-    x.fillText('倍數', COLX.mfe, t5Top);
+    x.fillText(t('card.col.cost'), COLX.cost, t5Top);
+    x.fillText(t('card.col.got'), COLX.actual, t5Top);
+    x.fillText(t('card.col.missed'), COLX.missed, t5Top);
+    x.fillText(t('card.col.mult'), COLX.mfe, t5Top);
 
     const ROW_H = 50;
     top5.forEach((r, i) => {
@@ -1633,14 +1623,14 @@ function drawCard(d) {
   spacing('5px');
   x.font = cardFont(600, 14, true);
   x.fillStyle = DIM;
-  x.fillText('你 2026 賣飛了多少錢？', fx, fy + 30);
+  x.fillText(t('card.footTag'), fx, fy + 30);
   spacing('0px');
 
   x.textAlign = 'right';
   spacing('3px');
   x.font = cardFont(600, 15, true);
   x.fillStyle = DIM;
-  x.fillText('鏈上交易 × 歷史K線 自動生成 · 僅供娛樂', W - PAD, fy);
+  x.fillText(t('card.footNote'), W - PAD, fy);
   x.fillText('I SHOULD HOLD THE COIN', W - PAD, fy + 30);
   spacing('0px');
   x.textAlign = 'left';
@@ -1718,8 +1708,9 @@ function bestRate() {
 }
 function updateEta() {
   const n = clamp(parseInt($('#max-tokens').value, 10) || 0, 0, 50000);
-  $('#eta-hint').textContent = '上限；實際只算你買過的幣。跑滿 '
-    + n.toLocaleString() + ' 隻約 ' + etaText(n, bestRate().perMin) + '。';
+  $('#eta-hint').textContent = t('adv.etaHint', {
+    n: n.toLocaleString(), eta: etaText(n, bestRate().perMin),
+  });
 }
 // ---------- 可分享的查詢網址 ----------
 // ?addr=A,B 直接帶入地址；有代理或已存 key 時自動開跑
@@ -1874,7 +1865,7 @@ $('#run').addEventListener('click', async () => {
       $('#cooldown').hidden = false;
       $('#key-zone').hidden = false;
       $('#proxy-note').hidden = true;
-      $('#error').textContent = '⚠ 查詢用量過大，暫時冷卻中 —— 等 DEV 充值，或自備 API key。';
+      $('#error').textContent = t('err.cooldown');
       $('#error').hidden = false;
     } else if (e.message !== '__ABORT__') {
       exitRoom();
@@ -1895,15 +1886,15 @@ $('#cancel').addEventListener('click', () => { abortFlag = true; });
 $('#clear-cache').addEventListener('click', () => {
   Object.keys(localStorage).filter((k) => k.startsWith(CACHE_PREFIX))
     .forEach((k) => localStorage.removeItem(k));
-  $('#clear-cache').textContent = '已清除';
-  setTimeout(() => { $('#clear-cache').textContent = '清除快取'; }, 1500);
+  $('#clear-cache').textContent = t('adv.cleared');
+  setTimeout(() => { $('#clear-cache').textContent = t('adv.clearCache'); }, 1500);
 });
 
 
 // ---------- 全站排行榜 ----------
 function boardRow(i, name, right, sub, addr) {
   return '<li><button type="button" class="board-item" data-addr="' + escapeHTML(addr) + '"'
-    + ' title="點擊複製地址">'
+    + ' title="' + t('board.copyHint') + '">'
     + '<span class="rank">' + (i + 1) + '</span>'
     + '<span class="who">' + escapeHTML(name) + '<small>' + escapeHTML(sub) + '</small></span>'
     + '<span class="score">' + right + '</span></button></li>';
@@ -1913,7 +1904,7 @@ async function openBoard() {
   if (!ov) return;
   ov.hidden = false;
   if (!PROXY_URL) {
-    $('#board-missed').innerHTML = '<li class="board-empty">排行榜需要連上代理伺服器</li>';
+    $('#board-missed').innerHTML = '<li class="board-empty">' + t('board.needProxy') + '</li>';
     $('#board-pain').innerHTML = '';
     $('#board-dogs').innerHTML = '';
     return;
@@ -1924,23 +1915,39 @@ async function openBoard() {
       || shortAddr((r.addresses || '').split(' ')[0] || '');
     $('#board-missed').innerHTML = (j.missed || []).map((r, i) =>
       boardRow(i, nameOf(r), '<b class="bad">' + fmtUSD(r.missed_usd) + '</b>',
-        '成本 ' + fmtUSD(r.cost_usd || 0) + ' · ' + (r.tokens || 0) + ' 隻幣', r.addresses || '')
-    ).join('') || '<li class="board-empty">還沒有人上榜，快查一筆</li>';
+        t('board.costOf', { cost: fmtUSD(r.cost_usd || 0), n: r.tokens || 0 }), r.addresses || '')
+    ).join('') || '<li class="board-empty">' + t('board.emptyFirst') + '</li>';
     $('#board-pain').innerHTML = (j.pain || []).map((r, i) =>
       boardRow(i, nameOf(r), '<b class="bad">' + fmtUSD(r.missed_usd) + '</b>',
-        '成本 ' + fmtUSD(r.cost_usd || 0) + ' · ' + (r.tokens || 0) + ' 隻幣', r.addresses || '')
-    ).join('') || '<li class="board-empty">還沒有人上榜</li>';
+        t('board.costOf', { cost: fmtUSD(r.cost_usd || 0), n: r.tokens || 0 }), r.addresses || '')
+    ).join('') || '<li class="board-empty">' + t('board.empty') + '</li>';
     $('#board-dogs').innerHTML = (j.dogs || []).map((r, i) =>
-      boardRow(i, nameOf(r), '<b class="good">' + (r.big_dogs || 0) + ' 隻大金狗</b>',
-        fmtPct(r.big_rate) + ' · ' + (r.tokens || 0) + ' 隻幣', r.addresses || '')
-    ).join('') || '<li class="board-empty">還沒有人抓到大金狗</li>';
+      boardRow(i, nameOf(r), '<b class="good">' + t('board.dogCount', { n: r.big_dogs || 0 }) + '</b>',
+        t('board.dogSub', { pct: fmtPct(r.big_rate), n: r.tokens || 0 }), r.addresses || '')
+    ).join('') || '<li class="board-empty">' + t('board.emptyDogs') + '</li>';
   } catch (e) {
     $('#board-missed').innerHTML = '<li class="board-empty">'
-      + (e.cooldown ? '用量冷卻中，等 DEV 充值' : '排行榜暫時拿不到') + '</li>';
+      + (e.cooldown ? t('board.cooldown') : t('board.error')) + '</li>';
     $('#board-pain').innerHTML = '';
     $('#board-dogs').innerHTML = '';
   }
 }
+// ---------- 語言切換 ----------
+function syncLangBtn() {
+  const b = $('#lang-toggle');
+  if (b) b.textContent = I18N.lang === 'zh' ? 'EN' : '中';
+}
+if ($('#lang-toggle')) {
+  $('#lang-toggle').addEventListener('click', () => I18N.set(I18N.other()));
+}
+I18N.apply();
+syncLangBtn();
+I18N.onChange(() => {
+  syncLangBtn();
+  if (LAST) { render(LAST); }          // 報告與分享卡整份重畫
+  if (dogRoom() && dogRoom().relabel) dogRoom().relabel();
+});
+
 if ($('#board-btn')) $('#board-btn').addEventListener('click', openBoard);
 // 點榜上任何一列 → 複製地址（不觸發查詢，免得別人隨手點就燒一次 API）
 if ($('#board-overlay')) $('#board-overlay').addEventListener('click', (e) => {
@@ -1962,17 +1969,17 @@ $('#download-card').addEventListener('click', () => {
   try {
     $('#share-canvas').toBlob((b) => {
       if (b) download('ishtc.png', b);
-      else alert('分享圖匯出失敗：請改用 http:// 網址開啟（直接雙擊 index.html 會被瀏覽器擋）。');
+      else alert(t('err.exportFail'));
     }, 'image/png');
   } catch (e) {
-    alert('分享圖匯出失敗：請改用 http:// 網址開啟（直接雙擊 index.html 會被瀏覽器擋）。');
+    alert(t('err.exportFail'));
   }
 });
 
 /** 複製到剪貼簿；瀏覽器擋下就退回 prompt 讓使用者自己複製 */
 function copyText(text) {
   const fallback = () => {
-    try { prompt('複製這段文字：', text); } catch (e2) {}
+    try { prompt(t('err.copyPrompt'), text); } catch (e2) {}
   };
   try {
     if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -1989,8 +1996,8 @@ $('#copy-link').addEventListener('click', () => {
   if (!addrs.length) return;
   const url = shareUrlFor(addrs);
   const done = () => {
-    $('#copy-link').textContent = '已複製';
-    setTimeout(() => { $('#copy-link').textContent = '複製查詢連結'; }, 1500);
+    $('#copy-link').textContent = t('share.copied');
+    setTimeout(() => { $('#copy-link').textContent = t('share.copyLink'); }, 1500);
   };
   copyText(url).then(done);
 });
