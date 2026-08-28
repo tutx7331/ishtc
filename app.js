@@ -126,6 +126,14 @@ class Limiter {
     this.next = at + this.gap;
     if (at > now) await sleep(at - now);
   }
+  /**
+   * 退還一次額度。命中代理快取／幣價資料庫的請求根本沒打到上游，
+   * 不該佔用速率預算 —— 熱門幣多的錢包因此可以跑很快，
+   * 真的要打上游的部分仍然被穩穩地限速。
+   */
+  refund() {
+    this.next = Math.max(Date.now(), this.next - this.gap);
+  }
 }
 const gtLimit = new Limiter(25);   // GeckoTerminal 無 key 上限 30/min，留餘裕
 const dsLimit = new Limiter(240);  // DexScreener token 端點 300/min
@@ -144,7 +152,7 @@ function quotaText() {
 }
 
 async function getJSON(url, opts) {
-  const { limiter, tries = 3, headers } = opts || {};
+  const { limiter, tries = 3, headers, onHeaders } = opts || {};
   const host = new URL(url).host;
   let sawRateLimit = false;
   for (let i = 0; i < tries; i++) {
@@ -173,6 +181,7 @@ async function getJSON(url, opts) {
       }
       sawRateLimit = true; await sleep(4000 * (i + 1)); continue;
     }
+    if (onHeaders) { try { onHeaders(res.headers); } catch (e) {} }
     if (res.status === 404) return null;
     if (!res.ok) {
       // 5xx 是對方伺服器暫時出問題，值得等久一點再試；4xx 再試也沒用
@@ -673,7 +682,11 @@ async function fetchPeakSolanaTracker(mint, sinceTs) {
           { limiter: stLimit, headers: { 'x-api-key': stKey } })
       : await getJSON(PROXY_URL + '/st/range?token=' + mint
           + '&time_from=' + Math.floor(sinceTs) + '&time_to=' + scanNow(),
-          { limiter: stLimit });
+          {
+            limiter: stLimit,
+            // 代理直接從快取／幣價資料庫回answer 的話沒打上游，額度還回去
+            onHeaders: (h) => { if (h.get('x-cache')) stLimit.refund(); },
+          });
     const h = j && j.price && j.price.highest;
     if (!h || !(h.price > 0)) return null;
     hit = [h.price, h.time || 0, h.marketcap || 0];
@@ -959,27 +972,35 @@ async function run() {
   }
 
   let aborted = false;
-  for (let i = 0; i < withPool.length; i++) {
-    if (abortFlag) { aborted = true; break; }
-    const p = withPool[i];
-    const meta = info.get(p.mint) || {
-      pool: '', liq: 0, symbol: p.symbol || shortAddr(p.mint), name: '',
-      price: 0, mcap: 0, createdAt: 0,
-    };
-    setProg(40 + (i / withPool.length) * 58,
-      t('prog.peak', {
-        i: i + 1, total: withPool.length, sym: meta.symbol,
-        eta: etaText(withPool.length - i, (stKey || PROXY_URL) ? 150 : birdeyeKey ? 50 : 25),
-      }));
+  let doneN = 0;
+  const queue = withPool.slice();
+  const metaOf = (p) => info.get(p.mint) || {
+    pool: '', liq: 0, symbol: p.symbol || shortAddr(p.mint), name: '',
+    price: 0, mcap: 0, createdAt: 0,
+  };
+  // 併發數：走代理／有 ST key 時可以同時查幾隻。
+  // 真正的節流仍由 Limiter 管，併發只是讓等待重疊、並讓命中快取的請求不必排隊。
+  const PEAK_CONC = (stKey || PROXY_URL) ? 4 : birdeyeKey ? 2 : 1;
 
-    let peak = null;
-    try {
-      peak = await fetchPeakBest(p.mint, meta.pool, p.firstBuyTs);
-    } catch (e) {
-      // 中途停止時保留已經算完的部分，不要整份丟掉
-      if (e.message === '__ABORT__') { aborted = true; break; }
-      if (/Birdeye API key/.test(e.message)) throw e;
-    }
+  async function peakWorker() {
+    while (queue.length) {
+      if (abortFlag) { aborted = true; return; }
+      const p = queue.shift();
+      const meta = metaOf(p);
+      setProg(40 + (doneN / withPool.length) * 58,
+        t('prog.peak', {
+          i: doneN + 1, total: withPool.length, sym: meta.symbol,
+          eta: etaText(withPool.length - doneN, (stKey || PROXY_URL) ? 150 : birdeyeKey ? 50 : 25),
+        }));
+
+      let peak = null;
+      try {
+        peak = await fetchPeakBest(p.mint, meta.pool, p.firstBuyTs);
+      } catch (e) {
+        // 中途停止時保留已經算完的部分，不要整份丟掉
+        if (e.message === '__ABORT__') { aborted = true; return; }
+        if (/Birdeye API key/.test(e.message)) throw e;
+      }
 
     let peakP = (peak && peak.peak) || Math.max(meta.price, p.avgBuy);
     // 你賣掉的價格是市場真的成交過的，最高價不可能比它低
@@ -1040,7 +1061,13 @@ async function run() {
       dogRoom().addDog({ sym: row.symbol, mfeX: row.mfeX,
         tier: isBigDog(row) ? 'big' : isSmallDog(row) ? 'gold' : 'norm' });
     }
+      doneN++;
+    }
   }
+
+  await Promise.all(Array.from(
+    { length: Math.max(1, Math.min(PEAK_CONC, withPool.length)) },
+    () => peakWorker()));
 
   if (!rows.length) throw new Error(t('err.nothingDone'));
 

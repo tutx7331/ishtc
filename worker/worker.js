@@ -22,6 +22,71 @@ function cleanKey(raw, uuidStyle) {
   return s;
 }
 
+/**
+ * 多把 key 輪替。
+ * secret 可以是一把，也可以是逗號／換行分隔的很多把：
+ *   npx wrangler secret put ST_KEYS      ← 貼一整串
+ * 每把各自計月額度，用完或被拒就跳過，換下一把。
+ */
+function parseKeys(raw, uuidStyle) {
+  return String(raw || '')
+    .split(/[,\s]+/)
+    .map((k) => cleanKey(k, uuidStyle))
+    .filter(Boolean);
+}
+
+/** 某把 key 暫時不能用（401 無效、429 撞速率）就冰起來，避免一直撞同一把 */
+const coolKey = (kind, i) => 'coolkey:' + kind + ':' + i;
+
+/**
+ * 依序挑一把還能用的 key：跳過冰在冷卻中的、跳過這個月額度已滿的。
+ * 回傳 { key, index } 或 null（全部用完）。
+ * 起點用計數器輪流轉，讓負載平均分散到每一把，而不是永遠先打第一把。
+ */
+async function pickKey(env, kind, keys, perKeyLimit) {
+  if (!keys.length) return null;
+  const month = new Date().toISOString().slice(0, 7);
+  const turn = await bump(env, 'turn:' + kind, 1);
+  const start = keys.length > 1 ? (turn % keys.length) : 0;
+  for (let step = 0; step < keys.length; step++) {
+    const i = (start + step) % keys.length;
+    let cooling = null;
+    try { cooling = await env.CACHE.get(coolKey(kind, i)); } catch (e) {}
+    if (cooling) continue;
+    // 每把自己的月額度
+    const used = await bump(env, 'usage:' + month + ':' + kind + ':' + i, 1);
+    if (used && perKeyLimit && used > perKeyLimit) continue;
+    return { key: keys[i], index: i };
+  }
+  return null;
+}
+
+/**
+ * 打上游；某把 key 被拒（401 無效／429 撞速率）就冰起來換下一把，最多試 3 把。
+ * 訪客不該因為「我們其中一把 key 壞了」而看到錯誤。
+ * 回傳 { r, picked }；完全沒 key 可用時回 null（呼叫端回冷卻）。
+ */
+async function fetchWithKeys(env, kind, keys, perKeyLimit, build) {
+  let last = null;
+  const tries = Math.min(3, keys.length);
+  for (let attempt = 0; attempt < tries; attempt++) {
+    const picked = await pickKey(env, kind, keys, perKeyLimit);
+    if (!picked) return last;
+    const r = await build(picked.key);
+    if (r.status !== 401 && r.status !== 429) return { r: r, picked: picked };
+    await coolDownKey(env, kind, picked.index, r.status);
+    last = { r: r, picked: picked };
+  }
+  return last;
+}
+
+/** 這把 key 掛了：冰 10 分鐘（401 這種無效的冰久一點） */
+async function coolDownKey(env, kind, i, status) {
+  await kvPut(env, coolKey(kind, i), String(status), {
+    expirationTtl: status === 401 ? 6 * 3600 : 600,
+  });
+}
+
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
@@ -38,23 +103,52 @@ const json = (body, status = 200, headers = {}) =>
 const cooldown = () =>
   json({ code: 'cooldown', message: '查詢用量過大，暫時冷卻中 —— 等 DEV 充值' }, 429, { 'x-cooldown': '1' });
 
-/** 本月的用量計數（KV 非原子性，粗略即可）。cost 以「次」計。 */
+/** KV 寫入失敗（超出每日額度、暫時故障）不能讓查詢掛掉 */
+async function kvPut(env, key, val, opts) {
+  try { await env.CACHE.put(key, val, opts); } catch (e) { /* 失敗就當沒快取 */ }
+}
+
+/**
+ * 計數器：累加後回傳新值。放 D1 不放 KV ——
+ * KV 免費額度只有 1,000 次寫入/天，每個請求都要記數的話一次大查詢就爆，
+ * 而且 put 拋錯會讓整個 Worker 回 500。D1 是 10 萬次寫入/天。
+ * 壞掉時回 0，呼叫端一律放行（可用性優先，上游本身也有自己的限流）。
+ */
+async function bump(env, name, cost) {
+  if (!env.DB) return 0;
+  const now = Math.floor(Date.now() / 1000);
+  try {
+    const row = await env.DB.prepare(
+      'INSERT INTO counters (name, n, ts) VALUES (?1, ?2, ?3) '
+      + 'ON CONFLICT(name) DO UPDATE SET n = n + ?2, ts = ?3 RETURNING n')
+      .bind(name, cost, now).first();
+    return (row && row.n) || 0;
+  } catch (e) {
+    return 0;
+  }
+}
+
+/** 本月的用量計數。cost 以「次」計。 */
 async function takeQuota(env, kind, cost, limit) {
-  const key = 'usage:' + new Date().toISOString().slice(0, 7) + ':' + kind;
-  const used = Number(await env.CACHE.get(key)) || 0;
-  if (used + cost > limit) return false;
-  // 保留到月底後 5 天即可
-  await env.CACHE.put(key, String(used + cost), { expirationTtl: 40 * 86400 });
-  return true;
+  const name = 'usage:' + new Date().toISOString().slice(0, 7) + ':' + kind;
+  const n = await bump(env, name, cost);
+  if (!n) return true;              // 計數器壞掉 → 放行
+  return n <= limit;
 }
 
 /** 每 IP 每分鐘的簡單限流，防止被外人惡意刷爆 */
 async function rateLimit(env, ip, max) {
-  const key = 'rl:' + ip + ':' + Math.floor(Date.now() / 60000);
-  const n = Number(await env.CACHE.get(key)) || 0;
-  if (n >= max) return false;
-  await env.CACHE.put(key, String(n + 1), { expirationTtl: 120 });
-  return true;
+  const name = 'rl:' + ip + ':' + Math.floor(Date.now() / 60000);
+  const n = await bump(env, name, 1);
+  if (!n) return true;              // 計數器壞掉 → 放行
+  // 順手清掉十分鐘前的限流列（機率觸發，不必每次都做）
+  if (Math.random() < 0.02 && env.DB) {
+    try {
+      await env.DB.prepare("DELETE FROM counters WHERE ts < ? AND name LIKE 'rl:%'")
+        .bind(Math.floor(Date.now() / 1000) - 600).run();
+    } catch (e) { /* 清不掉沒關係 */ }
+  }
+  return n <= max;
 }
 
 export default {
@@ -68,8 +162,31 @@ export default {
 
     if (url.pathname === '/health') {
       const month = new Date().toISOString().slice(0, 7);
-      const h = Number(await env.CACHE.get('usage:' + month + ':helius')) || 0;
-      const s = Number(await env.CACHE.get('usage:' + month + ':st')) || 0;
+      const readCount = async (name) => {
+        if (!env.DB) return 0;
+        try {
+          const row = await env.DB.prepare('SELECT n FROM counters WHERE name = ?').bind(name).first();
+          return (row && row.n) || 0;
+        } catch (e) { return 0; }
+      };
+      const h = await readCount('usage:' + month + ':helius');
+      const s = await readCount('usage:' + month + ':st');
+      const heliusN = parseKeys(env.HELIUS_KEYS || env.HELIUS_KEY, true).length;
+      const stN = parseKeys(env.ST_KEYS || env.ST_KEY, false).length;
+      const perKey = async (kind, n, limit) => {
+        const list = [];
+        for (let i = 0; i < n; i++) {
+          let cooling = null;
+          try { cooling = await env.CACHE.get(coolKey(kind, i)); } catch (e) {}
+          list.push({
+            i: i,
+            used: await readCount('usage:' + month + ':' + kind + ':' + i),
+            limit: limit,
+            cooling: cooling || null,
+          });
+        }
+        return list;
+      };
       let tokens = null, saved = null;
       if (env.DB) {
         try {
@@ -81,8 +198,13 @@ export default {
       }
       return json({
         ok: true, month,
-        helius: h + '/' + heliusLimit,
-        st: s + '/' + stLimit,
+        helius: h + '/' + (heliusLimit * Math.max(1, heliusN)),
+        st: s + '/' + (stLimit * Math.max(1, stN)),
+        keys: { helius: heliusN, st: stN },
+        perKey: {
+          helius: await perKey('helius', heliusN, heliusLimit),
+          st: await perKey('st', stN, stLimit),
+        },
         db: { tokens: tokens, records: saved },
       });
     }
@@ -97,16 +219,17 @@ export default {
       const before = url.searchParams.get('before') || '';
       if (!SOL_ADDR.test(address)) return json({ error: 'bad address' }, 400);
       if (before && !/^[1-9A-HJ-NP-Za-km-z]{40,120}$/.test(before)) return json({ error: 'bad cursor' }, 400);
-      const heliusKey = cleanKey(env.HELIUS_KEY, true);
-      if (!heliusKey) return json({ error: 'HELIUS_KEY not configured' }, 500);
-      if (!(await takeQuota(env, 'helius', 1, heliusLimit))) return cooldown();
-
-      const upstream = 'https://api.helius.xyz/v0/addresses/' + address + '/transactions'
-        + '?api-key=' + heliusKey + '&limit=100' + (before ? '&before=' + before : '');
-      const r = await fetch(upstream);
-      return new Response(r.body, {
-        status: r.status,
-        headers: { 'Content-Type': 'application/json', ...CORS },
+      const heliusKeys = parseKeys(env.HELIUS_KEYS || env.HELIUS_KEY, true);
+      if (!heliusKeys.length) return json({ error: 'HELIUS_KEY not configured' }, 500);
+      // 總量守門（所有 key 加起來）+ 每把各自的額度
+      if (!(await takeQuota(env, 'helius', 1, heliusLimit * heliusKeys.length))) return cooldown();
+      const got = await fetchWithKeys(env, 'helius', heliusKeys, heliusLimit, (k) =>
+        fetch('https://api.helius.xyz/v0/addresses/' + address + '/transactions'
+          + '?api-key=' + k + '&limit=100' + (before ? '&before=' + before : '')));
+      if (!got) return cooldown();
+      return new Response(got.r.body, {
+        status: got.r.status,
+        headers: { 'Content-Type': 'application/json', 'x-key': String(got.picked.index), ...CORS },
       });
     }
 
@@ -137,7 +260,7 @@ export default {
             const body = JSON.stringify({
               price: { highest: { price: row.peak, time: row.peak_ts, marketcap: row.mcap || 0 } },
             });
-            await env.CACHE.put(cacheKey, body, { expirationTtl: 6 * 3600 });
+            await kvPut(env, cacheKey, body, { expirationTtl: 6 * 3600 });
             return new Response(body, {
               headers: { 'Content-Type': 'application/json', 'x-cache': 'db', ...CORS },
             });
@@ -146,15 +269,17 @@ export default {
       }
 
       // 3) 都沒有才真的去打 API
-      const stApiKey = cleanKey(env.ST_KEY, false);
-      if (!stApiKey) return json({ error: 'ST_KEY not configured' }, 500);
-      if (!(await takeQuota(env, 'st', 1, stLimit))) return cooldown();
-
-      const r = await fetch('https://data.solanatracker.io/price/history/range?token=' + token
-        + '&time_from=' + from + '&time_to=' + to, { headers: { 'x-api-key': stApiKey } });
+      const stKeys = parseKeys(env.ST_KEYS || env.ST_KEY, false);
+      if (!stKeys.length) return json({ error: 'ST_KEY not configured' }, 500);
+      if (!(await takeQuota(env, 'st', 1, stLimit * stKeys.length))) return cooldown();
+      const gotSt = await fetchWithKeys(env, 'st', stKeys, stLimit, (k) =>
+        fetch('https://data.solanatracker.io/price/history/range?token=' + token
+          + '&time_from=' + from + '&time_to=' + to, { headers: { 'x-api-key': k } }));
+      if (!gotSt) return cooldown();
+      const r = gotSt.r;
       const body = await r.text();
       if (r.ok) {
-        await env.CACHE.put(cacheKey, body, { expirationTtl: 6 * 3600 });
+        await kvPut(env, cacheKey, body, { expirationTtl: 6 * 3600 });
         // 存進資料庫，之後所有人都能共用這一次查詢
         if (env.DB) {
           try {
@@ -226,7 +351,7 @@ export default {
         }
       } catch (e) { /* 表未建好等情況：回空榜 */ }
       const body = JSON.stringify({ missed, pain, dogs });
-      await env.CACHE.put('leaderboard', body, { expirationTtl: 600 });
+      await kvPut(env, 'leaderboard', body, { expirationTtl: 600 });
       return new Response(body, { headers: { 'Content-Type': 'application/json', ...CORS } });
     }
 

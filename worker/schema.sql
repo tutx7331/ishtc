@@ -29,3 +29,13 @@ CREATE TABLE IF NOT EXISTS token_peaks (
   PRIMARY KEY (mint, from_day)
 );
 CREATE INDEX IF NOT EXISTS idx_token_peaks_lookup ON token_peaks (mint, peak_ts, from_day);
+
+-- 計數器（月額度、每 IP 限流）放這裡而不是 KV：
+-- KV 免費額度只有 1,000 次寫入/天，而每個請求都要記數 —— 一次大查詢就爆掉，
+-- 寫入失敗會讓 Worker 直接回 500。D1 免費額度是 10 萬次寫入/天，綽綽有餘。
+CREATE TABLE IF NOT EXISTS counters (
+  name TEXT PRIMARY KEY,
+  n    INTEGER NOT NULL DEFAULT 0,
+  ts   INTEGER NOT NULL DEFAULT 0    -- 最後更新時間（秒），限流列用來清舊資料
+);
+CREATE INDEX IF NOT EXISTS idx_counters_ts ON counters (ts);
