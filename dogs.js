@@ -215,6 +215,7 @@
   function updateDog(d, dt) {
     d.phase += dt * (d.state === 'run' ? 1.1 : 0.35);
     if (d.sayT > 0) d.sayT -= dt;
+    if (d.dazeT > 0) d.dazeT -= dt;
 
     if (d.state === 'held') return;              // 位置由指標決定
 
@@ -224,17 +225,27 @@
       d.vh -= G * dt;
       d.rot += d.vrot * dt;
       // 牆壁反彈
-      if (d.x < 16) { d.x = 16; d.vx = Math.abs(d.vx) * WALL_R; d.vrot = -d.vrot; }
-      if (d.x > W - 16) { d.x = W - 16; d.vx = -Math.abs(d.vx) * WALL_R; d.vrot = -d.vrot; }
+      if (d.x < 16 || d.x > W - 16) {
+        if (Math.abs(d.vx) > THUMP * 0.6) d.dazeT = Math.max(d.dazeT || 0, 1.1);
+        if (d.x < 16) { d.x = 16; d.vx = Math.abs(d.vx) * WALL_R; }
+        else { d.x = W - 16; d.vx = -Math.abs(d.vx) * WALL_R; }
+        d.vrot = -d.vrot;
+      }
       // 天花板（跑馬燈下緣）
       const maxH = d.groundY - 34;
-      if (d.h > maxH) { d.h = maxH; d.vh = -Math.abs(d.vh) * 0.5; }
+      if (d.h > maxH) {
+        if (Math.abs(d.vh) > THUMP * 0.6) d.dazeT = Math.max(d.dazeT || 0, 1.1);
+        d.h = maxH; d.vh = -Math.abs(d.vh) * 0.5;
+      }
       d.dir = d.vx >= 0 ? 1 : -1;
       // 落地：照物理來 —— 每次反彈衰減，最後在地上滑行減速，不會瞬間黏住
       if (d.h <= 0 && d.vh < 0) {
         d.h = 0;
         const impact = -d.vh;
-        if (impact > THUMP) d.hardHit = true;    // 記下來，停穩後要跌倒
+        if (impact > THUMP) {
+          d.hardHit = true;                      // 停穩後要躺平
+          d.dazeT = Math.max(d.dazeT || 0, 1.1); // 撞到的當下就先變暈倒圖案
+        }
         d.vh = impact > 40 ? impact * FLOOR_R : 0;
         d.vx *= 0.92;
         d.vrot *= 0.6;
@@ -252,6 +263,7 @@
             d.rot = d.dir > 0 ? Math.PI / 2 : -Math.PI / 2;
           } else {
             d.rot = 0;
+            d.dazeT = 0;
             d.state = 'run';
             pickWanderTarget(d);
           }
@@ -264,7 +276,7 @@
       d.tumbleT -= dt;
       if (d.tumbleT <= 0) {
         d.rot *= 0.7;
-        if (Math.abs(d.rot) < 0.06) { d.rot = 0; d.state = 'run'; pickWanderTarget(d); }
+        if (Math.abs(d.rot) < 0.06) { d.rot = 0; d.dazeT = 0; d.state = 'run'; pickWanderTarget(d); }
       }
       return;
     }
@@ -380,7 +392,7 @@ const CAT_BAKED = [
   }
   function spriteFrame(d, moving, n) {
     const R = frameRoles(n || 12);
-    if (d.state === 'tumble') return R.tumble;
+    if (d.state === 'tumble' || d.dazeT > 0) return R.tumble;   // 撞到就暈，不用等停穩
     if (d.state === 'air' || d.state === 'held') return R.air;   // 跑步最後一張（騰空姿）當跳躍
     if (moving) return R.runStart + (Math.floor(d.phase * 8) % Math.max(1, R.runEnd - R.runStart + 1));
     return Math.floor(d.phase * 2) % Math.max(1, R.idleN);
@@ -806,7 +818,7 @@ const SHEET_BAKED = [
       if (ev.stopPropagation) ev.stopPropagation();
       held = d;
       d.state = 'held';
-      d.rot = 0; d.vrot = 0; d.sayT = 0;
+      d.rot = 0; d.vrot = 0; d.sayT = 0; d.dazeT = 0;
       trail = [{ x: p.x, y: p.y, t: performance.now() }];
       if (evRoot.style) evRoot.style.cursor = 'grabbing';
       kick();
@@ -904,6 +916,8 @@ const SHEET_BAKED = [
       updateHint();
       reduced ? this.renderNow(1) : kick();
     },
+    _roles: frameRoles,        // 測試用
+    _frameOf: spriteFrame,     // 測試用
     setAll: function (list, totalCount) {
       resize();
       total = (totalCount != null ? totalCount : list.length);

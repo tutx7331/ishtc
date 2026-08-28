@@ -1914,6 +1914,7 @@ async function openBoard() {
   ov.hidden = false;
   if (!PROXY_URL) {
     $('#board-missed').innerHTML = '<li class="board-empty">排行榜需要連上代理伺服器</li>';
+    $('#board-pain').innerHTML = '';
     $('#board-dogs').innerHTML = '';
     return;
   }
@@ -1925,6 +1926,10 @@ async function openBoard() {
       boardRow(i, nameOf(r), '<b class="bad">' + fmtUSD(r.missed_usd) + '</b>',
         '成本 ' + fmtUSD(r.cost_usd || 0) + ' · ' + (r.tokens || 0) + ' 隻幣', r.addresses || '')
     ).join('') || '<li class="board-empty">還沒有人上榜，快查一筆</li>';
+    $('#board-pain').innerHTML = (j.pain || []).map((r, i) =>
+      boardRow(i, nameOf(r), '<b class="bad">' + fmtUSD(r.missed_usd) + '</b>',
+        '成本 ' + fmtUSD(r.cost_usd || 0) + ' · ' + (r.tokens || 0) + ' 隻幣', r.addresses || '')
+    ).join('') || '<li class="board-empty">還沒有人上榜</li>';
     $('#board-dogs').innerHTML = (j.dogs || []).map((r, i) =>
       boardRow(i, nameOf(r), '<b class="good">' + (r.big_dogs || 0) + ' 隻大金狗</b>',
         fmtPct(r.big_rate) + ' · ' + (r.tokens || 0) + ' 隻幣', r.addresses || '')
@@ -1932,6 +1937,7 @@ async function openBoard() {
   } catch (e) {
     $('#board-missed').innerHTML = '<li class="board-empty">'
       + (e.cooldown ? '用量冷卻中，等 DEV 充值' : '排行榜暫時拿不到') + '</li>';
+    $('#board-pain').innerHTML = '';
     $('#board-dogs').innerHTML = '';
   }
 }

@@ -199,7 +199,7 @@ export default {
     if (url.pathname === '/leaderboard') {
       const hit = await env.CACHE.get('leaderboard');
       if (hit) return new Response(hit, { headers: { 'Content-Type': 'application/json', 'x-cache': 'hit', ...CORS } });
-      let missed = [], dogs = [];
+      let missed = [], pain = [], dogs = [];
       const pick = 'addresses, handle, tokens, cost_usd, missed_usd, big_rate, small_rate, MAX(ts) AS ts';
       try {
         if (env.DB) {
@@ -210,7 +210,10 @@ export default {
             'SELECT ' + pick + ' FROM queries '
             + 'WHERE missed_usd > 0 AND cost_usd >= 50 AND tokens >= 3 '
             + 'GROUP BY addresses ORDER BY missed_usd DESC LIMIT 300').all()).results || [];
-          missed = pool
+          // 金額榜：純看錯過多少錢（本金大的人本來就容易上榜，這榜就是給他們的）
+          missed = pool.slice().sort((a, b) => b.missed_usd - a.missed_usd).slice(0, 20);
+          // 痛苦指數榜：錯過金額 / sqrt(總成本) —— 小額大賣飛才痛
+          pain = pool
             .map((r) => Object.assign({}, r, {
               score: r.missed_usd / Math.sqrt(Math.max(50, r.cost_usd || 50)),
             }))
@@ -222,7 +225,7 @@ export default {
             + 'ORDER BY big_dogs DESC, big_rate DESC LIMIT 20').all()).results || [];
         }
       } catch (e) { /* 表未建好等情況：回空榜 */ }
-      const body = JSON.stringify({ missed, dogs });
+      const body = JSON.stringify({ missed, pain, dogs });
       await env.CACHE.put('leaderboard', body, { expirationTtl: 600 });
       return new Response(body, { headers: { 'Content-Type': 'application/json', ...CORS } });
     }
