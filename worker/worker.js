@@ -170,7 +170,7 @@ const SCAN_FROM = Math.floor(Date.UTC(SCAN_YEAR, 0, 1) / 1000);
 const GT = 'https://api.geckoterminal.com/api/v2';
 
 /** Cloudflare 免費方案每次執行最多 50 個外部請求，留餘裕 */
-const PRELOAD_BATCH = 15;
+const PRELOAD_BATCH = 10;
 
 async function gtJSON(url) {
   const r = await fetch(url, { headers: { Accept: 'application/json' } });
@@ -204,8 +204,12 @@ async function trendingPools() {
  * 買得比這更早的訪客不會誤用這筆記錄，會照常去查 Solana Tracker。
  */
 async function peakFromGecko(pool) {
-  const j = await gtJSON(GT + '/networks/solana/pools/' + pool
-    + '/ohlcv/day?aggregate=1&limit=1000&currency=usd');
+  const r = await fetch(GT + '/networks/solana/pools/' + pool
+    + '/ohlcv/day?aggregate=1&limit=1000&currency=usd', { headers: { Accept: 'application/json' } });
+  if (r.status === 429) return 'throttled';       // 被擋了，這一輪收手
+  if (!r.ok) return null;
+  let j = null;
+  try { j = await r.json(); } catch (e) { return null; }
   const raw = (j && j.data && j.data.attributes && j.data.attributes.ohlcv_list) || [];
   if (!raw.length) return null;
   let best = 0, bestTs = 0, oldest = Infinity;
@@ -225,26 +229,77 @@ async function peakFromGecko(pool) {
   };
 }
 
-/** 跑一批預載；回傳統計 */
+/** GeckoTerminal 免金鑰限制很緊（連打第 4 次就 429），每次呼叫之間要留空檔 */
+const GT_GAP_MS = 2600;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** 記住這隻幣的池子，下次刷新就不必再找 */
+async function rememberPool(env, mint, pool) {
+  try {
+    await env.DB.prepare(
+      'INSERT OR REPLACE INTO token_pools (mint, pool, ts) VALUES (?, ?, ?)')
+      .bind(mint, pool, Math.floor(Date.now() / 1000)).run();
+  } catch (e) { /* 記不起來就下次再查 */ }
+}
+
+/**
+ * 跑一批預載。順序很重要：
+ *   1. 先刷新「已經有人查過、但記錄快過期」的幣 —— 這些是真的會被查到的
+ *   2. 再補當下的熱門新幣 —— 為將來的查詢鋪路
+ * 全程只打 GeckoTerminal（免金鑰），不消耗 Solana Tracker 額度。
+ */
 async function preloadBatch(env, limit) {
   if (!env.DB) return { ok: false, reason: 'no DB' };
   const nowS = Math.floor(Date.now() / 1000);
-  let list = [];
-  try { list = await trendingPools(); } catch (e) { return { ok: false, reason: 'gt down' }; }
+  const targets = [];
+  const seen = new Set();
 
-  let done = 0, skipped = 0, failed = 0;
-  for (const item of list) {
-    if (done >= limit) break;
-    // 已經有夠新的記錄就跳過，別浪費請求
-    try {
-      const row = await env.DB.prepare(
-        'SELECT peak_ts, updated FROM token_peaks WHERE mint = ? ORDER BY updated DESC LIMIT 1')
-        .bind(item.mint).first();
-      if (row && (nowS - (row.updated || 0)) <= peakTtl(row.peak_ts, nowS)) { skipped++; continue; }
-    } catch (e) { /* 查不到就當沒有 */ }
+  // 1) 該刷新的舊幣（有記著池子才刷得動）
+  let refreshCandidates = 0;
+  try {
+    const rows = (await env.DB.prepare(
+      'SELECT p.mint AS mint, l.pool AS pool, p.peak_ts AS peak_ts, p.updated AS updated '
+      + 'FROM token_peaks p JOIN token_pools l ON l.mint = p.mint '
+      + 'GROUP BY p.mint ORDER BY p.updated ASC LIMIT 80').all()).results || [];
+    for (const r of rows) {
+      if (targets.length >= limit) break;
+      if ((nowS - (r.updated || 0)) <= peakTtl(r.peak_ts, nowS)) continue;   // 還新鮮
+      if (seen.has(r.mint)) continue;
+      seen.add(r.mint);
+      refreshCandidates++;
+      targets.push({ mint: r.mint, pool: r.pool, kind: 'refresh' });
+    }
+  } catch (e) { /* 表還沒建好就跳過這一段 */ }
 
+  // 2) 熱門新幣
+  let trending = [];
+  if (targets.length < limit) {
+    try { trending = await trendingPools(); } catch (e) { trending = []; }
+    for (const item of trending) {
+      if (targets.length >= limit) break;
+      if (seen.has(item.mint)) continue;
+      seen.add(item.mint);
+      targets.push({ mint: item.mint, pool: item.pool, kind: 'new' });
+    }
+  }
+
+  let stored = 0, skipped = 0, failed = 0, throttled = false;
+  for (let i = 0; i < targets.length; i++) {
+    const item = targets[i];
+    // 熱門那批可能已經夠新，先問一下再決定要不要花這次請求
+    if (item.kind === 'new') {
+      try {
+        const row = await env.DB.prepare(
+          'SELECT peak_ts, updated FROM token_peaks WHERE mint = ? ORDER BY updated DESC LIMIT 1')
+          .bind(item.mint).first();
+        if (row && (nowS - (row.updated || 0)) <= peakTtl(row.peak_ts, nowS)) { skipped++; continue; }
+      } catch (e) { /* 查不到就當沒有 */ }
+    }
+
+    if (i > 0) await sleep(GT_GAP_MS);            // 節流，避免被 GeckoTerminal 擋
     let pk = null;
     try { pk = await peakFromGecko(item.pool); } catch (e) {}
+    if (pk === 'throttled') { throttled = true; break; }   // 被擋了就收手，留給下一輪
     if (!pk) { failed++; continue; }
 
     try {
@@ -253,11 +308,16 @@ async function preloadBatch(env, limit) {
         + 'VALUES (?, ?, ?, ?, ?, ?)')
         .bind(item.mint, Math.floor(pk.fromTs / 86400), pk.peak, pk.peakTs, null, nowS)
         .run();
-      done++;
+      await rememberPool(env, item.mint, item.pool);
+      stored++;
     } catch (e) { failed++; }
   }
-  await bump(env, 'preload:' + new Date().toISOString().slice(0, 7), done);
-  return { ok: true, candidates: list.length, stored: done, skipped: skipped, failed: failed };
+
+  await bump(env, 'preload:' + new Date().toISOString().slice(0, 7), stored);
+  return {
+    ok: true, stored: stored, skipped: skipped, failed: failed,
+    refreshed: refreshCandidates, trending: trending.length, throttled: throttled,
+  };
 }
 
 export default {
@@ -361,13 +421,20 @@ export default {
       //    （最高點在你買入之後才發生，代表那個價格你也「有機會賣到」，數值精確）
       if (env.DB) {
         try {
-          const row = await env.DB.prepare(
+          // 同一隻幣可能有好幾筆（不同起點、不同時間刷新的）。
+          // 只挑「還新鮮」的那些，再從中取最高價 —— 不能讓一筆過期的舊記錄
+          // 因為數字比較大就擋住後面那筆剛刷新的。
+          const cands = (await env.DB.prepare(
             'SELECT peak, peak_ts, mcap, updated FROM token_peaks '
             + 'WHERE mint = ? AND from_day <= ? AND peak_ts >= ? '
-            + 'ORDER BY peak DESC LIMIT 1')
-            .bind(token, fromDay, from).first();
-          const fresh = row && (nowS - (row.updated || 0)) <= peakTtl(row.peak_ts, nowS);
-          if (row && row.peak > 0 && fresh) {
+            + 'ORDER BY updated DESC LIMIT 5')
+            .bind(token, fromDay, from).all()).results || [];
+          let row = null;
+          for (const c of cands) {
+            if ((nowS - (c.updated || 0)) > peakTtl(c.peak_ts, nowS)) continue;
+            if (!row || c.peak > row.peak) row = c;
+          }
+          if (row && row.peak > 0) {
             const body = JSON.stringify({
               price: { highest: { price: row.peak, time: row.peak_ts, marketcap: row.mcap || 0 } },
             });

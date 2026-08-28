@@ -39,3 +39,10 @@ CREATE TABLE IF NOT EXISTS counters (
   ts   INTEGER NOT NULL DEFAULT 0    -- 最後更新時間（秒），限流列用來清舊資料
 );
 CREATE INDEX IF NOT EXISTS idx_counters_ts ON counters (ts);
+
+-- 幣 → 池子。預載時順手記下來，之後要刷新同一隻幣就不必再問一次池子在哪。
+CREATE TABLE IF NOT EXISTS token_pools (
+  mint TEXT PRIMARY KEY,
+  pool TEXT NOT NULL,
+  ts   INTEGER NOT NULL DEFAULT 0
+);
