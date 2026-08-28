@@ -18,9 +18,10 @@ database_name = "ishtc-logs"
 database_id = "287438fb-09ab-419c-950f-1ade78e60ccb"
 
 [vars]
-# 額度上限（超過就回冷卻）。升級方案之後改這兩個數字重新部署即可
+# 額度上限（超過就回冷卻），都是「每一把 key」的量，總量會自動乘上把數。
+# 升級方案之後改這兩個數字重新部署即可。
 HELIUS_MONTHLY_CREDITS = "1000000"
-ST_MONTHLY_LIMIT = "10000"
+ST_MONTHLY_LIMIT = "2500"      # Solana Tracker 免費方案每月 2,500 次
 IP_RATE_PER_MIN = "600"
 
 # key 用 secret 存，不要寫在這個檔案裡：

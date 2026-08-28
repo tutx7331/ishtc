@@ -100,6 +100,18 @@ const json = (body, status = 200, headers = {}) =>
     headers: { 'Content-Type': 'application/json', ...CORS, ...headers },
   });
 
+/**
+ * 一筆幣價記錄可以撐多久才需要重查 —— 看「高點是多久以前的事」。
+ * 三個月前衝上去、早就跌回來的死幣，高點幾乎不可能再變，卻每 6 小時重查一次，
+ * 純粹是把額度燒在不會變的東西上。還在動的幣才需要頻繁更新。
+ */
+function peakTtl(peakTs, nowS) {
+  const age = nowS - (peakTs || 0);
+  if (age > 60 * 86400) return 14 * 86400;   // 兩個月前的高點：兩週不用重查
+  if (age > 7 * 86400) return 3 * 86400;     // 一週以上：三天
+  return 6 * 3600;                           // 還很新鮮：維持六小時
+}
+
 const cooldown = () =>
   json({ code: 'cooldown', message: '查詢用量過大，暫時冷卻中 —— 等 DEV 充值' }, 429, { 'x-cooldown': '1' });
 
@@ -252,15 +264,18 @@ export default {
       if (env.DB) {
         try {
           const row = await env.DB.prepare(
-            'SELECT peak, peak_ts, mcap FROM token_peaks '
-            + 'WHERE mint = ? AND from_day <= ? AND peak_ts >= ? AND updated >= ? '
+            'SELECT peak, peak_ts, mcap, updated FROM token_peaks '
+            + 'WHERE mint = ? AND from_day <= ? AND peak_ts >= ? '
             + 'ORDER BY peak DESC LIMIT 1')
-            .bind(token, fromDay, from, nowS - 6 * 3600).first();
-          if (row && row.peak > 0) {
+            .bind(token, fromDay, from).first();
+          const fresh = row && (nowS - (row.updated || 0)) <= peakTtl(row.peak_ts, nowS);
+          if (row && row.peak > 0 && fresh) {
             const body = JSON.stringify({
               price: { highest: { price: row.peak, time: row.peak_ts, marketcap: row.mcap || 0 } },
             });
-            await kvPut(env, cacheKey, body, { expirationTtl: 6 * 3600 });
+            await kvPut(env, cacheKey, body, {
+              expirationTtl: Math.min(6 * 3600, peakTtl(row.peak_ts, nowS)),
+            });
             return new Response(body, {
               headers: { 'Content-Type': 'application/json', 'x-cache': 'db', ...CORS },
             });
