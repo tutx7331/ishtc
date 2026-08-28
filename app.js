@@ -1696,6 +1696,18 @@ if ($('#show-keys')) $('#show-keys').addEventListener('click', () => {
   $('#show-keys').hidden = true;
 });
 
+// 暱稱：首頁填一次，分享卡署名與排行榜共用
+if ($('#nick')) {
+  $('#nick').value = localStorage.getItem('fomo:handle') || '';
+  $('#handle').value = $('#nick').value;
+  $('#nick').addEventListener('input', () => {
+    const v = $('#nick').value.trim();
+    localStorage.setItem('fomo:handle', v);
+    $('#handle').value = v;
+    if (LAST) drawCard(LAST);
+  });
+}
+
 $('#helius-key').value = localStorage.getItem('fomo:key') || '';
 $('#birdeye-key').value = localStorage.getItem('fomo:bekey') || '';
 $('#st-key').value = localStorage.getItem('fomo:stkey') || '';
@@ -1846,7 +1858,7 @@ $('#run').addEventListener('click', async () => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             addresses: d.addrs,
-            handle: ($('#handle').value || '').trim() || undefined,
+            handle: (($('#nick') && $('#nick').value) || $('#handle').value || '').trim() || undefined,
             stats: {
               n: d.sum.n, cost: d.sum.cost, ideal: d.sum.ideal, actual: d.sum.actual,
               missed: d.sum.missed, bigRate: d.sum.bigRate, smallRate: d.sum.smallRate,
