@@ -521,16 +521,23 @@ export default {
       const hit = await env.CACHE.get('leaderboard');
       if (hit) return new Response(hit, { headers: { 'Content-Type': 'application/json', 'x-cache': 'hit', ...CORS } });
       let missed = [], pain = [], dogs = [];
-      const pick = 'addresses, handle, tokens, cost_usd, missed_usd, big_rate, small_rate, MAX(ts) AS ts';
+      // 暱稱用「最先登記的那個」，不是最新的 ——
+      // 否則任何人都能用別人的地址查一次、填自己的名字，就把榜上的名字換掉。
+      // 數字仍取最新一次查詢（MAX(ts) 那筆）。
+      const pick = 'addresses, '
+        + '(SELECT h.handle FROM queries h WHERE h.addresses = q.addresses '
+        + "  AND h.handle IS NOT NULL AND TRIM(h.handle) <> '' "
+        + '  ORDER BY h.ts ASC LIMIT 1) AS handle, '
+        + 'tokens, cost_usd, missed_usd, big_rate, small_rate, MAX(ts) AS ts';
       try {
         if (env.DB) {
           // 賣飛榜不能純看金額：砸 5000U 快進快出的人一定贏過砸 100U 抱到十萬倍的人。
           // 用「成本開根號」正規化 → 金額仍是主角，但大戶的優勢被壓縮，
           // 小額大賣飛才排得上來。門檻：成本 >= $50、至少 3 隻幣（擋灰塵與單押）。
           const pool = (await env.DB.prepare(
-            'SELECT ' + pick + ' FROM queries '
+            'SELECT ' + pick + ' FROM queries q '
             + 'WHERE missed_usd > 0 AND cost_usd >= 50 AND tokens >= 3 '
-            + 'GROUP BY addresses ORDER BY missed_usd DESC LIMIT 300').all()).results || [];
+            + 'GROUP BY q.addresses ORDER BY missed_usd DESC LIMIT 300').all()).results || [];
           // 金額榜：純看錯過多少錢（本金大的人本來就容易上榜，這榜就是給他們的）
           missed = pool.slice().sort((a, b) => b.missed_usd - a.missed_usd).slice(0, 20);
           // 痛苦指數榜：錯過金額 / sqrt(總成本) —— 小額大賣飛才痛
@@ -542,7 +549,7 @@ export default {
             .slice(0, 20);
           dogs = (await env.DB.prepare(
             'SELECT ' + pick + ', CAST(ROUND(big_rate * tokens) AS INTEGER) AS big_dogs '
-            + 'FROM queries WHERE tokens >= 10 AND big_rate > 0 GROUP BY addresses '
+            + 'FROM queries q WHERE tokens >= 10 AND big_rate > 0 GROUP BY q.addresses '
             + 'ORDER BY big_dogs DESC, big_rate DESC LIMIT 20').all()).results || [];
         }
       } catch (e) { /* 表未建好等情況：回空榜 */ }
