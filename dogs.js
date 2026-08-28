@@ -313,7 +313,8 @@
     const cw = dogSheet.width / 12, ch = dogSheet.height / 3;
     const row = SHEET_ROW[d.tier] != null ? SHEET_ROW[d.tier] : 2;
     const f = spriteFrame(d, moving);
-    const size = 20 * s;                       // 跟程式畫的狗體型相當
+    const size = 24 * s;                       // 高度基準；寬度依格子比例，不壓扁
+    const dw2 = size * (cw / ch), dh2 = size;
     ctx.save();
     ctx.translate(Math.round(x), Math.round(y));
     if (d.dir < 0) ctx.scale(-1, 1);
@@ -326,7 +327,7 @@
       ctx.ellipse(0, -size * 0.45, size * 0.62, size * 0.45, 0, 0, Math.PI * 2);
       ctx.fill();
     }
-    ctx.drawImage(dogSheet, f * cw, row * ch, cw, ch, -size / 2, -size, size, size);
+    ctx.drawImage(dogSheet, f * cw, row * ch, cw, ch, -dw2 / 2, -dh2, dw2, dh2);
     ctx.restore();
   }
 

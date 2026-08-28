@@ -1335,12 +1335,16 @@ const CARD = { W: 1080, H: 1350, PAD: 72 };
 let bgImage = null;    // 使用者上傳的背景圖
 let logoImage = null;  // 使用者上傳的 logo
 let cardBgDefault = null;   // assets/card-bg.png：沒上傳背景時的預設卡底（可選）
+let cardLogoDefault = null; // assets/logo.png：分享卡右下角的預設 logo（可選）
 // file:// 直接開檔時，本機圖片會讓 canvas 無法匯出（瀏覽器安全限制），乾脆不載
 if (typeof Image !== 'undefined' && typeof location !== 'undefined' && /^https?:$/.test(location.protocol)) {
   try {
     const cb = new Image();
     cb.onload = () => { cardBgDefault = cb; if (LAST) drawCard(LAST); };
     cb.src = 'assets/card-bg.png';
+    const cl = new Image();
+    cl.onload = () => { cardLogoDefault = cl; if (LAST) drawCard(LAST); };
+    cl.src = 'assets/logo.png';
   } catch (e) {}
 }
 
@@ -1624,11 +1628,12 @@ function drawCard(d) {
   hr(footLine);
   const fy = H - 78;
   let fx = PAD;
-  if (logoImage) {
+  const cardLogo = logoImage || cardLogoDefault;
+  if (cardLogo) {
     const maxSide = 64;
-    const sc = Math.min(maxSide / logoImage.width, maxSide / logoImage.height);
-    const lw = logoImage.width * sc, lh = logoImage.height * sc;
-    x.drawImage(logoImage, fx, fy - lh + 12, lw, lh);
+    const sc = Math.min(maxSide / cardLogo.width, maxSide / cardLogo.height);
+    const lw = cardLogo.width * sc, lh = cardLogo.height * sc;
+    x.drawImage(cardLogo, fx, fy - lh + 12, lw, lh);
     fx += lw + 20;
   }
   x.font = cardFont(900, 30, false);
