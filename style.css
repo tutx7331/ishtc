@@ -613,13 +613,11 @@ footer{padding:28px 0 48px;color:var(--dim);font-size:12px;font-family:var(--mon
 
 /* ---------- 頁尾：請 DEV 喝咖啡 ---------- */
 .donate{
-  margin:18px auto 0;padding:16px 18px;max-width:560px;
-  border:1px solid var(--line);background:rgba(232,236,244,.02);
-  display:flex;flex-direction:column;align-items:center;gap:9px;text-align:center;
+  display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;
 }
 .donate-label{font:700 12px var(--mono);letter-spacing:.12em;color:var(--amber)}
 #donate-addr{
-  width:100%;padding:9px 12px;cursor:pointer;
+  width:100%;max-width:520px;padding:10px 12px;cursor:pointer;
   background:var(--bg);border:1px dashed var(--line-2);color:var(--muted);
   font:11.5px var(--mono);letter-spacing:.02em;word-break:break-all;
   transition:color .15s,border-color .15s;
