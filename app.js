@@ -1918,7 +1918,6 @@ $('#run').addEventListener('click', async () => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             addresses: d.addrs,
-            handle: (($('#nick') && $('#nick').value) || $('#handle').value || '').trim() || undefined,
             stats: {
               n: d.sum.n, cost: d.sum.cost, ideal: d.sum.ideal, actual: d.sum.actual,
               missed: d.sum.missed, bigRate: d.sum.bigRate, smallRate: d.sum.smallRate,
@@ -1965,10 +1964,12 @@ $('#clear-cache').addEventListener('click', () => {
 // ---------- 全站排行榜 ----------
 function boardRow(i, name, right, sub, addr) {
   return '<li><button type="button" class="board-item" data-addr="' + escapeHTML(addr) + '"'
-    + ' title="' + t('board.copyHint') + '">'
+    + ' title="' + t('board.queryHint') + '">'
     + '<span class="rank">' + (i + 1) + '</span>'
     + '<span class="who">' + escapeHTML(name) + '<small>' + escapeHTML(sub) + '</small></span>'
-    + '<span class="score">' + right + '</span></button></li>';
+    + '<span class="score">' + right + '</span>'
+    + '<span class="board-copy" role="button" tabindex="0" data-copy="' + escapeHTML(addr) + '"'
+    + ' title="' + t('board.copyHint') + '">⧉</span></button></li>';
 }
 async function openBoard() {
   const ov = $('#board-overlay');
@@ -1982,8 +1983,8 @@ async function openBoard() {
   }
   try {
     const j = await getJSON(PROXY_URL + '/leaderboard');
-    const nameOf = (r) => (r.handle && r.handle.trim())
-      || shortAddr((r.addresses || '').split(' ')[0] || '');
+    // 只顯示地址：暱稱誰都能填，顯示在榜上等於開放冒名
+    const nameOf = (r) => shortAddr((r.addresses || '').split(' ')[0] || '');
     $('#board-missed').innerHTML = (j.missed || []).map((r, i) =>
       boardRow(i, nameOf(r), '<b class="bad">' + fmtUSD(r.missed_usd) + '</b>',
         t('board.costOf', { cost: fmtUSD(r.cost_usd || 0), n: r.tokens || 0 }), r.addresses || '')
@@ -2033,17 +2034,38 @@ if ($('#donate-addr')) $('#donate-addr').addEventListener('click', () => {
 });
 
 if ($('#board-btn')) $('#board-btn').addEventListener('click', openBoard);
-// 點榜上任何一列 → 複製地址（不觸發查詢，免得別人隨手點就燒一次 API）
+/** 用指定的地址開始一次查詢（排行榜點擊、分享連結都走這裡）*/
+function queryAddresses(addrList) {
+  const good = String(addrList || '').split(/[\s,]+/).filter(isSolAddress).slice(0, 10);
+  if (!good.length) return false;
+  $('#addresses').value = good.join('\n');
+  if ($('#hero-addr')) $('#hero-addr').value = good.join(' ');
+  $('#run').click();
+  return true;
+}
+
 if ($('#board-overlay')) $('#board-overlay').addEventListener('click', (e) => {
-  const b = e.target && e.target.closest && e.target.closest('.board-item');
+  const tgt = e.target;
+  if (!tgt || !tgt.closest) return;
+
+  // 右邊那顆小圖示：只複製，不查詢
+  const cp = tgt.closest('.board-copy');
+  if (cp) {
+    if (e.preventDefault) e.preventDefault();
+    if (e.stopPropagation) e.stopPropagation();
+    const a = cp.getAttribute('data-copy') || '';
+    if (a) copyText(a).then(() => showToast(t('toast.copiedAddr')));
+    return;
+  }
+
+  // 點整列 → 直接查這個地址。
+  // 幣價都在資料庫裡了，重複查一次幾乎不會再打付費 API。
+  const b = tgt.closest('.board-item');
   if (!b) return;
   const addr = b.getAttribute('data-addr') || '';
   if (!addr) return;
-  copyText(addr).then(() => {
-    b.classList.add('copied');
-    setTimeout(() => b.classList.remove('copied'), 1200);
-    showToast(t('toast.copiedAddr'));
-  });
+  $('#board-overlay').hidden = true;
+  queryAddresses(addr);
 });
 if ($('#board-close')) $('#board-close').addEventListener('click', () => { $('#board-overlay').hidden = true; });
 if ($('#board-overlay')) $('#board-overlay').addEventListener('click', (e) => {

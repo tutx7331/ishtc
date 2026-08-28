@@ -450,6 +450,12 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .board-cols .who{flex:1;min-width:0;font:700 13px var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .board-cols .who small{display:block;font:400 10px var(--mono);color:var(--dim);margin-top:2px}
 .board-cols .score{flex:none;font:700 13px var(--mono)}
+.board-cols .board-copy{
+  flex:none;width:24px;text-align:center;color:var(--dim);
+  font-size:13px;line-height:1;opacity:0;transition:opacity .15s,color .15s;
+}
+.board-cols li .board-item:hover .board-copy{opacity:1}
+.board-cols .board-copy:hover{color:var(--accent)}
 .board-cols .score .bad{color:var(--red)}
 .board-cols .score .good{color:var(--accent)}
 .board-empty{padding:16px 8px;color:var(--dim);font:12px var(--mono)}

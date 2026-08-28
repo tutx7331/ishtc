@@ -17,7 +17,7 @@
     'hero.tagline': { zh: 'I SHOULD HOLD THE COIN', en: 'I SHOULD HOLD THE COIN' },
     'hero.ask': { zh: '你 2026 賣飛了多少錢？', en: 'How much did you paper in 2026?' },
     'hero.addr': { zh: '貼上 Solana 地址（可多個，用空格分隔）', en: 'Paste Solana address (multiple OK, space-separated)' },
-    'hero.nick': { zh: '暱稱（選填，上排行榜用）', en: 'Nickname (optional, for the leaderboard)' },
+    'hero.nick': { zh: '暱稱（選填，顯示在你的分享卡上）', en: 'Nickname (optional, shown on your share card)' },
     'hero.run': { zh: '查詢', en: 'Check' },
     'hero.note': { zh: '免註冊 · 免 API key · 貼上就查', en: 'No signup · No API key · Just paste' },
     'foot.sources': { zh: '這不是投資建議，只是一份帳單。', en: 'Not investment advice — just the bill.' },
@@ -164,7 +164,8 @@
     'board.dogCount': { zh: '{n} 隻大金狗', en: '{n} big winners' },
     'board.dogSub': { zh: '{pct} · {n} 隻幣', en: '{pct} · {n} tokens' },
     'toast.copiedAddr': { zh: '已複製地址', en: 'Address copied' },
-    'board.copyHint': { zh: '點擊複製地址', en: 'Click to copy address' },
+    'board.queryHint': { zh: '點擊查詢這個地址', en: 'Click to check this address' },
+    'board.copyHint': { zh: '複製地址', en: 'Copy address' },
 
     // ---------- 進度 ----------
     'prog.solPrice': { zh: '抓 SOL 歷史價…', en: 'Fetching SOL price history…' },
