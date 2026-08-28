@@ -131,7 +131,7 @@
     cv.height = Math.round(H * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.imageSmoothingEnabled = false;
-    floorTop = Math.round(H * 0.63);   // DOM 大螢幕佔上方 55%，牆面到這裡
+    floorTop = Math.round(H * 0.74);   // 桌面視角：螢幕佔上方，這裡以下是桌面（狗在桌上跑）
     layoutMonitors();
   }
 
@@ -286,7 +286,7 @@
   }
 
   // ---------- 繪製 ----------
-  // 想換成自己生成的房間圖：放 assets/room-bg.png（1920x1080，下方 37% 留空當地板）
+  // 想換成自己生成的桌面圖：放 assets/room-bg.png（1920x1080，下方 ~26% 是桌面，狗在上面跑）
   let roomImg = null;
   if (typeof Image !== 'undefined') {
     try {
@@ -299,7 +299,7 @@
   const MONO = 'ui-monospace,Menlo,Consolas,monospace';
 
   function drawRoom() {
-    if (roomImg) {                                   // 自訂背景：鋪滿裁切
+    if (roomImg) {                                   // 自訂背景（桌面照）：鋪滿裁切
       const sc = Math.max(W / roomImg.width, H / roomImg.height);
       const dw = roomImg.width * sc, dh = roomImg.height * sc;
       ctx.drawImage(roomImg, (W - dw) / 2, (H - dh) / 2, dw, dh);
@@ -307,22 +307,26 @@
       return;
     }
 
-    // ---- 牆與地板 ----
-    ctx.fillStyle = '#0e1116';
+    // ---- 牆（幾乎被螢幕擋住，只露出邊緣）----
+    ctx.fillStyle = '#0b0e13';
     ctx.fillRect(0, 0, W, floorTop);
+
+    // ---- 桌面：深色木紋，往前漸暗 ----
     const fg = ctx.createLinearGradient(0, floorTop, 0, H);
-    fg.addColorStop(0, '#171c26');
-    fg.addColorStop(1, '#10141b');
+    fg.addColorStop(0, '#2a2015');
+    fg.addColorStop(0.15, '#241b12');
+    fg.addColorStop(1, '#140e08');
     ctx.fillStyle = fg;
     ctx.fillRect(0, floorTop, W, H - floorTop);
-    ctx.strokeStyle = 'rgba(232,236,244,.045)';
+    // 木板接縫（透視：往畫面下方展開）
+    ctx.strokeStyle = 'rgba(0,0,0,.28)';
     ctx.lineWidth = 1;
-    for (let i = 1; i <= 4; i++) {
-      const y = floorTop + (H - floorTop) * (i / 4.8);
-      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+    for (let i = 0; i < 6; i++) {
+      const x0 = W * (0.12 + i * 0.15);
+      const spread = (x0 - W / 2) * 0.35;
+      ctx.beginPath(); ctx.moveTo(x0, floorTop); ctx.lineTo(x0 + spread, H); ctx.stroke();
     }
-    ctx.beginPath(); ctx.moveTo(W * 0.16, H); ctx.lineTo(W * 0.28, floorTop); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(W * 0.84, H); ctx.lineTo(W * 0.72, floorTop); ctx.stroke();
+    // 桌沿（螢幕後方那條邊）
     ctx.fillStyle = '#0a0c10';
     ctx.fillRect(0, floorTop - 3, W, 3);
 
@@ -330,191 +334,109 @@
 
     const leftEdge = wallRect ? wallRect.x0 : W * 0.1;
     const rightEdge = wallRect ? wallRect.x1 : W * 0.9;
+    const deskMid = floorTop + (H - floorTop) * 0.34;   // 桌上物件的基準線（狗跑帶前緣）
 
-    // ---- 左牆：勵志海報 + BUY THE DIP 霓虹（牆屏左邊的空牆）----
-    if (leftEdge >= 108) {
-      const margin = leftEdge;
-      const pw = Math.min(104, margin - 26);
-      const p1x = (margin - pw) / 2, p1y = 44;
-      ctx.textAlign = 'center';
-      // 海報一：三行標語
-      ctx.fillStyle = '#12151c'; ctx.fillRect(p1x, p1y, pw, 64);
-      ctx.strokeStyle = '#262c38'; ctx.strokeRect(p1x + 0.5, p1y + 0.5, pw - 1, 63);
-      ctx.font = '700 9px ' + MONO;
-      ctx.fillStyle = '#8a93a4';
-      ctx.fillText('DISCIPLINE', p1x + pw / 2, p1y + 20);
-      ctx.fillText('PATIENCE', p1x + pw / 2, p1y + 36);
-      ctx.fillText('HODL', p1x + pw / 2, p1y + 52);
-      // 海報二：MINDSET
-      const p2y = p1y + 76;
-      ctx.fillStyle = '#12151c'; ctx.fillRect(p1x, p2y, pw, 44);
-      ctx.strokeStyle = '#262c38'; ctx.strokeRect(p1x + 0.5, p2y + 0.5, pw - 1, 43);
-      ctx.font = '700 11px ' + MONO;
-      ctx.fillStyle = '#c9d1de';
-      ctx.fillText('MINDSET', p1x + pw / 2, p2y + 20);
-      ctx.font = '8px ' + MONO;
-      ctx.fillStyle = '#5b6472';
-      ctx.fillText('noun.', p1x + pw / 2, p2y + 34);
-      // BUY THE DIP 霓虹（綠光，微閃爍）
-      const ny = p2y + 76;
-      const flick = 0.8 + 0.2 * Math.sin(roomT * 2.3);
-      ctx.font = '700 13px ' + MONO;
-      ctx.shadowColor = 'rgba(20,241,149,.85)';
-      ctx.shadowBlur = 10 * flick;
-      ctx.fillStyle = 'rgba(94,242,169,' + (0.85 * flick + 0.15) + ')';
-      ctx.fillText('BUY', p1x + pw / 2, ny);
-      ctx.fillText('THE', p1x + pw / 2, ny + 18);
-      ctx.fillText('DIP', p1x + pw / 2, ny + 36);
-      ctx.shadowBlur = 0;
-      ctx.strokeStyle = 'rgba(20,241,149,.35)';
-      ctx.strokeRect(p1x + pw / 2 - 28.5, ny - 14.5, 57, 56);
+    // ---- 大滑鼠墊：狗的主跑道（取代地毯）----
+    const padW = Math.min(W * 0.5, 720), padX = (W - padW) / 2;
+    const padY = floorTop + (H - floorTop) * 0.22, padH = (H - floorTop) * 0.6;
+    ctx.fillStyle = 'rgba(10,10,16,.5)';
+    ctx.fillRect(padX, padY, padW, padH);
+    ctx.strokeStyle = 'rgba(153,69,255,.35)';
+    ctx.strokeRect(padX + 1.5, padY + 1.5, padW - 3, padH - 3);
+
+    // ---- 鍵盤（畫面正前方下緣，紫色背光）----
+    const kbW = Math.min(W * 0.26, 360), kbH = 34;
+    const kbX = (W - kbW) / 2, kbY = H - kbH - 14;
+    ctx.fillStyle = '#12151c';
+    ctx.fillRect(kbX - 4, kbY - 4, kbW + 8, kbH + 8);
+    const glowP = 0.7 + 0.3 * Math.sin(roomT * 1.1);
+    for (let r = 0; r < 3; r++) {
+      for (let c2 = 0; c2 < Math.floor(kbW / 18); c2++) {
+        ctx.fillStyle = 'rgba(153,69,255,' + (0.16 * glowP).toFixed(3) + ')';
+        ctx.fillRect(kbX + c2 * 18 + 2, kbY + r * 11 + 2, 14, 8);
+        ctx.fillStyle = '#1c212c';
+        ctx.fillRect(kbX + c2 * 18 + 3, kbY + r * 11 + 3, 12, 6);
+      }
+    }
+    // 滑鼠（鍵盤右邊）
+    ctx.fillStyle = '#171b24';
+    ctx.beginPath(); ctx.ellipse(kbX + kbW + 46, kbY + 16, 11, 15, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(20,241,149,' + (0.5 * glowP).toFixed(3) + ')';
+    ctx.beginPath(); ctx.moveTo(kbX + kbW + 46, kbY + 4); ctx.lineTo(kbX + kbW + 46, kbY + 12); ctx.stroke();
+
+    // ---- 左桌面：咖啡杯（冒煙）+ 書 + 麥克風 ----
+    {
+      const mx = Math.max(56, leftEdge + 52);
+      // 麥克風臂（從左邊伸進來）
+      ctx.strokeStyle = '#1c212c'; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.moveTo(0, deskMid + 26); ctx.lineTo(mx - 6, deskMid - 2); ctx.stroke();
+      ctx.lineWidth = 1;
+      ctx.fillStyle = '#242b38';
+      ctx.fillRect(mx - 12, deskMid - 22, 14, 22);
+      ctx.fillStyle = '#3a4150';
+      ctx.fillRect(mx - 10, deskMid - 20, 10, 12);
+      // 咖啡杯
+      const cx2 = mx + 34, cy3 = deskMid + 18;
+      ctx.fillStyle = '#12151c';
+      ctx.fillRect(cx2 - 9, cy3 - 16, 18, 16);
+      ctx.strokeStyle = '#2e3542';
+      ctx.strokeRect(cx2 + 9.5, cy3 - 12.5, 5, 8);
+      // 煙（隨時間飄）
+      ctx.fillStyle = 'rgba(232,236,244,.18)';
+      for (let k = 0; k < 3; k++) {
+        const sy2 = cy3 - 22 - k * 8;
+        const sx2 = cx2 + Math.sin(roomT * 1.4 + k * 1.7) * 4;
+        ctx.fillRect(sx2, sy2, 3, 4);
+      }
+      // TRADING PLAN 筆記本
+      ctx.fillStyle = '#101820';
+      ctx.fillRect(mx - 4, cy3 + 14, 44, 12);
+      ctx.fillStyle = 'rgba(20,241,149,.7)';
+      ctx.fillRect(mx, cy3 + 17, 24, 2);
     }
 
-    // ---- 右牆：夜景窗（城市天際線）----
-    if (W - rightEdge >= 108) {
-      const margin = W - rightEdge;
-      const ww = Math.min(150, margin - 24), wh = Math.min(130, floorTop * 0.42);
-      const wx = rightEdge + (margin - ww) / 2, wy = 46;
-      // 窗框
-      ctx.fillStyle = '#1a1f29';
-      ctx.fillRect(wx - 5, wy - 5, ww + 10, wh + 10);
-      // 夜空
-      const sky = ctx.createLinearGradient(0, wy, 0, wy + wh);
-      sky.addColorStop(0, '#0a1226');
-      sky.addColorStop(1, '#131b30');
-      ctx.fillStyle = sky;
-      ctx.fillRect(wx, wy, ww, wh);
-      // 月亮
-      ctx.fillStyle = '#e8ecf4';
-      ctx.beginPath(); ctx.ellipse(wx + ww * 0.76, wy + wh * 0.2, 7, 7, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#0a1226';
-      ctx.beginPath(); ctx.ellipse(wx + ww * 0.76 + 4, wy + wh * 0.2 - 2, 6, 6, 0, 0, Math.PI * 2); ctx.fill();
-      // 天際線：一排高樓剪影 + 亮窗
-      let seed2 = 13;
-      let bxx = wx + 2;
-      while (bxx < wx + ww - 10) {
-        seed2 = (seed2 * 16807) % 2147483647;
-        const bw2 = 12 + (seed2 % 12), bh2 = wh * (0.3 + (seed2 % 40) / 100);
-        ctx.fillStyle = '#0d1420';
-        ctx.fillRect(bxx, wy + wh - bh2, bw2, bh2);
-        ctx.fillStyle = 'rgba(255,214,120,.55)';
-        for (let fy2 = wy + wh - bh2 + 4; fy2 < wy + wh - 6; fy2 += 7) {
-          for (let fx2 = bxx + 2; fx2 < bxx + bw2 - 3; fx2 += 6) {
-            seed2 = (seed2 * 16807) % 2147483647;
-            if (seed2 % 10 < 3) ctx.fillRect(fx2, fy2, 2, 3);
-          }
-        }
-        bxx += bw2 + 3;
-      }
-      // 窗欞
-      ctx.strokeStyle = '#1a1f29';
-      ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.moveTo(wx + ww / 2, wy); ctx.lineTo(wx + ww / 2, wy + wh); ctx.stroke();
-      ctx.lineWidth = 1;
-      // 窗下：發光狗狗幣座燈
-      const cy2 = wy + wh + 34;
-      ctx.shadowColor = 'rgba(255,176,32,.8)'; ctx.shadowBlur = 12;
-      ctx.fillStyle = '#ffb020';
-      ctx.beginPath(); ctx.ellipse(wx + ww / 2, cy2, 11, 11, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.shadowBlur = 0;
-      ctx.fillStyle = '#7a4d00';
+    // ---- 右桌面：LED 時鐘 + 小盆栽 + 金牛擺件 ----
+    {
+      const rx0 = Math.min(W - 60, rightEdge - 46);
+      // LED 時鐘
+      ctx.fillStyle = '#0a0d12';
+      ctx.fillRect(rx0 - 30, deskMid - 10, 60, 22);
+      ctx.fillStyle = 'rgba(20,241,149,.9)';
       ctx.font = '700 12px ' + MONO;
       ctx.textAlign = 'center';
-      ctx.fillText('D', wx + ww / 2, cy2 + 4);
+      ctx.fillText('10:24', rx0, deskMid + 5);
+      // 盆栽
+      ctx.fillStyle = '#3a2c1a';
+      ctx.fillRect(rx0 - 44, deskMid + 22, 14, 11);
+      ctx.fillStyle = '#0f9d6a';
+      ctx.fillRect(rx0 - 41, deskMid + 8, 3, 14);
+      ctx.fillStyle = '#14f195';
+      ctx.fillRect(rx0 - 36, deskMid + 4, 3, 18);
+      // 金牛擺件（衝勢的吉祥物）
+      const bx2 = rx0 + 26, by2 = deskMid + 30;
+      ctx.fillStyle = '#2a2f3a';
+      ctx.fillRect(bx2 - 12, by2 - 10, 24, 10);      // 身
+      ctx.fillRect(bx2 + 8, by2 - 16, 10, 9);        // 頭
+      ctx.fillStyle = '#ffd34d';
+      ctx.fillRect(bx2 + 8, by2 - 19, 3, 4);         // 角
+      ctx.fillRect(bx2 + 15, by2 - 19, 3, 4);
+      ctx.fillStyle = '#1c212c';
+      ctx.fillRect(bx2 - 10, by2, 3, 5); ctx.fillRect(bx2 + 6, by2, 3, 5);
     }
 
-    // ---- 地毯（毛絨感：底色 + 邊緣雜點）----
-    const rugW = Math.min(W * 0.44, 520), rugX = (W - rugW) / 2;
-    const rugY = floorTop + (H - floorTop) * 0.3, rugH = (H - floorTop) * 0.44;
-    ctx.fillStyle = 'rgba(153,69,255,.10)';
-    ctx.fillRect(rugX, rugY, rugW, rugH);
-    ctx.fillStyle = 'rgba(153,69,255,.16)';
-    let rs = 29;
-    for (let i = 0; i < 90; i++) {
-      rs = (rs * 16807) % 2147483647;
-      const side = rs % 4;
-      const along = (rs % 1000) / 1000;
-      let ex, ey;
-      if (side === 0) { ex = rugX + along * rugW; ey = rugY - 2; }
-      else if (side === 1) { ex = rugX + along * rugW; ey = rugY + rugH; }
-      else if (side === 2) { ex = rugX - 2; ey = rugY + along * rugH; }
-      else { ex = rugX + rugW; ey = rugY + along * rugH; }
-      ctx.fillRect(ex, ey, 2, 2);
-    }
-    ctx.strokeStyle = 'rgba(153,69,255,.20)';
-    ctx.strokeRect(rugX + 5.5, rugY + 5.5, rugW - 11, rugH - 11);
-
-    // ---- 左牆下：書櫃（三層書 + 公仔）----
-    const bx = W * 0.025, bw = Math.min(W * 0.12, 160), bh = 150;
-    const by = floorTop - bh;
-    ctx.fillStyle = '#1b1510';
-    ctx.fillRect(bx - 4, by - 6, bw + 8, bh + 6);
-    ctx.fillStyle = '#0d0a07';
-    for (let sh = 0; sh < 3; sh++) {
-      const sy = by + 8 + sh * 46;
-      ctx.fillRect(bx, sy, bw, 38);
-    }
-    const spineCols = ['#14f195', '#9945ff', '#ffb020', '#ff4d6d', '#4d9fff', '#e8ecf4'];
-    let seed = 7;
-    for (let sh = 0; sh < 2; sh++) {
-      let sx = bx + 5;
-      const sy = by + 8 + sh * 46;
-      while (sx < bx + bw - 12) {
-        seed = (seed * 16807) % 2147483647;
-        const bwid = 5 + (seed % 5), bhei = 26 + (seed % 9);
-        ctx.fillStyle = spineCols[seed % spineCols.length];
-        ctx.globalAlpha = 0.75;
-        ctx.fillRect(sx, sy + 38 - bhei, bwid, bhei);
-        ctx.globalAlpha = 1;
-        sx += bwid + 3;
-      }
-    }
-    // 最下層：金狗公仔 + 火箭公仔 + 紅字時鐘
-    const fy = by + 8 + 2 * 46 + 38;
-    stamp(ctx, bx + 24, fy - 2, 1.3, 'big', 1, 0.25, false);
-    ctx.fillStyle = '#e8ecf4';
-    ctx.fillRect(bx + bw - 30, fy - 26, 8, 16);
-    ctx.fillStyle = '#ff4d6d';
-    ctx.fillRect(bx + bw - 30, fy - 32, 8, 6);
-    ctx.fillRect(bx + bw - 34, fy - 12, 4, 6);
-    ctx.fillRect(bx + bw - 22, fy - 12, 4, 6);
-    ctx.fillStyle = 'rgba(255,77,109,.9)';
-    ctx.font = '700 9px ' + MONO;
-    ctx.textAlign = 'left';
-    ctx.fillText('4:20', bx + bw / 2 - 8, fy - 12);
-
-    // ---- 書櫃旁：盆栽 ----
-    const px0 = bx + bw + 26, py0 = floorTop - 2;
-    ctx.fillStyle = '#3a2c1a';
-    ctx.fillRect(px0, py0 - 14, 18, 14);
-    ctx.fillStyle = '#0f9d6a';
-    ctx.fillRect(px0 + 3, py0 - 34, 4, 20);
-    ctx.fillRect(px0 + 11, py0 - 38, 4, 24);
-    ctx.fillStyle = '#14f195';
-    ctx.fillRect(px0 + 7, py0 - 42, 4, 28);
-
-    // ---- 右側地板：床 + 啞鈴 ----
-    const bedW = Math.min(W * 0.16, 210), bedH = 34;
-    const bedX = W - bedW - W * 0.03, bedY = floorTop + 18;
-    ctx.fillStyle = '#1b212c';
-    ctx.fillRect(bedX - 6, bedY - 4, bedW + 12, bedH + 10);
-    ctx.fillStyle = '#232b38';
-    ctx.fillRect(bedX, bedY, bedW, bedH - 8);
-    ctx.fillStyle = '#e8ecf4';
-    ctx.fillRect(bedX + 6, bedY + 4, 30, 14);
-    ctx.fillStyle = 'rgba(20,241,149,.35)';
-    ctx.fillRect(bedX + 44, bedY, bedW - 44, bedH - 8);
-    ctx.fillStyle = '#12161d';
-    ctx.fillRect(bedX - 6, bedY + bedH + 6, 6, 8);
-    ctx.fillRect(bedX + bedW, bedY + bedH + 6, 6, 8);
-    const du = bedX - 56;
-    for (let k = 0; k < 2; k++) {
-      const dy2 = bedY + bedH + 10 + k * 12;
-      ctx.fillStyle = '#7d8697';
-      ctx.fillRect(du + 8, dy2 + 3, 26, 3);
-      ctx.fillStyle = '#3a4150';
-      ctx.fillRect(du, dy2, 8, 9);
-      ctx.fillRect(du + 34, dy2, 8, 9);
+    // ---- 左遠角：發光狗幣座燈 ----
+    {
+      const lx2 = 26, ly2 = floorTop + 16;
+      ctx.shadowColor = 'rgba(255,176,32,.8)'; ctx.shadowBlur = 12;
+      ctx.fillStyle = '#ffb020';
+      ctx.beginPath(); ctx.ellipse(lx2, ly2, 9, 9, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = '#7a4d00';
+      ctx.font = '700 10px ' + MONO;
+      ctx.textAlign = 'center';
+      ctx.fillText('D', lx2, ly2 + 3);
+      ctx.fillStyle = '#12151c';
+      ctx.fillRect(lx2 - 5, ly2 + 9, 10, 4);
     }
 
     // 右下：霓虹站名
@@ -528,29 +450,30 @@
     drawTicker();
   }
 
-  /** 牆屏下緣的 LED 光條：本體 + 打上牆的光 + 地板柱狀反光（裝飾） */
+  /** 螢幕底座後的 LED 光條：本體 + 桌面反光（裝飾） */
   function drawLightStrip() {
     if (!wallRect) return;
     const lx = Math.max(10, wallRect.x0), rx = Math.min(W - 10, wallRect.x1);
     if (rx - lx < 60) return;
-    const ly = floorTop - 8;
+    const ly = floorTop - 7;
     const pulse = 0.75 + 0.25 * Math.sin(roomT * 1.6);
     ctx.fillStyle = 'rgba(20,241,149,' + (0.5 * pulse).toFixed(3) + ')';
     ctx.fillRect(lx, ly, rx - lx, 3);
-    const up = ctx.createLinearGradient(0, ly - 42, 0, ly);
+    const up = ctx.createLinearGradient(0, ly - 30, 0, ly);
     up.addColorStop(0, 'rgba(20,241,149,0)');
     up.addColorStop(1, 'rgba(20,241,149,' + (0.10 * pulse).toFixed(3) + ')');
     ctx.fillStyle = up;
-    ctx.fillRect(lx, ly - 42, rx - lx, 42);
+    ctx.fillRect(lx, ly - 30, rx - lx, 30);
+    // 桌面反光：柱狀往前淡出
     const n = Math.max(3, Math.round((rx - lx) / 240));
     const segW = (rx - lx) / n;
     for (let i = 0; i < n; i++) {
       const gx = lx + i * segW + 8;
-      const gg = ctx.createLinearGradient(0, floorTop, 0, floorTop + 74);
-      gg.addColorStop(0, 'rgba(20,241,149,' + (0.10 * pulse).toFixed(3) + ')');
+      const gg = ctx.createLinearGradient(0, floorTop, 0, floorTop + 60);
+      gg.addColorStop(0, 'rgba(20,241,149,' + (0.12 * pulse).toFixed(3) + ')');
       gg.addColorStop(1, 'rgba(20,241,149,0)');
       ctx.fillStyle = gg;
-      ctx.fillRect(gx, floorTop, segW - 16, 74);
+      ctx.fillRect(gx, floorTop, segW - 16, 60);
     }
   }
 

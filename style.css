@@ -212,7 +212,7 @@ button:disabled{opacity:.4;cursor:not-allowed}
 /* ---- 監控牆：四台主題螢幕（DOM，內容可捲動互動）---- */
 #screen-wall{
   position:absolute;left:50%;transform:translateX(-50%);
-  top:30px;width:min(1240px,84vw);height:calc(63vh - 46px);
+  top:26px;width:min(1560px,95vw);height:calc(74vh - 42px);
   display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.45fr) minmax(0,.92fr);
   grid-template-rows:minmax(0,1fr) minmax(0,1fr);gap:12px;
   z-index:2;
