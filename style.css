@@ -43,14 +43,15 @@ b{color:var(--fg);font-weight:650}
 #hero-addr:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 0 24px rgba(20,241,149,.25)}
 #hero-run{padding:18px 34px;font-size:16px;white-space:nowrap;box-shadow:0 0 26px rgba(20,241,149,.4)}
 .hero-note{margin:16px 0 0;font:12px var(--mono);letter-spacing:.14em;color:var(--dim)}
-.hero-nick{margin:14px 0 0;display:flex;justify-content:center}
-.hero-nick input{
-  width:min(280px,70vw);padding:10px 14px;text-align:center;
-  background:rgba(10,11,14,.72);border:1px solid var(--line-2);color:var(--fg);
-  font:13px var(--mono);letter-spacing:.06em;
+.hero-nick{margin:0 0 10px;display:flex;justify-content:center}
+/* 用 id 提高權重：全域的 input[type=text] 規則排在後面會蓋掉類別選擇器 */
+#nick{
+  width:min(230px,64vw);padding:7px 12px;text-align:center;
+  background:rgba(10,11,14,.6);border:1px solid var(--line);color:var(--fg);
+  font:12px var(--mono);letter-spacing:.06em;
 }
-.hero-nick input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
-.hero-nick input::placeholder{color:var(--dim)}
+#nick:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+#nick::placeholder{color:var(--dim)}
 @media (max-width:560px){
   #hero{min-height:78svh}
   #hero-form{flex-direction:column}
